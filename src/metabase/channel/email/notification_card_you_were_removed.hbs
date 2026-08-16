@@ -1,0 +1,3 @@
+{{> _header }}
+    <p>{{actor_name}} 已取消你对 <a {{#unless payload.disable_links}}href="{{{card-url payload.card_id}}}"{{/unless}}>{{payload.card.name}}</a> 的预警订阅。</p>
+{{> _footer }}

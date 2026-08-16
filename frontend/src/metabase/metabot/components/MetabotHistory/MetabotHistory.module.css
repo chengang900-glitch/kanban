@@ -1,0 +1,74 @@
+.container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  flex: 0 0 auto;
+  padding: 1.25rem 1.5rem 1rem;
+  border-bottom: 1px solid var(--mb-color-border);
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.75rem;
+}
+
+.item {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 4rem;
+  border-radius: 0.5rem;
+  color: var(--mb-color-text-primary);
+
+  &:hover {
+    background-color: var(--mb-color-background_surface-hover);
+  }
+}
+
+.itemButton {
+  flex: 1;
+  min-width: 0;
+  padding: 0.75rem;
+  color: var(--mb-color-text-primary);
+  text-align: left;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+.deleteButton {
+  flex: 0 0 auto;
+  margin-right: 0.5rem;
+  opacity: 0;
+  transition: opacity 150ms ease;
+
+  .item:hover &,
+  &:focus-visible {
+    opacity: 1;
+  }
+}
+
+@media (hover: none) {
+  .deleteButton {
+    opacity: 1;
+  }
+}
+
+.itemLabel {
+  width: 100%;
+  min-width: 0;
+}
+
+.summary {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,0 +1,29 @@
+{{> _header }}
+  <div class="card-container" style="color: {{colorTextMedium}};">
+    {{#if self-hosted}}
+    <p style="font-weight: 500; font-size: 0.875em; line-height: 1.375em; color: {{colorTextMedium}};">
+      <i>（此邮件直接由 {{self-hosted}} 发送，不经过外部服务）</i>
+    </p>
+    {{/if}}
+
+    <p style="font-weight: 500; line-height: 1.375em; color: {{colorTextMedium}};">
+      你好，{{first-name}}：
+    </p>
+
+    <p style="font-weight: 500; line-height: 1.375em; color: {{colorTextMedium}};">
+      感谢你使用数据看板创建问题、看板等分析内容。
+    </p>
+
+    <p style="font-weight: 600; line-height: 1.375em; color: {{colorTextMedium}};">
+      此邮件无需进行任何操作。
+    </p>
+
+    <p style="font-weight: 500; line-height: 1.375em; color: {{colorTextMedium}};">
+      谢谢。
+    </p>
+
+    <p style="font-weight: 500; line-height: 1.375em; color: {{colorTextMedium}};">
+      数据看板团队
+    </p>
+  </div>
+{{> _footer }}

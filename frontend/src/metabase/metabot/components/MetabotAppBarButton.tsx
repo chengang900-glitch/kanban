@@ -1,0 +1,60 @@
+import { t } from "ttag";
+
+import {
+  useIsAskPage,
+  useMetabotAgent,
+  useUserMetabotPermissions,
+} from "metabase/metabot/hooks";
+import { ActionIcon, type ActionIconProps, Tooltip } from "metabase/ui";
+
+import { trackMetabotChatOpened } from "../analytics";
+
+import { MetabotIcon } from "./MetabotIcon";
+
+interface MetabotAppBarButtonProps extends ActionIconProps {
+  className?: string;
+}
+
+export function MetabotAppBarButton({
+  className,
+  ...rest
+}: MetabotAppBarButtonProps) {
+  const { hasMetabotAccess } = useUserMetabotPermissions();
+  const metabot = useMetabotAgent("omnibot");
+  const isAskPage = useIsAskPage();
+
+  if (!hasMetabotAccess) {
+    return null;
+  }
+
+  const handleClick = () => {
+    if (!metabot.visible) {
+      trackMetabotChatOpened("header");
+    }
+
+    metabot.setVisible(!metabot.visible);
+  };
+
+  const label = t`AI助手`;
+
+  return (
+    <Tooltip label={label}>
+      <ActionIcon
+        className={className}
+        variant="subtle"
+        c={isAskPage ? "text-disabled" : "text-primary"}
+        opacity={isAskPage ? 0.5 : undefined}
+        bd="1px solid var(--mb-color-border-neutral)"
+        p="sm"
+        h="2.25rem"
+        w="2.25rem"
+        aria-label={label}
+        onClick={handleClick}
+        {...rest}
+        disabled={isAskPage}
+      >
+        <MetabotIcon />
+      </ActionIcon>
+    </Tooltip>
+  );
+}

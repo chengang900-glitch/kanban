@@ -1,0 +1,11 @@
+.optionsRoot {
+  margin-left: var(--mantine-spacing-sm);
+  margin-right: var(--mantine-spacing-sm);
+}
+
+@media (--breakpoint-min-sm) {
+  .optionsRoot {
+    margin-left: 4rem;
+    margin-right: 4rem;
+  }
+}

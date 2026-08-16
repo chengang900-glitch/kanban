@@ -1,0 +1,5 @@
+{{> _header }}
+    <p>你已开始接收关于 <a href="{{{card-url payload.card_id}}}">{{payload.card.name}}</a> 的预警。</p>
+    <p>当{{> _notification_card_condition send_condition=payload.send_condition}}时，系统将向你发送邮件。</p>
+    <p>如果不想继续接收，可以<a href="{{{card-url payload.card_id}}}">前往此问题</a>，点击右上角的分享图标取消订阅。</p>
+{{> _footer }}

@@ -1,0 +1,14 @@
+{{> _header }}
+<p>你好，{{userName}}：</p>
+<p>旧版定时推送功能已经停用，现在需要将其移除。</p>
+<p>下一个版本将删除所有旧版定时推送，仅保留看板订阅。</p>
+<p>你当前仍在使用的旧版定时推送如下：</p>
+<ul>
+  {{#each pulses}}
+    <li><a href="{{{this.url}}}">{{this.name}}</a></li>
+  {{/each}}
+</ul>
+<p>请使用看板订阅和预警替代旧版定时推送。</p>
+<p>此邮件已发送给 <a href="{{instanceURL}}">{{instanceURL}}</a> 的所有管理员。</p>
+<p>数据看板团队</p>
+{{> _footer }}

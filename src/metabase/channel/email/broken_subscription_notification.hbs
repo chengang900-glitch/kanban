@@ -1,0 +1,83 @@
+{{> _header }}
+<div class="card-container">
+  <h2
+    style="margin: 0; padding: 0; font-weight: 700; font-size: 1.5em; color: {{colorTextDark}}; line-height: 1.5em;"
+  >
+    已删除对 {{dashboardName}} 的订阅
+  </h2>
+
+  <p
+    style="font-weight: 600; font-size: 0.875em; line-height: 1.375em; color: {{colorTextMedium}};"
+  >
+    此看板中一个被订阅使用的筛选条件已删除，因此对应订阅也已删除。
+    以下是被删除的筛选条件和用户信息。
+  </p>
+
+  <table
+    cellpadding="0"
+    cellspacing="0"
+    border="0"
+    width="100%"
+    style="border-collapse: separate; border-spacing: 0 2em;"
+  >
+    <tr>
+      <td
+        style="font-weight: 600; font-size: 0.875em; color: {{colorTextMedium}}; line-height: 1.375em;"
+      >
+        筛选条件名称
+      </td>
+      <td
+        style="font-weight: 600; font-size: 0.875em; color: {{colorTextMedium}}; line-height: 1.375em;"
+      >
+        筛选条件值
+      </td>
+    </tr>
+    {{#each badParameters}}
+      <tr>
+        <td style="text-align: left;">{{this.name}}</td>
+        <td style="text-align: left;">{{this.value}}</td>
+      </tr>
+    {{/each}}
+    <tr />
+    <tr>
+      <td
+        style="font-weight: 600; font-size: 0.875em; color: {{colorTextMedium}}; line-height: 1.375em;"
+      >
+        通知类型
+      </td>
+      <td
+        style="font-weight: 600; font-size: 0.875em; color: {{colorTextMedium}}; line-height: 1.375em;"
+      >
+        收件人
+      </td>
+      <td
+        style="font-weight: 600; font-size: 0.875em; color: {{colorTextMedium}}; line-height: 1.375em;"
+      >
+        角色
+      </td>
+    </tr>
+    {{#each affectedUsers}}
+      <tr>
+        <td>{{this.notification-type}}</td>
+        <td>{{this.recipient}}</td>
+        <td>{{this.role}}</td>
+      </tr>
+    {{/each}}
+  </table>
+
+  {{#unless disable_links}}
+  <div style="text-align: center;">
+    <a
+      href="{{{dashboardUrl}}}"
+      style="display: inline-block; padding: 0.75rem 1.125em; background-color: {{applicationColor}};
+        color: #FFF; border-radius: 6px; font-size: 0.875em; font-weight: 700; text-decoration: none;"
+    >
+      查看此看板
+    </a>
+  </div>
+  <div
+    style="height: 1px; width: 100%; background-color: #F0F0F0; margin-top: 2em;"
+  ></div>
+  {{/unless}}
+</div>
+{{> _footer }}

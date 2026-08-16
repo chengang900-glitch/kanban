@@ -1,0 +1,4 @@
+{{> _header }}
+  <p>由于 {{actor.first_name}} {{actor.last_name}} 已归档问题，关于 {{card.name}}（#{{card.id}}）的预警已停止。</p>
+  {{#unless disable_links}}<p>如需恢复，请前往<a href="{{{trash-url}}}">回收站</a>恢复该问题，然后重新创建预警。</p>{{/unless}}
+{{> _footer }}

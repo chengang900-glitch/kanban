@@ -1,0 +1,417 @@
+(ns metabase.server.middleware.session
+  "Ring middleware related to session and API-key based authentication (binding current user and permissions).
+
+  How do authenticated API requests work? There are two main paths to authentication: a session or an API key.
+
+  For session authentication, Metabase first looks for a cookie called `metabase.SESSION`. This is the normal way of
+  doing things; this cookie gets set automatically upon login. `metabase.SESSION` is an HttpOnly cookie and thus can't
+  be viewed by FE code. If the session is a full-app embedded session, then the cookie is `metabase.EMBEDDED_SESSION`
+  instead.
+
+  Finally we'll check for the presence of a `X-Metabase-Session` header. If that isn't present, you don't have a
+  Session ID.
+
+  The second main path to authentication is an API key. For this, we look at the `X-Api-Key` header. If that matches
+  an ApiKey in our database, you'll be authenticated as that ApiKey's associated User."
+  (:require
+   [clojure.string :as str]
+   [honey.sql.helpers :as sql.helpers]
+   [java-time.api :as t]
+   [malli.error :as me]
+   [medley.core :as m]
+   [metabase.analytics.core :as analytics]
+   [metabase.api-keys.core :as api-key]
+   [metabase.api-keys.schema :as api-keys.schema]
+   [metabase.api.macros.scope :as scope]
+   [metabase.app-db.core :as mdb]
+   [metabase.config.core :as config]
+   [metabase.initialization-status.core :as init-status]
+   [metabase.oauth-server.core :as oauth-server]
+   [metabase.premium-features.core :as premium-features]
+   [metabase.request.core :as request]
+   [metabase.request.schema :as request.schema]
+   [metabase.session.core :as session]
+   [metabase.settings.core :as setting]
+   [metabase.tracing.core :as tracing]
+   [metabase.util.honey-sql-2 :as h2x]
+   [metabase.util.i18n :as i18n]
+   [metabase.util.log :as log]
+   [metabase.util.malli :as mu]
+   [metabase.util.malli.registry :as mr]
+   [metabase.util.password :as u.password]
+   [metabase.util.string :as string]
+   [toucan2.core :as t2]
+   [toucan2.pipeline :as t2.pipeline]))
+
+(set! *warn-on-reflection* true)
+
+;;; +----------------------------------------------------------------------------------------------------------------+
+;;; |                                                wrap-session-key                                                 |
+;;; +----------------------------------------------------------------------------------------------------------------+
+
+(def ^:private ^String metabase-session-header "x-metabase-session")
+
+(defmulti ^:private wrap-session-key-with-strategy
+  "Attempt to add `:metabase-session-key` to `request` based on a specific strategy. Return modified request if
+  successful or `nil` if we should try another strategy."
+  {:arglists '([strategy request])}
+  (fn [strategy _]
+    strategy))
+
+(defmethod wrap-session-key-with-strategy :embedded-cookie
+  [_ {:keys [cookies headers], :as request}]
+  (when-let [session (get-in cookies [request/metabase-embedded-session-cookie :value])]
+    (when-let [anti-csrf-token (get headers request/anti-csrf-token-header)]
+      (assoc request :metabase-session-key session, :anti-csrf-token anti-csrf-token :metabase-session-type :full-app-embed))))
+
+(defmethod wrap-session-key-with-strategy :normal-cookie
+  [_ {:keys [cookies], :as request}]
+  (when-let [session (get-in cookies [request/metabase-session-cookie :value])]
+    (when (seq session)
+      (assoc request :metabase-session-key session :metabase-session-type :normal))))
+
+(defmethod wrap-session-key-with-strategy :header
+  [_ {:keys [headers], :as request}]
+  (when-let [session (get headers metabase-session-header)]
+    (when (seq session)
+      (assoc request :metabase-session-key session))))
+
+(defmethod wrap-session-key-with-strategy :best
+  [_ request]
+  (some
+   (fn [strategy]
+     (wrap-session-key-with-strategy strategy request))
+   [:embedded-cookie :normal-cookie :header]))
+
+(defn wrap-session-key
+  "Middleware that sets the `:metabase-session-key` keyword on the request if a session id can be found.
+  We first check the request :cookies for `metabase.SESSION`, then if no cookie is found we look in the http headers
+  for `X-METABASE-SESSION`. If neither is found then no keyword is bound to the request."
+  [handler]
+  (fn [request respond raise]
+    (let [request (or (wrap-session-key-with-strategy :best request)
+                      request)]
+      (handler request respond raise))))
+
+;;; +----------------------------------------------------------------------------------------------------------------+
+;;; |                                             wrap-current-user-info                                             |
+;;; +----------------------------------------------------------------------------------------------------------------+
+
+;; Because this query runs on every single API request it's worth it to optimize it a bit and only compile it to SQL
+;; once rather than every time
+(defn- oldest-allowed-expr
+  "Build a database-specific expression for `NOW() - interval`."
+  [db-type amount unit]
+  (case db-type
+    :postgres [:- [:raw "current_timestamp"]
+               [:raw (format "INTERVAL '%d %s'" amount (name unit))]]
+    :h2       [:dateadd (h2x/literal (name unit))
+               [:inline (- amount)]
+               :%now]
+    :mysql    [:date_add :%now
+               [:raw (format "INTERVAL -%d %s" amount (name unit))]]))
+
+(def ^:private ^{:arglists '([db-type max-age-minutes session-type enable-advanced-permissions? enable-tenants? session-timeout-seconds])} session-with-id-query
+  (memoize
+   (fn [db-type max-age-minutes session-type enable-advanced-permissions? enable-tenants? session-timeout-seconds]
+     (first
+      (t2.pipeline/compile*
+       (cond-> {:select    [[:session.user_id :metabase-user-id]
+                            [:user.is_superuser :is-superuser?]
+                            [:user.is_data_analyst :is-data-analyst?]
+                            [:user.locale :user-locale]
+                            [:auth_identity.provider :auth-provider]]
+                :from      [[:core_session :session]]
+                :left-join [[:core_user :user] [:= :session.user_id :user.id]
+                            [:tenant] [:= :tenant.id :user.tenant_id]
+                            [:auth_identity] [:= :auth_identity.id :session.auth_identity_id]]
+                :where     (into [:and
+                                  (if enable-tenants?
+                                    [:or [:= :tenant.id nil] :tenant.is_active]
+                                    [:= :tenant.id nil])
+                                  [:= :user.is_active true]
+                                  [:or [:= :session.id [:raw "?"]] [:= :session.key_hashed [:raw "?"]]]
+                                  [:> :session.created_at (oldest-allowed-expr db-type max-age-minutes :minute)]
+                                  [:= :session.anti_csrf_token (case session-type
+                                                                 :normal         nil
+                                                                 :full-app-embed [:raw "?"])]]
+                                 (when session-timeout-seconds
+                                   [[:> [:coalesce :session.last_active_at :session.created_at]
+                                     (oldest-allowed-expr db-type session-timeout-seconds :second)]]))
+                :limit     [:inline 1]}
+         enable-advanced-permissions?
+         (->
+          (sql.helpers/select
+           [:pgm.is_group_manager :is-group-manager?])
+          (sql.helpers/left-join
+           [:permissions_group_membership :pgm] [:and
+                                                 [:= :pgm.user_id :user.id]
+                                                 [:is :pgm.is_group_manager true]]))))))))
+
+;; See above: because this query runs on every single API request (with an API Key) it's worth it to optimize it a bit
+;; and only compile it to SQL once rather than every time
+(def ^:private ^{:arglists '([enable-advanced-permissions?])} user-data-for-api-key-prefix-query
+  (memoize
+   (fn [enable-advanced-permissions?]
+     (first
+      (t2.pipeline/compile*
+       (cond-> {:select    [[:api_key.user_id :metabase-user-id]
+                            [:api_key.key :api-key]
+                            [:user.is_superuser :is-superuser?]
+                            [:user.is_data_analyst :is-data-analyst?]
+                            [:user.locale :user-locale]]
+                :from      :api_key
+                :left-join [[:core_user :user] [:= :api_key.user_id :user.id]]
+                :where     [:and
+                            [:= :user.is_active true]
+                            [:= :api_key.key_prefix [:raw "?"]]]
+                :limit     [:inline 1]}
+         enable-advanced-permissions?
+         (->
+          (sql.helpers/select
+           [:pgm.is_group_manager :is-group-manager?])
+          (sql.helpers/left-join
+           [:permissions_group_membership :pgm] [:and
+                                                 [:= :pgm.user_id :user.id]
+                                                 [:is :pgm.is_group_manager true]]))))))))
+
+;; Like the session/api-key queries above, this runs on every OAuth-bearer-authenticated API request, so
+;; compile it to SQL once. Keyed on the resolved user id from the OAuth access token.
+(def ^:private ^{:arglists '([enable-advanced-permissions?])} user-data-for-id-query
+  (memoize
+   (fn [enable-advanced-permissions?]
+     (first
+      (t2.pipeline/compile*
+       (cond-> {:select    [[:user.id :metabase-user-id]
+                            [:user.is_superuser :is-superuser?]
+                            [:user.is_data_analyst :is-data-analyst?]
+                            [:user.locale :user-locale]]
+                :from      [[:core_user :user]]
+                :where     [:and
+                            [:= :user.is_active true]
+                            [:= :user.id [:raw "?"]]]
+                :limit     [:inline 1]}
+         enable-advanced-permissions?
+         (->
+          (sql.helpers/select
+           [:pgm.is_group_manager :is-group-manager?])
+          (sql.helpers/left-join
+           [:permissions_group_membership :pgm] [:and
+                                                 [:= :pgm.user_id :user.id]
+                                                 [:is :pgm.is_group_manager true]]))))))))
+
+(defn- valid-session-key?
+  "Validates that the given session-key looks like it could be a session id. Returns a 403 if it does not.
+
+  SECURITY NOTE: Because functions will directly compare the session-key against the core_session.id table for
+  backwards-compatibility reasons, if this is NOT called before those queries against core_session.id, attackers with
+  access to the database can impersonate users by passing the core_session.id as their session cookie"
+  [session-key]
+  (or (not session-key) (string/valid-uuid? session-key)))
+
+(mu/defn- current-user-info-for-session :- [:maybe ::request.schema/current-user-info]
+  "Return User ID and superuser status for Session with `session-key` if it is valid and not expired."
+  [session-key anti-csrf-token]
+  (when (and session-key (valid-session-key? session-key) (init-status/complete?))
+    (let [timeout (request/enabled-session-timeout-seconds)
+          sql     (session-with-id-query (mdb/db-type)
+                                         (config/config-int :max-session-age)
+                                         (if (seq anti-csrf-token) :full-app-embed :normal)
+                                         (premium-features/enable-advanced-permissions?)
+                                         (and (premium-features/enable-tenants?)
+                                              (setting/get :use-tenants))
+                                         timeout)
+          params  (concat [session-key (session/hash-session-key session-key)]
+                          (when (seq anti-csrf-token)
+                            [anti-csrf-token]))]
+      (some-> (t2/query-one (cons sql params))
+              ;; is-group-manager? could return `nil, convert it to boolean so it's guaranteed to be only true/false
+              (update :is-group-manager? boolean)))))
+
+(def ^:private api-key-that-should-never-match (str (random-uuid)))
+(def ^:private hash-that-should-never-match (u.password/hash-bcrypt "password"))
+
+(defn do-useless-hash
+  "Password check that will always fail, used to avoid exposing any info about existing users or API keys via timing
+  attacks."
+  []
+  (u.password/verify-password api-key-that-should-never-match "" hash-that-should-never-match))
+
+(defn- matching-api-key? [{:keys [api-key] :as _user-data} passed-api-key]
+  ;; if we get an API key, check the hash against the passed value. If not, don't reveal info via a timing attack - do
+  ;; a useless hash, *then* return `false`.
+  (if api-key
+    (u.password/verify-password passed-api-key "" api-key)
+    (do-useless-hash)))
+
+(mu/defn- current-user-info-for-api-key :- [:maybe ::request.schema/current-user-info]
+  "Return User ID and superuser status for an API Key with `api-key-id"
+  [api-key :- [:maybe :string]]
+  (when (and api-key
+             (init-status/complete?))
+    ;; make sure the API key is valid before we entertain the idea of allowing it.
+    (if-let [error (some-> (mr/explain ::api-keys.schema/key.raw api-key)
+                           me/humanize
+                           pr-str)]
+      (do
+        ;; 99% sure the error message is not going to include the API key but just to be extra super safe let's not log
+        ;; it if the error message includes the key itself.
+        (if (str/includes? error api-key)
+          (log/error "Ignoring invalid API Key")
+          (log/errorf "Ignoring invalid API Key: %s" error))
+        nil)
+      (let [user-info (-> (t2/query-one (cons (user-data-for-api-key-prefix-query
+                                               (premium-features/enable-advanced-permissions?))
+                                              [(api-key/prefix api-key)]))
+                          (m/update-existing :is-group-manager? boolean))]
+        (when (matching-api-key? user-info api-key)
+          (-> user-info
+              (dissoc :api-key)))))))
+
+(def ^:private full-access-token-scopes
+  "The `:token-scopes` value that grants a bearer-authenticated request access to the general
+   REST API as its user. The `::scope/unrestricted` keyword sentinel (not the `\"*\"` string)
+   is the only thing that lets a scoped token through endpoints that declare no `:scope` (see
+   [[metabase.api.macros.scope/ensure-scopes-checked]])."
+  #{::scope/unrestricted})
+
+(defn- oauth-token->token-scopes
+  "Map the OAuth scopes granted to a bearer access token onto the `:token-scopes` value the API
+   scope middleware understands. A token carrying the full-access scope (`mb:full`) becomes the
+   unrestricted sentinel — reachable across the whole REST API as the user. Any narrower scope
+   set is passed through verbatim, so the token can reach only the agent endpoints that opt into
+   those scopes and is rejected elsewhere by `ensure-scopes-checked`.
+
+   This mapping is the single trust hinge for OAuth bearer auth on the general API; keep it here
+   and unit-test the two directions (full ⇒ unrestricted, narrow ⇒ passed through) so the
+   security invariant can't silently regress."
+  [granted-scopes]
+  (if (contains? granted-scopes oauth-server/full-access-scope)
+    full-access-token-scopes
+    granted-scopes))
+
+(mu/defn- current-user-info-for-oauth-token :- [:maybe ::request.schema/current-user-info]
+  "Return current-user-info for a valid OAuth bearer access token on `request`, or nil. Mirrors the
+   shape returned by the session/api-key resolvers and additionally attaches `:token-scopes`, so the
+   merged request carries both the user identity and the access the token was granted. This is the
+   only place an OAuth access token authenticates a request to the general (`/api/*`) API."
+  [request]
+  (when (init-status/complete?)
+    (when-let [token (oauth-server/extract-bearer-token request)]
+      (when-let [{:keys [user-id scopes]} (oauth-server/resolve-access-token token)]
+        (some-> (t2/query-one (cons (user-data-for-id-query (premium-features/enable-advanced-permissions?))
+                                    [user-id]))
+                (m/update-existing :is-group-manager? boolean)
+                (assoc :token-scopes (oauth-token->token-scopes scopes)))))))
+
+(defn- auth-method
+  [session-info api-key-info oauth-info embedding-route]
+  (or ({"guest-embed" "guest"} embedding-route embedding-route)
+      (cond session-info (or (:auth-provider session-info) "session")
+            api-key-info "api-key"
+            oauth-info   "oauth")))
+
+(defn- merge-current-user-info
+  [{:keys [metabase-session-key anti-csrf-token], {:strs [x-metabase-locale x-api-key]} :headers, :as request}]
+  (let [session-info (current-user-info-for-session metabase-session-key anti-csrf-token)
+        api-key-info (when-not session-info (current-user-info-for-api-key x-api-key))
+        ;; Bearer is the lowest-precedence path: only consulted when there's no session or API key.
+        oauth-info   (when-not (or session-info api-key-info)
+                       (current-user-info-for-oauth-token request))
+        embedding-route (analytics/get-route)
+        auth-method (auth-method session-info api-key-info oauth-info embedding-route)]
+    (merge
+     request
+     ;; oauth-info carries `:token-scopes` in addition to the standard current-user-info keys, so
+     ;; merging it whole both authenticates the request and records the granted scopes.
+     (dissoc (or session-info api-key-info oauth-info) :auth-provider)
+     (when auth-method {:embedding/auth-method auth-method})
+     (when x-metabase-locale
+       (log/tracef "Found X-Metabase-Locale header: using %s as user locale" (pr-str x-metabase-locale))
+       {:user-locale (i18n/normalized-locale-string x-metabase-locale)}))))
+
+(defn wrap-current-user-info
+  "Add `:metabase-user-id`, `:is-superuser?`, `:is-group-manager?` and `:user-locale` to the request if a valid session
+  token, API key, OR OAuth bearer access token was passed. A bearer token additionally sets `:token-scopes` (the access
+  it was granted); precedence is session > API key > bearer."
+  [handler]
+  (fn [request respond raise]
+    (let [request' (tracing/with-span :db-app "db-app.session-lookup" {}
+                     (merge-current-user-info request))]
+      (analytics/with-auth-method! (:embedding/auth-method request')
+        (handler request' respond raise)))))
+
+;;; +----------------------------------------------------------------------------------------------------------------+
+;;; |                                               bind-current-user                                                |
+;;; +----------------------------------------------------------------------------------------------------------------+
+
+(defmacro ^:private with-current-user-for-request
+  [request & body]
+  `(request/do-with-current-user ~request (fn [] ~@body)))
+
+(defn bind-current-user
+  "Middleware that binds [[metabase.api.common/*current-user*]], [[*current-user-id*]], [[*is-superuser?*]],
+  [[*current-user-permissions-set*]], and [[metabase.settings.models.setting/*user-local-values*]].
+
+  *  `*current-user-id*`                int ID or nil of user associated with request
+  *  `*current-user*`                   delay that returns current user (or nil) from DB
+  *  `metabase.util.i18n/*user-locale*` ISO locale code e.g `en` or `en-US` to use for the current User.
+                                        Overrides `site-locale` if set.
+  *  `*is-superuser?*`                  Boolean stating whether current user is a superuser.
+  *  `*is-group-manager?*`              Boolean stating whether current user is a group manager of at least one group.
+  *  `*current-user-permissions-set*`   delay that returns the set of permissions granted to the current user from DB
+  *  `*user-local-values*`              atom containing a map of user-local settings and values for the current user"
+  [handler]
+  (fn [request respond raise]
+    (with-current-user-for-request request
+      (handler request respond raise))))
+
+;;; +----------------------------------------------------------------------------------------------------------------+
+;;; |                                         session activity tracking                                              |
+;;; +----------------------------------------------------------------------------------------------------------------+
+
+(defn- maybe-update-session-activity!
+  "Update the `last_active_at` column for the session identified by `session-key`, throttled to avoid a DB write on
+   every request. Uses raw SQL to bypass the Session model's no-update restriction."
+  [session-key]
+  (when (request/enabled-session-timeout-seconds)
+    (let [hashed (session/hash-session-key session-key)]
+      (when (session/record-session-activity-update! hashed)
+        (try
+          (t2/query-one {:update (t2/table-name :model/Session)
+                         :set    {:last_active_at :%now}
+                         :where  [:= :key_hashed hashed]})
+          (catch Exception e
+            (log/warnf "Failed to update session last_active_at: %s" (ex-message e))))))))
+
+;;; +----------------------------------------------------------------------------------------------------------------+
+;;; |                                              reset-cookie-timeout                                             |
+;;; +----------------------------------------------------------------------------------------------------------------+
+
+(defn reset-session-timeout*
+  "Implementation for `reset-cookie-timeout` respond handler."
+  [request response request-time]
+  (if (and
+       ;; Only reset the timeout if the request includes a session cookie.
+       (:metabase-session-type request)
+       ;; Do not reset the timeout if it is being updated in the response, e.g. if it is being deleted
+       (not (contains? (:cookies response) request/metabase-session-timeout-cookie)))
+    (request/set-session-timeout-cookie response request (:metabase-session-type request) request-time)
+    response))
+
+(defn reset-session-timeout
+  "Middleware that resets the expiry date on session cookies according to the session-timeout setting.
+   Will not change anything if the session-timeout setting is nil, or the timeout cookie has already expired."
+  [handler]
+  (fn [request respond raise]
+    (let [;; The expiry time for the cookie is relative to the time the request is received, rather than the time of the
+          ;; response.
+          request-time (t/zoned-date-time (t/zone-id "GMT"))]
+      (handler request
+               (fn [response]
+                 ;; Update last_active_at for server-side timeout enforcement
+                 (when-let [session-key (:metabase-session-key request)]
+                   (when (:metabase-user-id request)
+                     (maybe-update-session-activity! session-key)))
+                 (respond (reset-session-timeout* request response request-time)))
+               raise))))
