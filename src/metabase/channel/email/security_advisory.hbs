@@ -1,0 +1,15 @@
+{{> _header }}
+  <div style="text-align: center; margin: 0 auto; max-width: 500px">
+    <div style="text-align: left">
+      <div style="display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; text-transform: uppercase; color: #fff; background-color: {{payload.custom.severity_color}}; margin-bottom: 16px;">
+        {{payload.custom.severity_label}}
+      </div>
+      <h2 style="font-weight: normal; color: #4C545B; line-height: 34px; margin-top: 12px;">安全公告：{{payload.event_info.object.title}}</h2>
+      <p style="line-height: 22px; color: #4C545B;">{{payload.event_info.object.description}}</p>
+      <p style="line-height: 22px; color: #4C545B;"><strong>状态：</strong> {{payload.custom.status_label}}</p>
+      <p style="line-height: 22px; color: #4C545B;"><strong>处理建议：</strong> {{payload.event_info.object.remediation}}</p>
+      <p style="line-height: 22px; margin-top: 24px; margin-bottom: 32px; font-size: 13px; color: #696E73;">在管理员确认该公告之前，系统会重复发送此通知。</p>
+    </div>
+    <a style="{{context.style.button}}" href="{{payload.custom.security_center_url}}">前往安全中心</a>
+  </div>
+{{> _footer }}

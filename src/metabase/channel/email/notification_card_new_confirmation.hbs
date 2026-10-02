@@ -1,0 +1,4 @@
+{{> _header }}
+    <p>你已成功为 <a {{#unless payload.event_info.object.payload.disable_links}}href="{{{card-url payload.event_info.object.payload.card_id}}}"{{/unless}}>{{payload.event_info.object.payload.card.name}}</a> 创建预警。</p>
+    <p>当{{> _notification_card_condition send_condition=payload.event_info.object.payload.send_condition}}时，系统将发送此预警。</p>
+{{> _footer}}

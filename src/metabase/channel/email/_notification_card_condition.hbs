@@ -1,0 +1,11 @@
+{{#if (equals send_condition "has_result")}}
+  该问题有任何结果
+{{else}}
+  {{#if (equals send_condition "goal_above")}}
+    该问题达到目标值
+  {{else}}
+    {{#if (equals send_condition "goal_below")}}
+      该问题低于目标值
+    {{/if}}
+  {{/if}}
+{{/if}} 

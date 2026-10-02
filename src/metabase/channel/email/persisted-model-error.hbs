@@ -1,0 +1,103 @@
+{{> _header }}
+  <div class="card-container">
+    <h2
+      style="margin: 0; padding: 0; font-weight: 700; font-size: 1.5em; color: {{colorTextDark}}; line-height: 1.5em;"
+    >
+      {{database-name}} 的模型刷新失败
+    </h2>
+    {{#each errors}}
+      {{#if}}
+        {{#if this.is-not-first}}
+          <div>
+        {{else}}
+          <div class="padded-section">
+        {{/if}}
+        <p
+          style="font-weight: 600; font-size: 0.875em; line-height: 1.375em; color: {{colorTextMedium}};"
+        >
+          刷新模型 {{this.card-name}} 时遇到问题，错误说明如下：
+        </p>
+        <code
+          style="display: block; background-color: #F9FBFC; color: {{colorTextDark}}; border-radius: 4px; padding: 1.375rem 2.25em; margin-top: 1.125em; margin-bottom: 1.125em;"
+        >
+          {{this.error}}
+        </code>
+        <table
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+          width="100%"
+          style="border-collapse: separate; border-spacing: 0 2em;"
+        >
+          <tr>
+            <td
+              style="font-weight: 600; font-size: 0.875em; color: {{colorTextMedium}}; line-height: 1.375em;"
+            >
+              模型名称
+            </td>
+            <td>
+              <a
+                href="{{{this.card-url}}}"
+                style="font-weight: 600; font-size: 0.875em; color: {{applicationColor}}; line-height: 1.375em; text-decoration: none;"
+              >
+                {{this.card-name}}
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="font-weight: 600; font-size: 0.875em; color: {{colorTextMedium}}; line-height: 1.375em;"
+            >
+              集合
+            </td>
+            <td>
+              <a
+                href="{{{this.collection-url}}}"
+                style="font-weight: 600; font-size: 0.875em; color: {{applicationColor}}; line-height: 1.375em; text-decoration: none;"
+              >
+                {{this.collection-name}}
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="font-weight: 600; font-size: 0.875em; color: {{colorTextMedium}}; line-height: 1.375em;"
+            >
+              上次运行时间
+            </td>
+            <td
+              style="font-weight: 600; font-size: 0.875em; color: {{colorTextDark}}; line-height: 1.375em;"
+            >
+              {{this.last-run-at}}
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="font-weight: 600; font-size: 0.875em; color: {{colorTextMedium}}; line-height: 1.375em;"
+            >
+              上次运行方式
+            </td>
+            <td
+              style="font-weight: 600; font-size: 0.875em; color: {{colorTextDark}}; line-height: 1.375em;"
+            >
+              {{this.last-run-trigger}}
+            </td>
+          </tr>
+        </table>
+
+        <div style="text-align: center;">
+          <a
+            href="{{this.caching-log-details-url}}"
+            style="display: inline-block; padding: 0.75rem 1.125em; background-color: {{applicationColor}}; color: #FFF; border-radius: 6px; font-size: 0.875em; font-weight: 700; text-decoration: none;"
+          >
+            在工具页面中查看
+          </a>
+        </div>
+        </div>
+      {{/if}}
+    {{/each}}
+    <div
+      style="height: 1px; width: 100%; background-color: #F0F0F0; margin-top: 2em;"
+    ></div>
+  </div>
+{{> _footer }}

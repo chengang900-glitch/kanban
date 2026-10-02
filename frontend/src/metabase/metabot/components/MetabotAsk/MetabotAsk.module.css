@@ -1,0 +1,43 @@
+.chat {
+  --metabot-chat-messages-padding-top: 2rem;
+}
+
+.topFade {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1rem;
+  background: linear-gradient(
+    to bottom,
+    var(--mb-color-background_page-primary),
+    transparent
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+.historyButton {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 2;
+}
+
+.historyDrawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  width: 30rem;
+  max-width: 100%;
+  height: 100%;
+  background-color: var(--mb-color-background_page-primary);
+  border-left: 1px solid var(--mb-color-border);
+  box-shadow: -0.5rem 0 1.5rem var(--mb-color-shadow-default);
+
+  @media (max-width: 48rem) {
+    width: 100%;
+    border-left: 0;
+  }
+}

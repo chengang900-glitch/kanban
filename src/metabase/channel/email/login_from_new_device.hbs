@@ -1,0 +1,38 @@
+{{> _dashsub_alert_header }}
+  <body style="padding: 0px; margin: 0px">
+    <table class="background" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #F9F9F9; padding: 48px; table-layout: fixed;">
+      <tr>
+        <td>
+          <div class="container" style="background-color: white; max-width: 555px; border-radius: 24px; margin: 0 auto; padding: 40px; border: 1px solid rgba(7, 23, 34, 0.14)">
+            <h1 style="text-align: center; font-size: 27px; line-height: 36px; font-weight: 400; margin: 0 0 24px 0; color: #2F3C45;">
+              检测到你的数据看板账号有一次新设备登录
+            </h1>
+
+            <p style="text-align: center; font-size: 15px; line-height: 165%; color: #2F3C45; margin: 0 0 16px 0;">
+              你好，{{first-name}}。你的数据看板账号刚刚从一台新设备登录。
+            </p>
+
+            <div style="background-color: #FAFAFB; border-radius: 12px; padding: 24px; margin: 24px auto 24px auto; text-align: center;">
+              <div style="line-height: 20px; color: #2F3C45; font-weight: 700;">
+                {{device}} - {{location}}
+              </div>
+              <div style="line-height: 20px; color: #656F76; margin-top: 8px;">
+                {{timestamp}}
+              </div>
+            </div>
+
+            <p style="text-align: center; font-size: 15px; line-height: 165%; color: #2F3C45; margin: 0;">
+              如果是你本人登录，可以忽略此邮件；如果不是，请立即修改密码并联系系统管理员。
+            </p>
+
+            <hr style="margin-top: 32px; margin-bottom: 32px;">
+            <div style="font-size: 12px; line-height: 16px; width: max-content; margin: 0 auto; color: #656F76; text-align: center;">
+              发送自 <a href="{{context.site_url}}" style="color: {{context.application_color}}">{{context.site_url}}</a>。
+            </div>
+          </div>
+
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
