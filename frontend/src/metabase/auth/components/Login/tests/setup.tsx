@@ -13,6 +13,7 @@ interface SetupOpts {
   initialRoute?: string;
   isPasswordLoginEnabled?: boolean;
   isGoogleAuthEnabled?: boolean;
+  isKeycloakEnabled?: boolean;
   enterprisePlugins?: Parameters<typeof setupEnterpriseOnlyPlugin>[0][];
   tokenFeatures?: Partial<TokenFeatures>;
 }
@@ -21,6 +22,7 @@ export const setup = ({
   initialRoute = "/auth/login",
   isPasswordLoginEnabled = true,
   isGoogleAuthEnabled = false,
+  isKeycloakEnabled = false,
   enterprisePlugins,
   tokenFeatures = {},
 }: SetupOpts = {}) => {
@@ -28,6 +30,7 @@ export const setup = ({
     settings: mockSettings({
       "enable-password-login": isPasswordLoginEnabled,
       "google-auth-enabled": isGoogleAuthEnabled,
+      "oss-keycloak-enabled": isKeycloakEnabled,
       "token-features": createMockTokenFeatures(tokenFeatures),
     }),
   });

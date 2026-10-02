@@ -263,3 +263,17 @@
 - [ ] TOOL-01 仅按独立工具资产核对，不纳入 Metabase 产品编译
 - [ ] TOOL-02 仅按独立工具资产核对，不纳入 Metabase 产品编译
 - [ ] 不以 JAR 或前端 bundle 是否包含 TOOL 项作为迁移完成标准
+
+## 2026-10-03 OSS Keycloak / LibreChat 扩展
+
+- [x] 独立 provider、显式已有用户绑定、PKCE 和固定返回地址，不复用商业认证流程
+- [x] 会话有效期、解绑、后台退出与账号切换拒绝旧会话
+- [x] 默认禁用同源嵌入；仅显式启用时 self/SAMEORIGIN
+- [x] LibreChat 身份比较补丁、定向类型/测试与前端生产构建
+- [x] 原生 session/security/module 74 项回归通过
+- [x] OSS 构建、隔离 H2 初始化、两个普通模拟身份的浏览器权限/查询/保存/导出验收
+- [ ] 真实 Keycloak/LibreChat 联调：等待 HTTPS 或临时 HTTP 方案决定
+- [ ] PostgreSQL/MySQL 复制库迁移与恢复演练
+- [ ] 生产部署、真实模型与数据源验收（本次未授权执行）
+
+准确产物和验收边界见 [VALIDATION.md](docs/keycloak-portal/VALIDATION.md)。历史 JAR 校验值不代表本扩展。

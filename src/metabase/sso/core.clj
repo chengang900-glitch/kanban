@@ -2,6 +2,8 @@
   (:require
    [metabase.sso.common]
    [metabase.sso.google]
+   [metabase.sso.keycloak.session]
+   [metabase.sso.keycloak.settings]
    [metabase.sso.ldap]
    [metabase.sso.ldap.default-implementation]
    [metabase.sso.oidc.check]
@@ -10,6 +12,10 @@
    [potemkin :as p]))
 
 (p/import-vars
+ [metabase.sso.keycloak.settings
+  oss-workspace-embedding-enabled]
+ [metabase.sso.keycloak.session
+  session-active?]
  [metabase.sso.common
   sync-group-memberships!]
  [metabase.sso.ldap

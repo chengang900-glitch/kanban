@@ -1,0 +1,22 @@
+{
+  "clientId": "oss-metabase",
+  "name": "OSS Metabase personal workspace",
+  "protocol": "openid-connect",
+  "enabled": true,
+  "publicClient": false,
+  "standardFlowEnabled": true,
+  "implicitFlowEnabled": false,
+  "directAccessGrantsEnabled": false,
+  "serviceAccountsEnabled": false,
+  "redirectUris": ["https://portal.example/metabase/auth/keycloak/callback"],
+  "webOrigins": [],
+  "frontchannelLogout": false,
+  "attributes": {
+    "pkce.code.challenge.method": "S256",
+    "id.token.signed.response.alg": "RS256",
+    "access.token.lifespan": "300",
+    "backchannel.logout.url": "https://portal.example/metabase/auth/keycloak/backchannel-logout",
+    "backchannel.logout.session.required": "true",
+    "post.logout.redirect.uris": "https://portal.example/portal/data"
+  }
+}

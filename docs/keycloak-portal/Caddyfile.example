@@ -1,0 +1,13 @@
+# Insert before the existing LibreChat catch-all on its HTTPS origin.
+# This upstream must be a private/TLS connection or a separately managed SSH tunnel.
+# Do not transmit SESSION cookies to a public HTTP upstream across the Internet.
+redir /metabase /metabase/ 308
+handle_path /metabase/* {
+    reverse_proxy 127.0.0.1:3300 {
+        header_down Location "^/(.*)$" "/metabase/$1"
+    }
+}
+# Preserve CSP, X-Frame-Options and Set-Cookie. Never strip these headers.
+# Metabase's Keycloak callback uses an absolute same-origin portal return URL,
+# so the root-relative Metabase Location rewrite above cannot change /portal/data.
+# Keep Keycloak and all existing subapplication routes and Compose overlays.

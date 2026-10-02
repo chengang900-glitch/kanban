@@ -609,6 +609,7 @@ interface PublicSettings {
   engines: Record<EngineKey, Engine>;
   "google-auth-client-id": string | null;
   "google-auth-enabled": boolean;
+  "oss-keycloak-enabled"?: boolean;
   "has-user-setup": boolean;
   "help-link": HelpLinkSetting;
   "help-link-custom-destination": string;

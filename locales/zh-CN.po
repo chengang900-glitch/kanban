@@ -41210,3 +41210,7 @@ msgstr "工具结果"
 #: frontend/src/metabase/metabot/components/MetabotChat/MetabotChatMessage.tsx
 msgid "The analysis reached its step limit before a reliable final answer was ready. Retry or narrow the question."
 msgstr "分析步骤已达到上限，尚未生成可靠的最终结果。请重试或缩小问题范围。"
+
+#: frontend/src/metabase/auth/components/Login/Login.tsx
+msgid "Sign in with Keycloak"
+msgstr "通过统一身份登录"

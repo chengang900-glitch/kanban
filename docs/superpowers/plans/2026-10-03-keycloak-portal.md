@@ -19,54 +19,58 @@
 
 ## Task 1: Configuration, protocol validation, persistent models
 
-Files: src/metabase/sso/keycloak/{settings,protocol,models,store}.clj; resources/migrations/063/20261003_oss_keycloak.yaml; test/metabase/sso/keycloak/{protocol,store}_test.clj.
+Files: src/metabase/sso/keycloak/{settings,protocol,store,session}.clj; src/metabase/sso/models/keycloak.clj; resources/migrations/063/20261003_oss_keycloak.yaml; test/metabase/sso/keycloak/{protocol,store}_test.clj.
 
 Interfaces: settings/enabled?, settings/configuration; protocol/validate-id-token and protocol/validate-logout-token return verified claims or throw status-coded errors. store/bind-user!, store/consume-login!, store/revoke! operate atomically against app DB.
 
-- [ ] Write negative protocol tests for issuer/audience/azp/exp/iat/nonce and missing sub/sid, signed RSA tokens and wrong keys.
-- [ ] Write database tests for duplicate binding, same email/different sub, concurrent state consumption, expiry and sid-scoped logout.
-- [ ] Implement fixed issuer validation, same-origin discovery endpoint checks, RS256 allowlist and bounded JWKS retry.
-- [ ] Implement one-use hashed state and one-use hashed logout jti records, plus external-session expiry.
-- [ ] Run `clojure -X:dev:test :only '[metabase.sso.keycloak.protocol-test metabase.sso.keycloak.store-test]' :multithread? false` and require zero failures/errors.
+- [x] Write negative protocol tests for issuer/audience/azp/exp/iat/nonce and missing sub/sid, signed RSA tokens and wrong keys.
+- [x] Write database tests for duplicate binding, same email/different sub, concurrent state consumption, expiry and sid-scoped logout.
+- [x] Implement fixed issuer validation, same-origin discovery endpoint checks, RS256 allowlist and fresh trusted JWKS reads without redirect following or shared cache.
+- [x] Implement one-use hashed state and one-use hashed logout jti records, plus external-session expiry.
+- [x] Run `clojure -X:dev:test :only '[metabase.sso.keycloak.protocol-test metabase.sso.keycloak.store-test]' :multithread? false` and require zero failures/errors.
 
 ## Task 2: Browser OIDC and administrator bindings
 
 Files: src/metabase/sso/keycloak/integration.clj; src/metabase/sso/api/keycloak.clj; src/metabase/server/auth_wrapper.clj; src/metabase/sso/init.clj; test/metabase/sso/keycloak/integration_test.clj.
 
-Interfaces: GET /auth/keycloak/login; GET /auth/keycloak/callback; POST /auth/keycloak/logout; POST /auth/keycloak/backchannel-logout; admin GET/POST /auth/keycloak/bindings and DELETE /auth/keycloak/bindings/:id. Return path is a fixed configured relative portal path.
+Interfaces: GET /auth/keycloak/login; GET /auth/keycloak/callback; POST /auth/keycloak/logout; POST /auth/keycloak/backchannel-logout; admin GET/POST /auth/keycloak/bindings and DELETE /auth/keycloak/bindings/:id. Return target is the trusted site-url origin plus a fixed configured relative portal path. GET /auth/keycloak/status exposes only the current verified identity.
 
-- [ ] Write full handler tests for disabled configuration, exact callback/state cookie, unknown identities, malformed callbacks, replay and previous browser session deletion.
-- [ ] Build PKCE state using `(protocol/pkce-challenge verifier)`, encrypt cookie with `oidc.state/encrypt-state`, store only state hash/expiry.
-- [ ] Consume state once before token exchange; authorize only `(store/bound-user claims)` without calling generic email-based login orchestration.
-- [ ] Create original OSS tracked session in a transaction, add issuer/sub/sid/expiry association, then set original SESSION cookie.
-- [ ] Add origin-checked admin binding mutations and origin-checked POST logout; accept back-channel events only with verified logout token.
-- [ ] Run integration tests including direct protected API access after logout/expiry, and unchanged password login.
+- [x] Write full handler tests for disabled configuration, exact callback/state cookie, unknown identities, malformed callbacks, replay and previous browser session deletion.
+- [x] Build PKCE state using `(protocol/pkce-challenge verifier)`, encrypt cookie with `oidc.state/encrypt-state`, store only state hash/expiry.
+- [x] Consume state once before token exchange; authorize only `(store/bound-user claims)` without calling generic email-based login orchestration.
+- [x] Create original OSS tracked session in a transaction, add issuer/sub/sid/expiry association, then set original SESSION cookie.
+- [x] Add origin-checked admin binding mutations and origin-checked POST logout; accept back-channel events only with verified logout token.
+- [x] Run integration tests including direct protected API access after logout/expiry, and unchanged password login.
 
 ## Task 3: Same-origin safety and login UX
 
 Files: src/metabase/server/middleware/security.clj; src/metabase/server/middleware/session.clj; frontend/src/metabase/auth/components/Login/Login.tsx; frontend/src/metabase-types/api/settings.ts; focused tests beside modified components and server middleware.
 
-- [ ] Assert default headers still deny framing; only the explicit OSS flag changes to self/SAMEORIGIN.
-- [ ] Add per-request expiry/disabled-provider check for authenticated oss-keycloak sessions without affecting password/API-key/OAuth precedence.
-- [ ] Expose only enabled boolean to login properties; add native top-level Keycloak anchor using current site-url base path.
-- [ ] Assert nested /metabase login URL, hidden disabled button and retained password entry.
-- [ ] Run `bun run test-unit --runInBand --coverage=false frontend/src/metabase/auth/components/Login/tests` and TypeScript check.
+- [x] Assert default headers still deny framing; only the explicit OSS flag changes to self/SAMEORIGIN.
+- [x] Add per-request expiry/disabled-provider check for authenticated oss-keycloak sessions without affecting password/API-key/OAuth precedence.
+- [x] Expose only enabled boolean to login properties; add native top-level Keycloak anchor using current site-url base path.
+- [x] Assert nested /metabase login URL, hidden disabled button and retained password entry.
+- [x] Run `node node_modules/jest/bin/jest.js --runInBand --coverage=false frontend/src/metabase/auth/components/Login/tests` and TypeScript check.
 
 ## Task 4: LibreChat patch and isolated browser acceptance
 
 Files: docs/keycloak-portal/librechat.patch; docs/keycloak-portal/Caddyfile.example; docs/keycloak-portal/metabase.env.example; docs/keycloak-portal/README.md; local scripts/test data under bin/keycloak-portal/ and test-resources where needed.
 
-- [ ] Generate minimal patch against inspected LibreChat DataCenter route, using existing hooks, localized text and semantic styling; no external source tree is modified without testing in an isolated copy.
-- [ ] Validate `git apply --check` against inspected source. Include fresh OIDC navigation, session-loss state and identity-switch frame reset, without passing token material to browser messages.
-- [ ] Configure loopback isolated Metabase and OIDC test server with two accounts; serve parent and /metabase through same-origin proxy.
-- [ ] Browser-check login redirects, protected workspaces, same-origin framing, wrong-origin rejection, refresh, save/export and logout. Record mock-provider evidence separately from genuine Keycloak evidence.
+- [x] Generate minimal patch against inspected LibreChat DataCenter route, using existing hooks, localized text and semantic styling; no external source tree is modified without testing in an isolated copy.
+- [x] Validate `git apply --check` against inspected source. Include fresh OIDC navigation, session-loss state and identity-switch frame reset, without passing token material to browser messages.
+- [x] Configure loopback isolated Metabase and OIDC test server with two accounts; serve parent and /metabase through same-origin proxy.
+- [x] Browser-check login redirects, protected workspaces, same-origin framing, wrong-origin rejection, refresh, save/export and logout. Record mock-provider evidence separately from genuine Keycloak evidence.
 
 ## Task 5: Regression, OSS build and delivery
 
 Files: docs/keycloak-portal/VALIDATION.md; METABASE_CUSTOMIZATION_PLAN.md; METABASE_UPGRADE_CHECKLIST.md.
 
-- [ ] Run targeted auth/session/security/OIDC tests, Clojure lint and module-boundary tests; fix only failures attributable to this extension.
-- [ ] Run frontend tests, lint/typecheck, then `./bin/build.sh '{:edition :oss}'` with Java 25 and installed runtime paths.
-- [ ] Verify ZIP integrity, manifest/version, AGPL-only extension packaging and SHA-256; launch with temporary H2 and loopback port.
-- [ ] Record exact commands, source SHA, test counts and browser evidence; list genuine Keycloak/LibreChat and PostgreSQL acceptance gaps explicitly.
-- [ ] Commit tested changes locally and report branch, artifact and deployment boundary. No remote push.
+- [x] Run targeted auth/session/security/OIDC tests, Clojure lint and module-boundary tests; fix only failures attributable to this extension.
+- [x] Run frontend tests, lint/typecheck, then `./bin/build.sh '{:edition :oss}'` with Java 25 and installed runtime paths.
+- [x] Verify ZIP integrity, manifest/version, AGPL-only extension packaging and SHA-256; launch with temporary H2 and loopback port.
+- [x] Record exact commands, source SHA, test counts and browser evidence; list genuine Keycloak/LibreChat and PostgreSQL acceptance gaps explicitly.
+- [x] Commit tested changes locally and report branch, artifact and deployment boundary. No remote push.
+
+## 最终状态
+
+本地实现、定向检查、OSS 构建和模拟身份的隔离浏览器验收已完成。真实 Keycloak/LibreChat、生产数据库及部署仍按 `docs/keycloak-portal/VALIDATION.md` 列为待验收，不作为已通过项。

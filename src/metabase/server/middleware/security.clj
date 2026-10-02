@@ -13,6 +13,7 @@
    [metabase.request.core :as request]
    [metabase.server.settings :as server.settings]
    [metabase.settings.core :as setting]
+   [metabase.sso.core :as sso]
    [metabase.util :as u]
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
@@ -304,7 +305,7 @@
                                                   (if-let [eao (and (setting/get-value-of-type :boolean :enable-embedding-interactive)
                                                                     (setting/get-value-of-type :string :embedding-app-origins-interactive))]
                                                     eao
-                                                    "'none'")))))
+                                                    (if (sso/oss-workspace-embedding-enabled) "'self'" "'none'"))))))
 
 (defn approved-domain?
   "Checks if the domain is compatible with the reference one"
@@ -411,7 +412,7 @@
      {"X-Frame-Options"                 (if-let [eao (and (setting/get-value-of-type :boolean :enable-embedding-interactive)
                                                           (setting/get-value-of-type :string :embedding-app-origins-interactive))]
                                           (format "ALLOW-FROM %s" (-> eao (str/split #" ") first))
-                                          "DENY")})
+                                          (if (sso/oss-workspace-embedding-enabled) "SAMEORIGIN" "DENY"))})
    {;; Prevent Flash / PDF files from including content from site.
     "X-Permitted-Cross-Domain-Policies" "none"
     ;; Tell browser not to use MIME sniffing to guess types of files -- protect against MIME type confusion attacks

@@ -6,7 +6,7 @@
 - 目标：将现有 OSS 工作区放进 LibreChat，以每位用户自己的 Metabase 身份使用。
 - 独立 Keycloak OIDC、管理员显式绑定已有账号、原生个人会话、受控同源 iframe 和会话撤销。
 - 商业行列安全、审计、SDK、自动开户和权限组同步不在本轮范围；不部署生产。
-- [设计](docs/superpowers/specs/2026-10-03-keycloak-portal-design.md)、[实施计划](docs/superpowers/plans/2026-10-03-keycloak-portal.md)。状态：开发中；不得将此前迁移验证视为本扩展验收。
+- [设计](docs/superpowers/specs/2026-10-03-keycloak-portal-design.md)、[实施计划](docs/superpowers/plans/2026-10-03-keycloak-portal.md)。状态：本地实现、定向回归、OSS 构建和模拟身份的浏览器验收完成；真实联调等待 HTTPS/HTTP 方案选择。交付与证据见 [接入说明](docs/keycloak-portal/README.md)、[验证记录](docs/keycloak-portal/VALIDATION.md)。
 
 ## v0.63.19 当前迁移
 

@@ -33,6 +33,7 @@
    [metabase.request.schema :as request.schema]
    [metabase.session.core :as session]
    [metabase.settings.core :as setting]
+   [metabase.sso.core :as sso]
    [metabase.tracing.core :as tracing]
    [metabase.util :as u]
    [metabase.util.encryption :as encryption]
@@ -223,9 +224,11 @@
           params  (concat [(session/hash-session-key session-key)]
                           (when (seq anti-csrf-token)
                             [anti-csrf-token]))]
-      (some-> (t2/query-one (cons sql params))
-              ;; is-group-manager? could return `nil, convert it to boolean so it's guaranteed to be only true/false
-              (update :is-group-manager? boolean)))))
+      (when-let [info (t2/query-one (cons sql params))]
+        (when (or (not= "oss-keycloak" (:auth-provider info))
+                  (sso/session-active? (first params)))
+          ;; is-group-manager? could return nil; normalize the optional flag.
+          (update info :is-group-manager? boolean))))))
 
 (def ^:private api-key-that-should-never-match (str (random-uuid)))
 (def ^:private hash-that-should-never-match (u.password/hash-bcrypt "password"))

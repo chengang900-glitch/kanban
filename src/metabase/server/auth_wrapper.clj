@@ -2,6 +2,7 @@
   (:require
    [metabase.api.util.handlers :as handlers]
    [metabase.config.core :as config]
+   [metabase.sso.api.keycloak :as keycloak.api]
    [metabase.sso.api.slack-connect :as slack-connect.api]
    [ring.util.response :as response]))
 
@@ -23,6 +24,7 @@
   "Ring routes for auth API endpoints.
    Slack Connect (OSS) is always available. Other SSO routes (SAML, JWT, OIDC) require EE."
   (handlers/routes
+   (handlers/route-map-handler {"/auth" {"/keycloak" keycloak.api/routes}})
    ;; Slack Connect routes always available (OSS)
    (handlers/route-map-handler {"/auth" {"/sso" {"/slack-connect" slack-connect.api/routes}}})
    ;; Other SSO routes require EE

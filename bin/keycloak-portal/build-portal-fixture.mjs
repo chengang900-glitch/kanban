@@ -1,0 +1,24 @@
+/** Build the real patched DataCenter with synthetic auth/config hooks, for loopback QA only. */
+import { pathToFileURL } from 'node:url';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+const librechat = process.env.LIBRECHAT_FIXTURE_ROOT;
+if (!librechat) throw new Error('Set LIBRECHAT_FIXTURE_ROOT to the isolated patched LibreChat checkout');
+const root = path.resolve('target/keycloak-portal-local/portal-source');
+mkdirSync(root, { recursive: true });
+writeFileSync(path.join(root, 'index.html'), '<html><head><title>Isolated personal workspace QA</title><style>main{height:100%;display:flex;flex-direction:column}main>div:first-child{padding:8px;border-bottom:1px solid #ddd;display:flex;gap:12px}main>iframe{flex:1;min-height:0;width:100%;border:0}main>div[role=status]{padding:32px}</style></head><body style="margin:0"><div id="root"></div><script type="module" src="/main.tsx"></script></body></html>');
+writeFileSync(path.join(root, 'stubs.tsx'), `import React from '${librechat}/node_modules/react/index.js';
+export const Button=({variant,children,...props})=><button {...props}>{children}</button>;
+export const useGetStartupConfig=()=>({isLoading:false,data:{portal:{enabled:true,navigation:{dataCenter:{url:location.origin+'/metabase/',label:'Personal Metabase'}}}}});
+export const useAuthContext=()=>({user:{id:document.cookie.includes('fixture.portal-user=user-b')?'user-b':'user-a'},token:'synthetic-portal-token',isAuthenticated:true,logout:()=>location.assign('http://127.0.0.1:33421/realms/isolated/logout')});
+const words={com_ui_portal_data_auth:'Authenticate personal workspace',com_ui_portal_data_signout:'Sign out of portal',com_ui_loading:'Checking personal identity',com_ui_portal_data_retry:'Retry',com_ui_portal_data_unavailable:'Workspace unavailable',com_ui_portal_data_secure:'Secure same-origin URL required'};
+export default ()=>key=>words[key]??key;
+`);
+writeFileSync(path.join(root, 'main.tsx'), `import React from '${librechat}/node_modules/react/index.js';
+import {createRoot} from '${librechat}/node_modules/react-dom/client.js';
+import DataCenter from '${librechat}/client/src/portal/pages/DataCenter.tsx';
+createRoot(document.getElementById('root')).render(<><div style={{background:'#eef2f6',padding:8}}>Isolated QA: real Metabase JAR + patched DataCenter; simulated OIDC and portal auth. <a href='/fixture/switch/user-a'>Portal A</a> | <a href='/fixture/switch/user-b'>Portal B</a></div><div style={{height:'calc(100vh - 36px)'}}><DataCenter/></div></>);
+`);
+const {build}=await import(pathToFileURL(path.join(librechat,'node_modules/vite/dist/node/index.js')).href);
+const stub=path.join(root,'stubs.tsx');
+await build({configFile:false,root,resolve:{alias:[...['@librechat/client','~/data-provider','~/hooks/AuthContext','~/hooks/useLocalize'].map(find=>({find,replacement:stub})),{find:'react',replacement:path.join(librechat,'node_modules/react')},{find:'react-router-dom',replacement:path.join(librechat,'node_modules/react-router-dom')}]},esbuild:{jsx:'automatic'},build:{outDir:path.resolve('target/keycloak-portal-local/portal-dist'),emptyOutDir:true}});
