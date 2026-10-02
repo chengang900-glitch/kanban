@@ -1,5 +1,13 @@
 # Metabase 定制优化重施计划
 
+## 2026-10-03 新目标：OSS 个人身份登录与 LibreChat 工作区嵌入
+
+- 用户已确认执行；分支 `customization/v0.63.19-keycloak-portal`，基线 `0f3ecb18873c`。
+- 目标：将现有 OSS 工作区放进 LibreChat，以每位用户自己的 Metabase 身份使用。
+- 独立 Keycloak OIDC、管理员显式绑定已有账号、原生个人会话、受控同源 iframe 和会话撤销。
+- 商业行列安全、审计、SDK、自动开户和权限组同步不在本轮范围；不部署生产。
+- [设计](docs/superpowers/specs/2026-10-03-keycloak-portal-design.md)、[实施计划](docs/superpowers/plans/2026-10-03-keycloak-portal.md)。状态：开发中；不得将此前迁移验证视为本扩展验收。
+
 ## v0.63.19 当前迁移
 
 当前项目基于官方 `v0.63.19`（`d7ac0abea18703302b5e99986f6668a09d0f4947`），定制来源是磁盘上的 `metabase-v0.63.14`（HEAD `c3f074a8`）。分支为 `customization/v0.63.19-migration`。本轮完整记录及实际验证状态见 [MIGRATION_V0.63.19.md](MIGRATION_V0.63.19.md)。
