@@ -2,7 +2,7 @@
 
 ## 交付范围
 
-源码基线 `0f3ecb18873c5d47b5b67eddcc33bd0cccec1d74`，分支 `customization/v0.63.19-keycloak-portal`。实现版本和最终产物校验值将在构建后记录于本文件。未推送 Git、未部署生产、未修改远程配置。没有复制会话中的真实凭据。
+源码基线 `0f3ecb18873c5d47b5b67eddcc33bd0cccec1d74`，分支 `customization/v0.63.19-keycloak-portal`。源码提交 `09006e09f92892322f50c22f012543157464b1b7`；后续收口提交仅更新交付文档和补丁空白行。未推送 Git、未部署生产、未修改远程配置。没有复制会话中的真实凭据。
 
 LibreChat 补丁基线 `19c2e462bfe69eed00f3876b69c32bdde0154463`，在 `/private/tmp/librechat-metabase-isolated` 独立副本修改与测试；原项目源码保持原状。共享的 node_modules 仅用于读取依赖，Vite 使用 `--configLoader runner` 避免向共享目录写临时配置。
 
@@ -76,3 +76,17 @@ MB_DB_TYPE=h2 MB_DB_IN_MEMORY=true clojure -M:dev:test -e "(require 'metabase.te
 - 保存/导出验证使用本地样例库；不代表生产数据源、AI 模型调用或既有全部品牌定制均完成新一轮验收。
 
 继续真实联调需固定 HTTPS origin/issuer（或确认临时 HTTP 方案）、受控服务器访问与未跟踪配置路径、两个普通账号权限矩阵。先备份并准备复制库/隔离实例，再按 README 联调；部署与推送仍需单独授权。
+
+## 最终产物
+
+- 文件：`target/uberjar/metabase-v0.63.19-keycloak-09006e09.jar`（通用副本为 `target/uberjar/metabase.jar`）
+- 版本：`v0.63.19`，hash `09006e0`，日期 `2026-10-03`
+- 源码：`09006e09f92892322f50c22f012543157464b1b7`
+- 大小：`663098827` 字节
+- SHA-256：`58e00d0a3d04d0fdaea72ce83aa1d26dce7561de6c6c0387d37279c72bd1c29b`
+- ZIP 全部 CRC 校验通过，Main-Class 为 `metabase.core.bootstrap`，JDK 25
+- 已包含新增迁移和 91 个 Keycloak AOT class；Enterprise 命名空间条目 0
+- 具名交付 JAR 在新建 H2 数据库上重新启动，完整复验以上 9 项浏览器检查，退出 0、页面运行时错误 0
+- 完整 OSS 构建后，以 `{:edition :oss :version "v0.63.19" :steps [:version :uberjar]}` 重建，更新提交标识并重新编译后端；退出 0
+
+不将产物目录提交 Git；最终源码与 JAR 的版本标识一致。新增配置资料不包含 client secret 或加密密钥。

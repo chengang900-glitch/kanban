@@ -47,3 +47,5 @@ CSP 仅在显式开关打开后变为 `frame-ancestors 'self'`，X-Frame-Options
 新增四张 `oss_keycloak_*` 表及外键，保留原有迁移。绑定使用原有 AuthIdentity（provider `oss-keycloak`），本地密码身份保留。迁移回滚只删除本扩展表，生产回滚以完整应用数据库备份恢复为准，不能假设较旧 JAR 接受已经升级的数据库。
 
 禁用 OIDC 开关后 Keycloak 会话即时拒绝访问，密码/API key/OAuth 的原有优先级不变。禁用 iframe 开关恢复 DENY/none。恢复之前先确认用户未保存的编辑，再执行退出/切换/回滚。完整证据和未完成验收见 `VALIDATION.md`。
+
+Keycloak client 属性名按 [Keycloak 官方常量文档](https://www.keycloak.org/docs-api/26.7.3/javadocs/constant-values.html) 核对；模板仍须在实际部署版本导入并真实验收。
