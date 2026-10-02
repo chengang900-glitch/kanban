@@ -1,5 +1,7 @@
 # 2026-10-03 OSS Keycloak / LibreChat 验证记录
 
+以下为首次实现 `09006e09` 的记录；本次 HTTP/HTTPS 修订见文末，当前交付以文末产物为准。
+
 ## 交付范围
 
 源码基线 `0f3ecb18873c5d47b5b67eddcc33bd0cccec1d74`，分支 `customization/v0.63.19-keycloak-portal`。源码提交 `09006e09f92892322f50c22f012543157464b1b7`；后续收口提交仅更新交付文档和补丁空白行。未推送 Git、未部署生产、未修改远程配置。没有复制会话中的真实凭据。
@@ -69,13 +71,13 @@ MB_DB_TYPE=h2 MB_DB_IN_MEMORY=true clojure -M:dev:test -e "(require 'metabase.te
 
 ## 尚未验证和继续条件
 
-- 当前真实中台和 issuer 为 `http://demo.uhoo.cn:9433/`、`http://demo.uhoo.cn:9433/realms/enterprise-ai`；本实现安全默认拒绝公网 HTTP。等待用户选择 HTTPS 入口，或另行授权增加默认关闭的临时 HTTP 联调开关。
+- 当前真实中台和 issuer 为 `http://demo.uhoo.cn:9433/`、`http://demo.uhoo.cn:9433/realms/enterprise-ai`；用户后续确认程序同时支持 HTTP/HTTPS；协议选择已不再阻塞本地交付，真实部署仍需配置核查和验收。
 - 真正 Keycloak 的 confidential client/PKCE、ID token sid、真实 issuer/sub 与 LibreChat 数据库字段、退出事件投递、停用用户撤销、多实例/重启后事件投递尚未联调。
 - PostgreSQL/MySQL 应用数据库迁移/回滚、复制生产数据库的兼容检查尚未执行。H2 新库迁移已通过。
 - 真实门户性能/Lighthouse、完整 LibreChat 后端与认证链验收未运行；当前副本仅构建前端并测试定向 API handler。
 - 保存/导出验证使用本地样例库；不代表生产数据源、AI 模型调用或既有全部品牌定制均完成新一轮验收。
 
-继续真实联调需固定 HTTPS origin/issuer（或确认临时 HTTP 方案）、受控服务器访问与未跟踪配置路径、两个普通账号权限矩阵。先备份并准备复制库/隔离实例，再按 README 联调；部署与推送仍需单独授权。
+继续真实联调需按部署者选择固定 HTTP 或 HTTPS origin/issuer、受控服务器访问与未跟踪配置路径、两个普通账号权限矩阵。先备份并准备复制库/隔离实例，再按 README 联调；部署与推送仍需单独授权。
 
 ## 最终产物
 
@@ -90,3 +92,17 @@ MB_DB_TYPE=h2 MB_DB_IN_MEMORY=true clojure -M:dev:test -e "(require 'metabase.te
 - 完整 OSS 构建后，以 `{:edition :oss :version "v0.63.19" :steps [:version :uberjar]}` 重建，更新提交标识并重新编译后端；退出 0
 
 不将产物目录提交 Git；最终源码与 JAR 的版本标识一致。新增配置资料不包含 client secret 或加密密钥。
+
+## HTTP / HTTPS 均支持：用户后续确认的修订
+
+用户要求由部署者选择协议，程序同时支持 HTTP 与 HTTPS。本次移除 Metabase URL 和 LibreChat DataCenter 对公网 HTTP 的硬限制，没有新增 Metabase HTTP 开关。固定 issuer、Discovery 同源、门户与工作区同源、显式身份绑定、签名/state/nonce 校验保持有效。HTTP Cookie 不设置 Secure，HTTPS Cookie 设置 Secure。
+
+复现：旧代码在公网 HTTP URL 测试中失败（3 failures / 1 error），LibreChat 的 HTTP 域名组件检查 7 项失败。修改后：
+
+- OSS 后端 17 tests / 125 assertions，0 failures / 0 errors，含 HTTP/HTTPS Discovery、回调和两类 Cookie 的 Secure 属性。
+- DataCenter 同一套测试分别以 `http://portal.example:3080`、`https://portal.example:3080` 运行；每种入口 14 tests 通过，包括跨协议、跨主机、非 HTTP(S)、userinfo、query、fragment 拒绝。
+- LibreChat 既有 URL/启动配置 13 tests 通过。HTTP 入口继续使用其已有 `PORTAL_ALLOW_HTTP=true` 配置，详见 README。
+- LibreChat client TypeScript、修改文件 ESLint、生产前端构建通过；Clojure lint 为 0 errors / 0 warnings。
+- 补丁对原有 `19c2e462` 基线 `git apply --check` 通过。
+
+以上协议单元/集成测试不代替部署端的 TLS 证书及 Keycloak Realm SSL 策略验收；本次没有改动远程部署或推送 Git。

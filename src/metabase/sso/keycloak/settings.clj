@@ -58,13 +58,11 @@
     (catch Exception _ nil)))
 
 (defn trusted-url?
-  "Require HTTPS, with HTTP permitted only for isolated loopback development."
+  "Accept an explicitly configured HTTP or HTTPS URL without credentials, query or fragment."
   [url]
   (try
     (let [uri (URI. ^String url)]
-      (and (origin url) (nil? (.getRawQuery uri)) (nil? (.getRawFragment uri))
-           (or (= "https" (.getScheme uri))
-               (#{"localhost" "127.0.0.1" "[::1]"} (.getHost uri)))))
+      (and (origin url) (nil? (.getRawQuery uri)) (nil? (.getRawFragment uri))))
     (catch Exception _ false)))
 
 (defn portal-path

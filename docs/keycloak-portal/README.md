@@ -6,15 +6,19 @@
 
 2026-10-03 用户最后确认中台为 `http://demo.uhoo.cn:9433/`。此前核查的 `168.168.188.198` 是另一套环境，不能用于本次部署。公网 Keycloak discovery 的 issuer 为 `http://demo.uhoo.cn:9433/realms/enterprise-ai`。Metabase 为 `http://115.227.3.67:3000/`，只读核查已升级到 v0.63.19（hash 5e60b25）。这些都是原有实例；本分支尚未部署。
 
-**本版本要求非本地 HTTPS。** HTTP 只允许 localhost/127.0.0.1/IPv6 loopback 的隔离测试。当前公网 HTTP issuer 会被拒绝，不能声称真实联调已通过。用户尚未选择准备 HTTPS 入口还是增加默认关闭的临时 HTTP 开关；本次保持安全默认值。恢复 HTTPS 会影响中台 issuer、其他客户端回调和已存储的身份，需要单独确认迁移方案，不能只改 Metabase 一侧。两台服务器之间也需要私网、TLS 或 SSH 隧道，不能把会话 Cookie 经公网 HTTP 直接转发。
+**本扩展同时支持 HTTP 和 HTTPS，由管理员配置 URL 选择，不增加 Metabase HTTP 开关，也不限制 HTTP 主机必须是本机。** 门户和 `/metabase/` 必须使用完全相同的协议、主机和端口；issuer 可以独立配置 HTTP 或 HTTPS，但必须与 Keycloak 发布的 issuer 及 LibreChat 保存的身份一致。Discovery 各端点仍须与 issuer 同源，不能在发现文档中切换协议或主机。
+
+HTTP 不加密传输；HTTPS 需要正确证书。登录 Cookie 根据实际入口协议设置 Secure，代理须正确传递 `X-Forwarded-Proto`。切换已有部署的协议会改变 origin/issuer，需同步回调白名单和身份配置，并重新登录。
+
+LibreChat 现有门户配置有 `PORTAL_ALLOW_HTTP`：选择 HTTP 时设为 `true`（仍允许 HTTPS），选择 HTTPS 时可保留原值。Keycloak Realm 自身的 SSL 策略也须允许所选入口；本扩展不自动修改这些远程设置。
 
 ## 最小配置步骤
 
 1. 备份 Metabase 应用数据库、现有 JAR/服务环境配置；备份中台完整 Compose 覆盖链、Caddy、LibreChat 配置与 Keycloak client 配置。升级和回滚都先在复制数据库上验证，禁止原库降版本启动。
-2. 确定一个完整的可信 HTTPS issuer 和门户 origin。LibreChat 与 Metabase 必须使用同一 issuer 中的同一 subject；邮箱相同不能代替该条件。
+2. 确定一个完整的 HTTP 或 HTTPS issuer 和门户 origin。LibreChat 与 Metabase 必须使用同一 issuer 中的同一 subject；邮箱相同不能代替该条件。
 3. 按 `keycloak-client.template.json` 创建独立 confidential client。使用 exact callback 和 logout URL、PKCE S256、RS256，启用 back-channel logout 并包含 sid。Secret 保存在服务器未跟踪配置中，不复制到会话、Git 或日志。
 4. 按 `metabase.env.example` 配置 Metabase，保持原应用数据库配置。持久化独立的随机加密密钥，不在重启时重新生成。内部 IdP 网络允许列表必须限制到实际地址，不在生产使用 allow-all。
-5. 在门户同一 HTTPS origin 加入 `Caddyfile.example` 的代理段，保持已有路由。设置 `PORTAL_DATA_CENTER_URL=https://门户地址/metabase/`，末尾斜线必需。Metabase `MB_SITE_URL` 包含 `/metabase` 前缀。Caddy 不移除 CSP/X-Frame-Options，也不改 Cookie。
+5. 在门户同一 HTTP 或 HTTPS origin 加入 `Caddyfile.example` 的代理段，保持已有路由。按所选协议设置 `PORTAL_DATA_CENTER_URL=http://门户地址/metabase/` 或 `https://门户地址/metabase/`，末尾斜线必需；HTTP 时设置 LibreChat 现有的 `PORTAL_ALLOW_HTTP=true`。Metabase `MB_SITE_URL` 包含 `/metabase` 前缀。Caddy 不移除 CSP/X-Frame-Options，也不改 Cookie。
 6. 管理员以已有 Metabase 密码账号登录，显式绑定两个普通用户的 Keycloak subject。绑定 API 见下文。用户的数据库/集合权限仍由 Metabase 管理员按原有方式配置。
 7. 将 `librechat.patch` 应用到已核对的 LibreChat rc4 基线；对变更工作区运行类型检查、定向测试和正式构建后，再准备替换镜像。当前补丁基线为本地 `19c2e462bfe69eed00f3876b69c32bdde0154463`，原源码未修改，已在独立副本验证。
 
@@ -32,7 +36,7 @@
 | POST `/metabase/auth/keycloak/logout` | 验证 Origin，清除浏览器本地会话，返回固定 IdP 退出 URL |
 | POST `/metabase/auth/keycloak/backchannel-logout` | 无浏览器 Cookie，必须提交签名 logout_token |
 
-管理员 POST 的 JSON 为 `{"user_id":已有Metabase用户ID,"subject":"Keycloak稳定sub"}`，并提供精确 `Origin: https://门户地址` 与管理员 SESSION Cookie。用仅本地可读的 Cookie jar，不将管理员 SESSION 放进命令行参数或文档。身份有冲突返回 409；先显式解除再重新绑定。GET 返回的 id 为 AuthIdentity id，供 DELETE 使用。停止用户后，原生 API 拒绝其会话；Keycloak 停用需要同时撤销该用户 SSO sessions，单独 disabled 不能作为即时撤销证据。
+管理员 POST 的 JSON 为 `{"user_id":已有Metabase用户ID,"subject":"Keycloak稳定sub"}`，并提供与实际入口一致的精确 `Origin: http://门户地址` 或 `Origin: https://门户地址` 与管理员 SESSION Cookie。用仅本地可读的 Cookie jar，不将管理员 SESSION 放进命令行参数或文档。身份有冲突返回 409；先显式解除再重新绑定。GET 返回的 id 为 AuthIdentity id，供 DELETE 使用。停止用户后，原生 API 拒绝其会话；Keycloak 停用需要同时撤销该用户 SSO sessions，单独 disabled 不能作为即时撤销证据。
 
 ## 门户行为和安全边界
 

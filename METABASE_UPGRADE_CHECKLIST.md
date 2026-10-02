@@ -272,7 +272,8 @@
 - [x] LibreChat 身份比较补丁、定向类型/测试与前端生产构建
 - [x] 原生 session/security/module 74 项回归通过
 - [x] OSS 构建、隔离 H2 初始化、两个普通模拟身份的浏览器权限/查询/保存/导出验收
-- [ ] 真实 Keycloak/LibreChat 联调：等待 HTTPS 或临时 HTTP 方案决定
+- [x] HTTP/HTTPS 均由配置 URL 选择，身份与同源校验继续有效
+- [ ] 真实 Keycloak/LibreChat 联调：用户已确认程序同时支持 HTTP/HTTPS，部署验收待执行
 - [ ] PostgreSQL/MySQL 复制库迁移与恢复演练
 - [ ] 生产部署、真实模型与数据源验收（本次未授权执行）
 

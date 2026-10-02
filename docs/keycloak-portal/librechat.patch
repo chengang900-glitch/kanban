@@ -128,7 +128,7 @@ diff --git a/client/src/portal/pages/DataCenter.tsx b/client/src/portal/pages/Da
 new file mode 100644
 --- /dev/null
 +++ b/client/src/portal/pages/DataCenter.tsx
-@@ -0,0 +1,179 @@
+@@ -0,0 +1,178 @@
 +import { useCallback, useEffect, useState } from 'react';
 +import { Navigate } from 'react-router-dom';
 +import { Button } from '@librechat/client';
@@ -151,7 +151,6 @@ new file mode 100644
 +  let target: URL | undefined;
 +  try {
 +    const candidate = new URL(portal?.navigation.dataCenter.url ?? '');
-+    const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(candidate.hostname);
 +    if (
 +      candidate.origin === window.location.origin &&
 +      candidate.pathname === '/metabase/' &&
@@ -159,7 +158,7 @@ new file mode 100644
 +      !candidate.password &&
 +      !candidate.search &&
 +      !candidate.hash &&
-+      (candidate.protocol === 'https:' || (candidate.protocol === 'http:' && loopback))
++      (candidate.protocol === 'http:' || candidate.protocol === 'https:')
 +    ) {
 +      target = candidate;
 +    }
@@ -312,7 +311,7 @@ diff --git a/client/src/portal/pages/DataCenter.spec.tsx b/client/src/portal/pag
 new file mode 100644
 --- /dev/null
 +++ b/client/src/portal/pages/DataCenter.spec.tsx
-@@ -0,0 +1,144 @@
+@@ -0,0 +1,150 @@
 +import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 +import { MemoryRouter } from 'react-router-dom';
 +import DataCenter from './DataCenter';
@@ -325,7 +324,9 @@ new file mode 100644
 +};
 +const mockPortal = {
 +  enabled: true,
-+  navigation: { dataCenter: { url: 'http://localhost:3080/metabase/', label: 'Data workspace' } },
++  navigation: {
++    dataCenter: { url: `${window.location.origin}/metabase/`, label: 'Data workspace' },
++  },
 +};
 +jest.mock('~/data-provider', () => ({
 +  useGetStartupConfig: () => ({ isLoading: false, data: { portal: mockPortal } }),
@@ -358,7 +359,7 @@ new file mode 100644
 +    mockAuth.user = { id: 'user-a' };
 +    mockAuth.isAuthenticated = true;
 +    mockAuth.logout.mockClear();
-+    mockPortal.navigation.dataCenter.url = 'http://localhost:3080/metabase/';
++    mockPortal.navigation.dataCenter.url = `${window.location.origin}/metabase/`;
 +    setFetch(async () => response(identity));
 +  });
 +
@@ -372,7 +373,7 @@ new file mode 100644
 +      expect.objectContaining({ headers: { Authorization: 'Bearer test-only-token' } }),
 +    );
 +    expect(global.fetch).toHaveBeenCalledWith(
-+      'http://localhost:3080/metabase/auth/keycloak/status',
++      `${window.location.origin}/metabase/auth/keycloak/status`,
 +      expect.objectContaining({ credentials: 'same-origin', cache: 'no-store' }),
 +    );
 +    const mbOptions = (global.fetch as unknown as jest.Mock).mock.calls.find(([url]) =>
@@ -415,8 +416,12 @@ new file mode 100644
 +
 +  it.each([
 +    'https://other.example/metabase/',
-+    'http://localhost:3080/other/',
-+    'http://localhost:3080/metabase/?token=bad',
++    `${window.location.origin.replace(/^https?/, window.location.protocol === 'http:' ? 'https' : 'http')}/metabase/`,
++    `${window.location.origin.replace(/^https?/, 'ftp')}/metabase/`,
++    `${window.location.origin.replace('://', '://user:pass@')}/metabase/`,
++    `${window.location.origin}/metabase/#fragment`,
++    `${window.location.origin}/other/`,
++    `${window.location.origin}/metabase/?token=bad`,
 +  ])('rejects a non-contract workspace URL (%s)', (url) => {
 +    mockPortal.navigation.dataCenter.url = url;
 +    mount();
@@ -440,7 +445,7 @@ new file mode 100644
 +    await act(async () => finish(response({}, 503)));
 +    expect(mockAuth.logout).toHaveBeenCalledTimes(1);
 +    expect(global.fetch).toHaveBeenCalledWith(
-+      'http://localhost:3080/metabase/auth/keycloak/logout',
++      `${window.location.origin}/metabase/auth/keycloak/logout`,
 +      expect.objectContaining({ method: 'POST', credentials: 'same-origin' }),
 +    );
 +  });
@@ -465,7 +470,7 @@ diff --git a/client/src/locales/en/translation.json b/client/src/locales/en/tran
 +  "com_ui_portal_data_auth": "Sign in with your personal account",
 +  "com_ui_portal_data_unavailable": "The data workspace is unavailable. Retry or contact your administrator.",
 +  "com_ui_portal_data_retry": "Retry",
-+  "com_ui_portal_data_secure": "The data workspace requires a same-origin HTTPS /metabase/ address.",
++  "com_ui_portal_data_secure": "The data workspace requires a same-origin HTTP or HTTPS /metabase/ address.",
 +  "com_ui_portal_data_signout": "Sign out of the portal",
 +  "com_ui_portal_data_signout_failed": "Sign-out could not be completed. Retry before switching accounts.",
    "com_ui_repository_instructions": "Repository instructions",
@@ -479,7 +484,7 @@ diff --git a/client/src/locales/zh-Hans/translation.json b/client/src/locales/zh
 +  "com_ui_portal_data_auth": "使用个人账号登录数据中心",
 +  "com_ui_portal_data_unavailable": "数据中心暂不可用，请重试或联系管理员。",
 +  "com_ui_portal_data_retry": "重试",
-+  "com_ui_portal_data_secure": "数据中心需要同源 HTTPS 的 /metabase/ 地址。",
++  "com_ui_portal_data_secure": "数据中心需要同源 HTTP 或 HTTPS 的 /metabase/ 地址。",
 +  "com_ui_portal_data_signout": "退出门户",
 +  "com_ui_portal_data_signout_failed": "退出未完成，请重试后再切换账号。",
    "chat_direction_left_to_right": "从左到右",

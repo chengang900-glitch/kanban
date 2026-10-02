@@ -8,7 +8,7 @@
 
 ## 身份和认证
 
-单个固定 Keycloak issuer 和 confidential client。使用 authorization_code + PKCE S256，state/nonce 为安全随机数，事务有效期 10 分钟。加密 HttpOnly/Lax state cookie 保存 nonce 和 verifier；数据库记录 state 哈希并原子消费，跨重启/实例防重放。Discovery issuer 与配置严格一致，端点限制到同一可信 origin 和既有网络策略；禁用 HTTP 重定向跟随，每次校验从可信端点读取 Discovery/JWKS，不共享通用 OIDC 缓存。签名采用 RS256，校验 issuer、audience、azp、exp、iat、nonce、sub 和 sid，不使用邮箱解析用户。
+单个固定 Keycloak issuer 和 confidential client。HTTP 与 HTTPS 均支持，部署者通过 URL 选择；不增加 HTTP 许可开关或本机白名单。门户与工作区的协议、主机、端口必须相同，Cookie 的 Secure 属性遵循实际入口协议。使用 authorization_code + PKCE S256，state/nonce 为安全随机数，事务有效期 10 分钟。加密 HttpOnly/Lax state cookie 保存 nonce 和 verifier；数据库记录 state 哈希并原子消费，跨重启/实例防重放。Discovery issuer 与配置严格一致，端点限制到同一可信 origin 和既有网络策略；禁用 HTTP 重定向跟随，每次校验从可信端点读取 Discovery/JWKS，不共享通用 OIDC 缓存。签名采用 RS256，校验 issuer、audience、azp、exp、iat、nonce、sub 和 sid，不使用邮箱解析用户。
 
 管理员将 issuer + sub 显式绑定到已有活动用户；绑定用 AuthIdentity，provider 为 oss-keycloak、provider_id 为二元身份的 SHA256、metadata 保存 issuer/sub。同一用户只绑定一个身份；有冲突时返回 409，禁止隐式改绑。解除绑定撤销该身份会话。管理员账号仍保留密码认证，不自动修改用户组、is_superuser、邮箱或 sso_source。
 

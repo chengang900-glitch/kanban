@@ -80,6 +80,26 @@
   (is (thrown? clojure.lang.ExceptionInfo
                (integration/login (assoc-in browser-request [:headers "sec-fetch-dest"] "iframe")))))
 
+(deftest browser-protocol-controls-cookie-security-test
+  (encryption-tu/with-encrypted-app-db
+    (mt/with-temp [:model/User user {}]
+      (store/bind-user! (:id user) "subject-a")
+      (doseq [scheme [:http :https]]
+        (let [origin (str (name scheme) "://portal.example")
+              base (str origin "/metabase")]
+          (mt/with-dynamic-fn-redefs [settings/site-base (constantly base)
+                                      settings/configuration (constantly (assoc config :redirect-uri (str base "/auth/keycloak/callback")))]
+            (let [login (integration/login (assoc browser-request :scheme scheme))]
+              (is (= (= scheme :https) (boolean (get-in login [:cookies integration/state-cookie-name :secure])))))
+            (exchange! (fixture/claims)
+                       (fn []
+                         (let [result (integration/callback (transaction-request! {:scheme scheme}))
+                               cookie (get-in result [:cookies request/metabase-session-cookie])]
+                           (is (= 302 (:status result)))
+                           (is (= (str origin "/portal/data") (get-in result [:headers "Location"])))
+                           (is (= (= scheme :https) (boolean (:secure cookie))))
+                           (is (true? (:http-only cookie))))))))))))
+
 (deftest callback-state-identity-and-replay-test
   (encryption-tu/with-encrypted-app-db
     (mt/with-temp [:model/User user {}]

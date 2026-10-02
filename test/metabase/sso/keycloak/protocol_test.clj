@@ -73,23 +73,28 @@
         (is (thrown? clojure.lang.ExceptionInfo (protocol/validate-logout-token (sign invalid) config)))))))
 
 (deftest trusted-discovery-test
-  (let [doc {:issuer (:issuer-uri config)
-             :authorization_endpoint "https://identity.example/auth"
-             :token_endpoint "https://identity.example/token"
-             :jwks_uri "https://identity.example/certs"
-             :end_session_endpoint "https://identity.example/logout"}]
-    (mt/with-dynamic-fn-redefs [protocol/fetch-document (constantly doc)]
-      (is (= doc (:discovery-document (protocol/discovery-config config)))))
-    (doseq [invalid [(assoc doc :issuer "https://evil.example")
-                     (assoc doc :token_endpoint "https://evil.example/token")
-                     (assoc doc :jwks_uri "http://identity.example/certs")]]
-      (mt/with-dynamic-fn-redefs [protocol/fetch-document (constantly invalid)]
-        (is (thrown? clojure.lang.ExceptionInfo (protocol/discovery-config config)))))))
+  (doseq [scheme ["http" "https"]]
+    (let [origin (str scheme "://identity.example")
+          issuer (str origin "/realms/test")
+          config (assoc config :issuer-uri issuer)
+          doc {:issuer issuer :authorization_endpoint (str origin "/auth")
+               :token_endpoint (str origin "/token") :jwks_uri (str origin "/certs")
+               :end_session_endpoint (str origin "/logout")}]
+      (mt/with-dynamic-fn-redefs [protocol/fetch-document (constantly doc)]
+        (is (= doc (:discovery-document (protocol/discovery-config config)))))
+      (doseq [invalid [(assoc doc :issuer "https://evil.example")
+                       (assoc doc :token_endpoint "https://evil.example/token")
+                       (assoc doc :jwks_uri (str (if (= scheme "http") "https" "http") "://identity.example/certs"))]]
+        (mt/with-dynamic-fn-redefs [protocol/fetch-document (constantly invalid)]
+          (is (thrown? clojure.lang.ExceptionInfo (protocol/discovery-config config))))))))
 
 (deftest trusted-url-test
-  (is (settings/trusted-url? "https://portal.example/metabase"))
-  (is (settings/trusted-url? "http://127.0.0.1:33419/metabase"))
-  (doseq [url ["http://portal.example" "https://user:pass@portal.example" "//portal.example"
+  (doseq [url ["https://portal.example/metabase" "http://portal.example/metabase"
+               "http://115.227.3.67:3000" "http://demo.uhoo.cn:9433/realms/enterprise-ai"
+               "http://127.0.0.1:33419/metabase"]]
+    (is (settings/trusted-url? url)))
+  (doseq [url ["ftp://portal.example" "javascript:alert(1)" "https://user:pass@portal.example"
+               "http://user:pass@portal.example" "//portal.example"
                "https://portal.example/?redirect=evil" "https://portal.example/#fragment" nil]]
     (is (not (settings/trusted-url? url)))))
 

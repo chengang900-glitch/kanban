@@ -1,6 +1,8 @@
-# Insert before the existing LibreChat catch-all on its HTTPS origin.
-# This upstream must be a private/TLS connection or a separately managed SSH tunnel.
-# Do not transmit SESSION cookies to a public HTTP upstream across the Internet.
+# Insert before the existing LibreChat catch-all on the chosen HTTP or HTTPS origin.
+# For an HTTP site, explicitly use an http:// site address in the enclosing Caddy block;
+# for HTTPS, use the intended https:// address and valid certificate. Match actual port mapping.
+# Choose the upstream transport for your deployment; a private/TLS connection or tunnel avoids
+# transmitting SESSION cookies in plaintext between hosts. Caddy supplies X-Forwarded-Proto.
 redir /metabase /metabase/ 308
 handle_path /metabase/* {
     reverse_proxy 127.0.0.1:3300 {
