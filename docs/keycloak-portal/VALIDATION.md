@@ -106,3 +106,16 @@ MB_DB_TYPE=h2 MB_DB_IN_MEMORY=true clojure -M:dev:test -e "(require 'metabase.te
 - 补丁对原有 `19c2e462` 基线 `git apply --check` 通过。
 
 以上协议单元/集成测试不代替部署端的 TLS 证书及 Keycloak Realm SSL 策略验收；本次没有改动远程部署或推送 Git。
+
+## 最终双协议构建验收
+
+按源码提交 `7c01f933d306176628c7effcf3e137341448982b` 构建的 OSS JAR 已完成归档校验和隔离浏览器复验。此节覆盖前面的首次实现产物记录，交付文件为：
+
+- 文件：`target/uberjar/metabase-v0.63.19-keycloak-7c01f933.jar`
+- 版本：`v0.63.19`，hash `7c01f93`，日期 `2026-10-03`；JDK 25，Main-Class `metabase.core.bootstrap`
+- 大小：`663098792` 字节；SHA-256：`1133b9c353d252b35bc9474e855777a3b5ebdb01d5734844be71113cb81bcc9f`
+- ZIP 全部 CRC 校验通过，包含 `migrations/063/20261003_oss_keycloak.yaml` 和 128 个 Keycloak 类；Enterprise 命名空间条目 0
+- 最终 JAR 在新 H2 库上启动成功，`/metabase/api/health` 返回 200。隔离 Chrome 对以上 9 项个人登录、同源 iframe、用户隔离、退出/撤销及跨源策略检查全部通过，页面运行时错误 0；OIDC 与 LibreChat hook 为模拟实现，不代表真实 SSO 联调
+- 产物元数据：`target/keycloak-portal-local/artifact-dual-protocol.json`；浏览器结果：`target/keycloak-portal-local/browser/smoke.json`
+
+HTTP 和 HTTPS 均可由部署者配置。门户与 Metabase 工作区必须选用完全相同的 scheme、host 和 port；HTTP 部署沿用 LibreChat 已有的 `PORTAL_ALLOW_HTTP=true` 设置。HTTPS Cookie 带 `Secure`，HTTP Cookie 不带 `Secure`。未部署生产、未更改远程配置、未推送 Git，也未在源码或验证证据中保存真实凭据。
