@@ -8,6 +8,7 @@ export interface InteractiveEmbeddingOptions {
   top_nav: boolean;
   search: boolean;
   new_button: boolean;
+  app_switcher: boolean;
   breadcrumbs: boolean;
   logo: boolean;
   side_nav: boolean | "default";

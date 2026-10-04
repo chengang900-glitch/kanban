@@ -61,8 +61,9 @@ export const getIsNewButtonVisible = createSelector(
 );
 
 export const getIsAppSwitcherVisible = createSelector(
-  [getIsEmbeddingIframe],
-  (isEmbeddingIframe) => !isEmbeddingIframe,
+  [getIsEmbeddingIframe, getEmbedOptions],
+  (isEmbeddingIframe, embedOptions) =>
+    !isEmbeddingIframe || embedOptions.app_switcher,
 );
 
 const PATHS_WITHOUT_NAVBAR = [

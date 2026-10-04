@@ -28,6 +28,7 @@ export const DEFAULT_INTERACTIVE_EMBEDDING_OPTIONS: InteractiveEmbeddingOptionsS
     side_nav: "default",
     search: false,
     new_button: false,
+    app_switcher: false,
     breadcrumbs: true,
     logo: true,
     header: true,

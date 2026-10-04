@@ -114,6 +114,23 @@ describe("AppBar", () => {
         expect(screen.queryByTestId("sidebar-toggle")).not.toBeInTheDocument();
       });
 
+      it("should hide the app switcher by default for an iframe", async () => {
+        setup({});
+        expect(await screen.findByText(/Our analytics/)).toBeVisible();
+        expect(
+          screen.queryByTestId("app-switcher-target"),
+        ).not.toBeInTheDocument();
+      });
+
+      it("should show the app switcher when enabled for an iframe", async () => {
+        setup({
+          embedOptions: {
+            app_switcher: true,
+          },
+        });
+        expect(await screen.findByTestId("app-switcher-target")).toBeVisible();
+      });
+
       it("should always show side nav toggle icon when logo is hidden", async () => {
         setup({
           embedOptions: {

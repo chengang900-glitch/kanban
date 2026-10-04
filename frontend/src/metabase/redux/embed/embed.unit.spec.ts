@@ -31,6 +31,16 @@ describe("embed reducer", () => {
       expect(store.getState().embed.options.new_button).toBe(true);
     });
 
+    it("accepts the app switcher option for full-app embeds", async () => {
+      const store = createMockStore();
+
+      await store.dispatch(
+        setInitialUrlOptions({ search: "app_switcher=true" }),
+      );
+
+      expect(store.getState().embed.options.app_switcher).toBe(true);
+    });
+
     it("should ignore invalid options", () => {
       const store = createMockStore();
 
