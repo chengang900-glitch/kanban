@@ -69,6 +69,14 @@ LIBRECHAT_FIXTURE_ROOT=/path/to/isolated-LibreChat node bin/keycloak-portal/brow
 MB_DB_TYPE=h2 MB_DB_IN_MEMORY=true clojure -M:dev:test -e "(require 'metabase.test-runner) (def options {:only '[metabase.server.middleware.session-test metabase.server.middleware.security-test metabase.core.modules-test] :multithread? false}) (metabase.test-runner/find-tests options) (metabase.test.initialize/initialize-if-needed! :web-server) (metabase.test-runner/find-and-run-tests-cli options)"
 ```
 
+## 首次登录自动绑定验证
+
+本次变更在 Keycloak 回调中增加了受限的首次登录自动绑定：仅接受当前配置 issuer、`email_verified=true`、有效 `sub` 和有效邮箱；Metabase 中必须恰好存在一个启用账号，且该账号不能已有其他 `oss-keycloak` 身份。成功时只创建 `AuthIdentity` 与 `oss_keycloak_binding`，不创建 Metabase 用户、不改变权限或密码；后续请求仍按 `issuer + sub` 查找绑定。
+
+本地 H2 定向测试结果：Keycloak store 5 tests / 25 assertions、callback integration + protocol 13 tests / 107 assertions，均为 0 failures / 0 errors。真实中台部署后使用新建的 `test@uhoo.cn`（Keycloak 用户名 `test`，Metabase 同邮箱账号）执行一次首次登录，检查回调成功进入数据中心，并确认数据库只新增该 subject 的绑定记录；随后退出并重新登录，确认走已有绑定路径。若邮箱未验证、Metabase 账号不存在/被停用或身份已绑定其他账号，应继续返回受控错误，不自动创建或覆盖账号。
+
+2026-10-06 已完成真实中台首登验收：`test@uhoo.cn` 在 Keycloak 标记邮箱已验证后，从门户登录并正常进入 Metabase；数据库核对显示该用户新增一条 `oss-keycloak` AuthIdentity/绑定记录，服务重建后仍保留。最终 JAR SHA-256 为 `50c4b7e4b3a52a21ded9752ddc7ee848e1ef826dad6626c93f511ed44c585d02`，公网 `/metabase/api/health` 返回 200。当前验证覆盖一个新账号的自动绑定和重启持久化；其它账号仍需满足同样的已验证邮箱、唯一启用 Metabase 账号和无身份冲突条件，首次登录时自动完成绑定。
+
 ## 尚未验证和继续条件
 
 - 当前真实中台和 issuer 为 `http://demo.uhoo.cn:9433/`、`http://demo.uhoo.cn:9433/realms/enterprise-ai`；用户后续确认程序同时支持 HTTP/HTTPS；协议选择已不再阻塞本地交付，真实部署仍需配置核查和验收。

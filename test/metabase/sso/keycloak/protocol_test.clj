@@ -22,7 +22,8 @@
   "A valid short-lived test ID token's claims."
   []
   {:iss (:issuer-uri config) :aud (:client-id config) :sub "subject-a" :sid "session-a"
-   :iat (protocol/now-seconds) :exp (+ (protocol/now-seconds) 300) :nonce "test-nonce"})
+   :iat (protocol/now-seconds) :exp (+ (protocol/now-seconds) 300) :nonce "test-nonce"
+   :email "subject-a@example.com" :email_verified true})
 
 (defn sign
   "Sign claims using the ephemeral fixture private key."

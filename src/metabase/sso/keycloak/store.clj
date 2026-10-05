@@ -6,6 +6,7 @@
    [metabase.sso.keycloak.protocol :as protocol]
    [metabase.sso.keycloak.settings :as settings]
    [metabase.sso.models.keycloak]
+   [metabase.util :as u]
    [methodical.core :as methodical]
    [toucan2.core :as t2])
   (:import (java.sql SQLException)))
@@ -86,6 +87,42 @@
                                                           :provider_id id :metadata {:issuer issuer :subject subject})]
               (t2/insert! :model/OssKeycloakBinding :id id :auth_identity_id (:id identity))
               {:id (:id identity) :user_id user-id :issuer issuer :subject subject}))))
+      (catch Exception e
+        (if (duplicate-key? e)
+          (settings/fail! 409 "Identity or user is already bound. Explicitly unbind before rebinding.")
+          (throw e))))))
+
+(defn auto-bind-user!
+  "Bind one verified Keycloak identity to a unique active Metabase user by email."
+  [{:keys [iss sub email email_verified]}]
+  (let [issuer (:issuer-uri (settings/configuration))
+        normalized-email (when (string? email) (u/lower-case-en email))
+        id (binding-id issuer sub)]
+    (when-not (and (= issuer iss) (true? email_verified)
+                   (protocol/identifier? sub) (protocol/identifier? normalized-email))
+      (settings/fail! 403 "This Keycloak identity could not be safely auto-bound."))
+    (try
+      (t2/with-transaction [_]
+        (let [users (t2/select :model/User :%lower.email normalized-email :is_active true)
+              binding (t2/select-one :model/OssKeycloakBinding :id id)]
+          (when-not (= 1 (count users))
+            (settings/fail! 403 "This Keycloak identity could not be safely auto-bound."))
+          (let [user (first users)
+                identity (t2/select-one :model/AuthIdentity :user_id (:id user) :provider "oss-keycloak")]
+            (cond
+              (and binding identity (= (:auth_identity_id binding) (:id identity)))
+              user
+
+              (or binding identity)
+              (settings/fail! 409 "Identity or user is already bound. Explicitly unbind before rebinding.")
+
+              :else
+              (let [identity (t2/insert-returning-instance! :model/AuthIdentity
+                                                            :user_id (:id user) :provider "oss-keycloak"
+                                                            :provider_id id
+                                                            :metadata {:issuer issuer :subject sub})]
+                (t2/insert! :model/OssKeycloakBinding :id id :auth_identity_id (:id identity))
+                user)))))
       (catch Exception e
         (if (duplicate-key? e)
           (settings/fail! 409 "Identity or user is already bound. Explicitly unbind before rebinding.")

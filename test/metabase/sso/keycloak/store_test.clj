@@ -43,6 +43,20 @@
       (is (nil? (store/bound-user {:iss (:issuer-uri fixture/config) :sub "subject-a"})))
       (is (thrown? clojure.lang.ExceptionInfo (store/bind-user! (:id a) "subject-a"))))))
 
+(deftest verified-email-auto-binding-test
+  (mt/with-temp [:model/User user {:email "Auto.Bind@Example.com"}]
+    (let [bound (store/auto-bind-user! {:iss (:issuer-uri fixture/config)
+                                        :sub "subject-a"
+                                        :email "AUTO.BIND@example.com"
+                                        :email_verified true})]
+      (is (= (:id user) (:id bound)))
+      (is (= (:id user) (:id (store/bound-user {:iss (:issuer-uri fixture/config) :sub "subject-a"})))))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"could not be safely auto-bound"
+                          (store/auto-bind-user! {:iss (:issuer-uri fixture/config)
+                                                  :sub "subject-unverified"
+                                                  :email "auto.bind@example.com"
+                                                  :email_verified false})))))
+
 (deftest one-use-login-state-test
   (let [state (str (random-uuid)) expired (str (random-uuid)) concurrent (str (random-uuid))]
     (store/remember-login! state (+ (protocol/now-seconds) 600))

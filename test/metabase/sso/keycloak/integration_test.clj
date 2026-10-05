@@ -116,8 +116,15 @@
                        (is (= 401 (:status (integration/callback req))))
                        (is (= 0 (get-in result [:cookies integration/state-cookie-name :max-age]))))))))
     (mt/with-temp [:model/User user {}]
-      (exchange! (assoc (fixture/claims) :sub "unbound-subject" :email (:email user))
+      (exchange! (assoc (fixture/claims) :sub "unbound-subject" :email (:email user) :email_verified false)
                  (fn [] (is (= 403 (:status (integration/callback (transaction-request! {}))))))))
+    (mt/with-temp [:model/User user {:email "auto-login@example.com"}]
+      (exchange! (assoc (fixture/claims) :sub "auto-bound-subject" :email "AUTO-LOGIN@example.com" :email_verified true)
+                 (fn []
+                   (let [result (integration/callback (transaction-request! {}))
+                         key (get-in result [:cookies request/metabase-session-cookie :value])]
+                     (is (= 302 (:status result)))
+                     (is (= (:id user) (:metabase-user-id (#'mw.session/current-user-info-for-session key nil))))))))
     (is (= 401 (:status (integration/callback (transaction-request! {:params {:state "wrong" :code "code"}})))))))
 
 (deftest callback-replaces-browser-session-test

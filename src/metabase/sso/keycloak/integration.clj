@@ -111,16 +111,15 @@
           claims (protocol/validate-id-token (exchange-code config code verifier) config nonce)
           ;; Callback is a top-level login. Caller headers cannot select the commercial embedded-session format.
           request (update request :headers dissoc "x-metabase-embedded")
+          user (or (store/bound-user claims)
+                   (store/auto-bind-user! claims))
           new-session (request/with-current-request request
                         (t2/with-transaction [_]
-                          (let [user (store/bound-user claims)]
-                            (when-not user
-                              (settings/fail! 403 "This Keycloak identity is not bound to an active Metabase account."))
-                            (let [new-session (auth-identity/create-session-with-auth-tracking!
-                                               user (request/device-info request) :provider/oss-keycloak)]
-                              (store/associate-session! new-session claims)
-                              (delete-browser-session! request)
-                              new-session))))
+                          (let [new-session (auth-identity/create-session-with-auth-tracking!
+                                             user (request/device-info request) :provider/oss-keycloak)]
+                            (store/associate-session! new-session claims)
+                            (delete-browser-session! request)
+                            new-session)))
           expiry (OffsetDateTime/ofInstant (Instant/ofEpochSecond (:exp claims)) ZoneOffset/UTC)]
       (request/set-session-cookies request
                                    (response/redirect (str (settings/origin (settings/site-base)) (:portal-path config)))
