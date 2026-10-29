@@ -11,8 +11,10 @@ export function getProductName(): string {
   );
 }
 
-export function getDisplaySiteName(siteName: string | undefined): string {
-  return siteName === DEFAULT_PRODUCT_NAME
+export function getDisplaySiteName(
+  siteName: string | null | undefined,
+): string {
+  return !siteName?.trim() || siteName === DEFAULT_PRODUCT_NAME
     ? getProductName()
-    : (siteName ?? "");
+    : siteName;
 }

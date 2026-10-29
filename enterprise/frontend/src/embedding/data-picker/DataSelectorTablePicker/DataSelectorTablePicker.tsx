@@ -1,3 +1,4 @@
+import cx from "classnames";
 import type { ReactNode } from "react";
 import { t } from "ttag";
 
@@ -5,21 +6,25 @@ import {
   AccordionList,
   type Section,
 } from "metabase/common/components/AccordionList";
+import { ExternalLink } from "metabase/common/components/ExternalLink";
 import {
   HoverParent,
   TableInfoIcon,
 } from "metabase/common/components/MetadataInfo/TableInfoIcon/TableInfoIcon";
+import { useDocsUrl } from "metabase/common/hooks";
 import { useTranslateContent } from "metabase/content-translation/hooks";
 import CS from "metabase/css/core/index.css";
+import type {
+  DataSelectorDatabase,
+  DataSelectorSchema,
+  DataSelectorTable,
+} from "metabase/querying/common/components/DataSelector";
 import { Box, DelayGroup, Flex, Icon, rem } from "metabase/ui";
 import { isSyncCompleted } from "metabase/utils/syncing";
 import { isNotNull } from "metabase/utils/types";
-import type Database from "metabase-lib/v1/metadata/Database";
-import type Schema from "metabase-lib/v1/metadata/Schema";
-import type Table from "metabase-lib/v1/metadata/Table";
 import { getSchemaDisplayName } from "metabase-lib/v1/metadata/utils/schema";
 
-import DataSelectorSectionHeader from "../DataSelectorSectionHeader";
+import { DataSelectorSectionHeader } from "../DataSelectorSectionHeader";
 import { CONTAINER_WIDTH } from "../constants";
 
 type DataSelectorTablePickerProps = {
@@ -28,27 +33,30 @@ type DataSelectorTablePickerProps = {
   hasNextStep?: boolean;
   isLoading?: boolean;
   minTablesToShowSearch?: number;
-  schemas: Schema[];
-  selectedDatabase: Database;
-  selectedSchema?: Schema;
-  selectedTable?: Table;
-  tables: Table[];
-  onBack?: () => void;
-  onChangeTable: (table: Table) => void;
+  schemas: DataSelectorSchema[];
+  selectedDatabase?: DataSelectorDatabase | null;
+  selectedSchema?: DataSelectorSchema | null;
+  selectedTable?: DataSelectorTable | null;
+  tables: DataSelectorTable[];
+  onBack?: (() => void) | null;
+  onChangeTable: (table: DataSelectorTable) => void;
 };
 
 type Item = {
   name: string;
-  table: Table;
-  database: Database;
+  table: DataSelectorTable;
+  database: DataSelectorDatabase;
 };
 
 type HeaderProps = Pick<
   DataSelectorTablePickerProps,
-  "schemas" | "selectedSchema" | "selectedDatabase" | "onBack"
->;
+  "schemas" | "selectedSchema" | "onBack"
+> & {
+  // narrowed by the caller's early return; the header always has a database
+  selectedDatabase: DataSelectorDatabase;
+};
 
-const DataSelectorTablePicker = ({
+export const DataSelectorTablePicker = ({
   schemas,
   tables,
   selectedDatabase,
@@ -88,7 +96,7 @@ const DataSelectorTablePicker = ({
       {
         name: header,
         items: tables.filter(isNotNull).map((table) => ({
-          name: tc(table.displayName()),
+          name: tc(table.display_name),
           table: table,
           database: selectedDatabase,
         })),
@@ -97,13 +105,13 @@ const DataSelectorTablePicker = ({
       },
     ];
 
-    const checkIfItemIsClickable = ({ table }: { table: Table }) =>
+    const checkIfItemIsClickable = ({ table }: { table: DataSelectorTable }) =>
       table && isSyncCompleted(table);
 
-    const checkIfItemIsSelected = ({ table }: { table: Table }) =>
+    const checkIfItemIsSelected = ({ table }: { table: DataSelectorTable }) =>
       table && selectedTable ? table.id === selectedTable.id : false;
 
-    const renderItemIcon = ({ table }: { table: Table }) =>
+    const renderItemIcon = ({ table }: { table: DataSelectorTable }) =>
       table ? <TableInfoIcon table={table} position="top-start" /> : null;
 
     const renderItemWrapper = (content: ReactNode) => (
@@ -113,7 +121,8 @@ const DataSelectorTablePicker = ({
     const showSpinner = (itemOrSection: Item | Section<Item>) =>
       "table" in itemOrSection && !isSyncCompleted(itemOrSection.table);
 
-    const handleChange = ({ table }: { table: Table }) => onChangeTable(table);
+    const handleChange = ({ table }: { table: DataSelectorTable }) =>
+      onChangeTable(table);
 
     const isSearchable = hasFiltering && tables.length >= minTablesToShowSearch;
 
@@ -155,9 +164,13 @@ const DataSelectorTablePicker = ({
 };
 
 const LinkToDocsOnReferencingSavedQuestionsInQueries = () => {
+  // eslint-disable-next-line metabase/no-unconditional-metabase-links-render -- It's hard to tell if this is still used in the app. Please see https://metaboat.slack.com/archives/C505ZNNH4/p1703243785315819
+  const { url: docsUrl } = useDocsUrl(
+    "questions/native-editor/referencing-saved-questions-in-queries",
+  );
   return (
     <Box
-      p="md"
+      p="lg"
       ta="center"
       bg={"background_page-secondary"}
       style={{
@@ -165,6 +178,13 @@ const LinkToDocsOnReferencingSavedQuestionsInQueries = () => {
       }}
     >
       {t`Is a question missing?`}
+      <ExternalLink
+        href={docsUrl}
+        target="_blank"
+        className={cx(CS.block, CS.link)}
+      >
+        {t`Learn more about nested queries`}
+      </ExternalLink>
     </Box>
   );
 };
@@ -179,7 +199,11 @@ const Header = ({
 
   return (
     <Flex align="center" wrap="wrap">
-      <Flex align="center" style={{ cursor: "pointer" }} onClick={onBack}>
+      <Flex
+        align="center"
+        style={{ cursor: "pointer" }}
+        onClick={onBack ?? undefined}
+      >
         {onBack && <Icon name="chevronleft" size={18} />}
         <Box component="span" ml="sm" data-testid="source-database">
           {tc(selectedDatabase.name)}
@@ -199,6 +223,3 @@ const Header = ({
     </Flex>
   );
 };
-
-// eslint-disable-next-line import/no-default-export -- deprecated usage
-export default DataSelectorTablePicker;

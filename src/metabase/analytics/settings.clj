@@ -1,11 +1,12 @@
 (ns metabase.analytics.settings
   (:require
    [java-time.api :as t]
+   [metabase.analytics.db :as analytics.db]
    [metabase.config.core :as config]
    [metabase.settings.core :as setting :refer [defsetting]]
    [metabase.util.date-2 :as u.date]
-   [metabase.util.i18n :refer [deferred-tru]]
-   [toucan2.core :as t2]))
+   [metabase.util.experiment :as experiment]
+   [metabase.util.i18n :refer [deferred-tru]]))
 
 (defsetting analytics-uuid
   (deferred-tru
@@ -19,7 +20,7 @@
 (defsetting anon-tracking-enabled
   (deferred-tru "Enable the collection of anonymous usage data in order to help Metabase improve..")
   :type       :boolean
-  :default    true
+  :default    false
   :visibility :public
   :audit      :getter)
 
@@ -75,7 +76,7 @@
 (defn- first-user-creation
   "Returns the earliest user creation timestamp in the database"
   []
-  (:min (t2/select-one [:model/User [:%min.date_joined :min]])))
+  (analytics.db/first-user-date-joined))
 
 (defn- -instance-creation []
   (when-not (setting/get-value-of-type :timestamp :instance-creation)
@@ -110,11 +111,24 @@
   :setter     #'-non-table-chart-generated!)
 
 (defsetting analytics-pii-retention-enabled
-  (deferred-tru (str "Enable logging of embed path, query parameters, user agent, IP address, and Metabot "
-                     "conversation metadata for users of your internal data and embeds. This information "
-                     "will be shown in your usage analytics."))
+  (deferred-tru (str "Enable logging of embed path, query parameters, user attribute values, user agent, "
+                     "IP address, and Metabot conversation metadata for users of your internal data and embeds. "
+                     "This information will be shown in your usage analytics."))
   :type       :boolean
   :default    false
   :visibility :admin
   :export?    true
   :feature    :audit-app)
+
+(defsetting experiments-enabled
+  (deferred-tru "Enable or disable all code experiments. When disabled, only the production code path runs.")
+  :type       :boolean
+  :default    false
+  :doc        false
+  :visibility :admin
+  :export?    false
+  :audit      :getter)
+
+;; Wire the setting into the experiment machinery, which sits below the settings framework in the module
+;; graph. The fn is called on every experiment invocation, so toggling the setting takes effect immediately.
+(experiment/set-experiments-enabled-fn! experiments-enabled)

@@ -16,7 +16,7 @@ describe("NewModelOptions (EE with token)", () => {
     setup({ canCreateQueries: false });
 
     expect(
-      await screen.findByText("Dashboard is no fun without any data"),
+      await screen.findByText("Metabase is no fun without any data"),
     ).toBeInTheDocument();
   });
 
@@ -30,14 +30,29 @@ describe("NewModelOptions (EE with token)", () => {
       expect(await screen.findByText("Use a native query")).toBeInTheDocument();
     });
 
-    it("should not render the model help link", () => {
-      setup({
-        canCreateQueries: true,
-        canCreateNativeQueries: true,
-        showMetabaseLinks: true,
+    describe("whitelabel feature", () => {
+      it("should not render help link when `show-metabase-links: false`", async () => {
+        setup({
+          canCreateQueries: true,
+          canCreateNativeQueries: true,
+          showMetabaseLinks: false,
+        });
+
+        expect(
+          await screen.findByText("Use the notebook editor"),
+        ).toBeInTheDocument();
+        expect(screen.queryByText("What's a model?")).not.toBeInTheDocument();
       });
 
-      expect(screen.queryByText("What's a model?")).not.toBeInTheDocument();
+      it("should render help link when `show-metabase-links: true`", async () => {
+        setup({
+          canCreateQueries: true,
+          canCreateNativeQueries: true,
+          showMetabaseLinks: true,
+        });
+
+        expect(await screen.findByText("What's a model?")).toBeInTheDocument();
+      });
     });
   });
 });

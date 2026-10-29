@@ -2,12 +2,10 @@
   (:require
    [clojure.test :refer :all]
    [metabase.api-scope.core :as api-scope]
-   [metabase.entity-retrieval.core :as entity-retrieval]
    [metabase.metabot.agent.profiles :as profiles]
    [metabase.metabot.scope :as scope]
    [metabase.metabot.tools :as tools]
-   [metabase.metabot.tools.transforms :as tools.transforms]
-   [metabase.premium-features.core :as premium-features]
+   [metabase.search.entity-retrieval.core :as entity-retrieval]
    [metabase.test :as mt]))
 
 (deftest get-profile-test
@@ -18,8 +16,7 @@
         (is (some? profile))
         (is (= :embedding_next (:name profile)))
         (is (= "anthropic/claude-sonnet-4-6" (:model profile)))
-        (is (= 10 (:max-iterations profile)))
-        (is (= 0.3 (:temperature profile)))
+        (is (= 15 (:max-iterations profile)))
         (is (vector? (:tools profile)))
         (is (contains? (tool-names profile) "construct_notebook_query"))
         (is (contains? (tool-names profile) "search"))
@@ -30,30 +27,18 @@
         (is (some? profile))
         (is (= :internal (:name profile)))
         (is (= "anthropic/claude-sonnet-4-6" (:model profile)))
-        (is (= 20 (:max-iterations profile)))
-        (is (= 0.3 (:temperature profile)))
+        (is (= 15 (:max-iterations profile)))
         (is (vector? (:tools profile)))
         ;; Should have more tools than embedding_next profile
         (is (> (count (:tools profile)) 5))
         (is (contains? (tool-names profile) "search"))
         (is (contains? (tool-names profile) "create_sql_query"))
         (is (contains? (tool-names profile) "create_chart"))))
-    (testing "retrieves transforms_codegen profile"
-      (let [profile (profiles/get-profile :transforms_codegen)]
-        (is (some? profile))
-        (is (= :transforms_codegen (:name profile)))
-        (is (= "anthropic/claude-sonnet-4-6" (:model profile)))
-        (is (= 30 (:max-iterations profile)))
-        (is (= 0.3 (:temperature profile)))
-        (is (vector? (:tools profile)))
-        (is (contains? (tool-names profile) "search"))
-        (is (contains? (tool-names profile) "list_available_fields"))))
     (testing "retrieves sql profile"
       (let [profile (profiles/get-profile :sql)]
         (is (=? {:name :sql
                  :model "anthropic/claude-sonnet-4-6"
                  :max-iterations int?
-                 :temperature pos?
                  :required-tool-call? true}
                 profile))
         (is (contains? (tool-names profile) "search"))
@@ -64,25 +49,18 @@
         ;; the :name stays :nlq even when redirected to the fallback, so telemetry/recents are unaffected
         (is (= :nlq (:name profile)))
         (is (= "anthropic/claude-sonnet-4-6" (:model profile)))
-        (is (= 20 (:max-iterations profile)))
-        (is (= 0.3 (:temperature profile)))
+        (is (= 15 (:max-iterations profile)))
         ;; In tests the library index can't answer, so :nlq is transparently served the general-search
         ;; fallback; the curated/fallback swap by availability is covered by nlq-data-discovery-fallback-test.
         (is (contains? (tool-names profile) "search"))
         (is (not (contains? (tool-names profile) "retrieve_library_entities")))
         (is (contains? (tool-names profile) "construct_notebook_query"))))
-    (testing "retrieves nlq-fallback profile with the same iteration limit"
-      (let [profile (profiles/get-profile :nlq-fallback)]
-        (is (some? profile))
-        (is (= :nlq-fallback (:name profile)))
-        (is (= 20 (:max-iterations profile)))))
     (testing "retrieves slackbot profile"
       (let [profile (profiles/get-profile :slackbot)]
         (is (some? profile))
         (is (= :slackbot (:name profile)))
         (is (= "anthropic/claude-sonnet-4-6" (:model profile)))
-        (is (= 10 (:max-iterations profile)))
-        (is (= 0.3 (:temperature profile)))
+        (is (= 15 (:max-iterations profile)))
         (is (vector? (:tools profile)))
         (is (contains? (tool-names profile) "search"))
         (is (contains? (tool-names profile) "construct_notebook_query"))
@@ -91,13 +69,16 @@
         (is (contains? (tool-names profile) "create_dashboard_subscription"))))
     (testing "returns nil for unknown profile"
       (is (nil? (profiles/get-profile :unknown-profile))))
+    (testing "profile-registered? distinguishes registered profiles from unknown ones"
+      (is (true? (profiles/profile-registered? :embedding_next)))
+      (is (true? (profiles/profile-registered? :explorations)))
+      (is (false? (profiles/profile-registered? :unknown-profile))))
     (testing "all profiles have required keys"
-      (doseq [profile-id [:embedding_next :internal :transforms_codegen :sql :nlq :slackbot]]
+      (doseq [profile-id [:embedding_next :internal :sql :nlq :slackbot]]
         (let [profile (profiles/get-profile profile-id)]
           (is (= profile-id (:name profile)))
           (is (contains? profile :model))
           (is (contains? profile :max-iterations))
-          (is (contains? profile :temperature))
           (is (contains? profile :tools))
           (is (every? var? (:tools profile))))))))
 
@@ -116,27 +97,24 @@
         (is (contains? tools "search"))
         (is (contains? tools "create_autogenerated_dashboard"))
         ;; Capability-gated tools should be excluded
-        (is (not (contains? tools "navigate_user")))))))
+        (is (not (contains? tools "create_sql_query")))))))
 
 (deftest get-tools-for-profile-includes-capability-gated-tools-test
   (binding [scope/*current-user-scope* api-scope/unrestricted]
     (testing "providing a capability includes tools gated by that capability"
-      (let [tools (profiles/get-tools-for-profile :internal [:frontend-navigate-user-v1])]
-        (is (contains? tools "navigate_user"))))))
+      (let [tools (profiles/get-tools-for-profile :internal [:permission-write-sql-queries])]
+        (is (contains? tools "create_sql_query"))))))
 
 (deftest get-tools-for-profile-string-capabilities-test
   (binding [scope/*current-user-scope* api-scope/unrestricted]
     (testing "capabilities as strings (as sent by the API / benchmark client)"
-      (testing "NLQ-only capabilities should exclude SQL tools and include navigate_user"
+      (testing "NLQ-only capabilities should exclude SQL tools but include ungated tools"
         (let [;; This is what the NLQ benchmark actually sends via the API:
-              nlq-capabilities ["frontend:navigate_user_v1"
-                                "permission:save_questions"]
+              nlq-capabilities ["permission:save_questions"]
               tools (profiles/get-tools-for-profile :internal nlq-capabilities)]
           (is (contains? tools "search") "search should always be available")
           (is (contains? tools "construct_notebook_query") "notebook queries should be available")
           (is (contains? tools "read_resource") "read_resource should always be available")
-          (is (contains? tools "navigate_user")
-              "navigate_user should be available when frontend:navigate_user_v1 is in capabilities")
           (is (not (contains? tools "create_sql_query"))
               "create_sql_query should NOT be available without permission:write_sql_queries")
           (is (not (contains? tools "edit_sql_query"))
@@ -144,14 +122,11 @@
           (is (not (contains? tools "replace_sql_query"))
               "replace_sql_query should NOT be available without permission:write_sql_queries")))
       (testing "full capabilities including SQL write permission should include SQL tools"
-        (let [full-capabilities ["frontend:navigate_user_v1"
-                                 "permission:save_questions"
+        (let [full-capabilities ["permission:save_questions"
                                  "permission:write_sql_queries"]
               tools (profiles/get-tools-for-profile :internal full-capabilities)]
           (is (contains? tools "search"))
           (is (contains? tools "construct_notebook_query"))
-          (is (contains? tools "navigate_user")
-              "navigate_user should be available with frontend:navigate_user_v1")
           (is (contains? tools "create_sql_query")
               "create_sql_query should be available with permission:write_sql_queries")
           (is (contains? tools "edit_sql_query")
@@ -161,7 +136,6 @@
       (testing "empty capabilities should exclude all capability-gated tools"
         (let [tools (profiles/get-tools-for-profile :internal [])]
           (is (contains? tools "search") "ungated tools should remain")
-          (is (not (contains? tools "navigate_user")))
           (is (not (contains? tools "create_sql_query"))
               "SQL tools should be gated by permission:write_sql_queries"))))))
 
@@ -178,14 +152,10 @@
       ;; the curated profile is the same set with retrieve_library_entities in place of `search`
       (is (= curated (-> embedding (disj "search") (conj "retrieve_library_entities"))))))
   (binding [scope/*current-user-scope* api-scope/unrestricted]
-    (testing "navigate_user is excluded without the capability"
+    (testing "ungated tools are available with empty capabilities"
       (let [tools (profiles/get-tools-for-profile :embedding_next [])]
         (is (contains? tools "search"))
-        (is (contains? tools "construct_notebook_query"))
-        (is (not (contains? tools "navigate_user")))))
-    (testing "navigate_user is included with the capability"
-      (let [tools (profiles/get-tools-for-profile :embedding_next ["frontend:navigate_user_v1"])]
-        (is (contains? tools "navigate_user"))))))
+        (is (contains? tools "construct_notebook_query"))))))
 
 (deftest nlq-data-discovery-fallback-test
   (testing "the :nlq profile always keeps a data-discovery tool, swapping by index availability"
@@ -207,52 +177,6 @@
                 "the general-search fallback keeps the agent from having zero discovery tools")
             (is (contains? tools "construct_notebook_query"))))))))
 
-(deftest transform-feature-capabilities-test
-  (let [orig-has-feature (mt/original-fn #'premium-features/has-feature?)
-        transform-tools #{#'tools.transforms/write-transform-sql-tool
-                          #'tools.transforms/write-transform-python-tool}]
-    (testing "Available with features present"
-      (mt/with-dynamic-fn-redefs [premium-features/has-feature? (fn [feat]
-                                                                  (if (#{:transforms-basic :transforms-python} feat)
-                                                                    true
-                                                                    (orig-has-feature feat)))]
-        (is (= transform-tools
-               (set (#'profiles/filter-by-capabilities transform-tools
-                                                       ["permission:write_transforms"]))))))
-    (testing "Not available with missing features"
-      (mt/with-dynamic-fn-redefs [premium-features/is-hosted? (constantly true)
-                                  premium-features/has-feature? (fn [feat]
-                                                                  (if (#{:transforms-basic :transforms-python} feat)
-                                                                    false
-                                                                    (orig-has-feature feat)))]
-        (is (= #{}
-               (set (#'profiles/filter-by-capabilities transform-tools
-                                                       ["permission:write_transforms"]))))))
-    (testing "Sql tool available on self hosted instances"
-      (mt/with-dynamic-fn-redefs [premium-features/is-hosted? (constantly false)
-                                  premium-features/has-feature? (fn [feat]
-                                                                  (if (#{:transforms-basic :transforms-python} feat)
-                                                                    false
-                                                                    (orig-has-feature feat)))]
-        (is (= #{#'tools.transforms/write-transform-sql-tool}
-               (set (#'profiles/filter-by-capabilities transform-tools
-                                                       ["permission:write_transforms"]))))))
-    (testing "Python transform tools not available when basic transforms are not available"
-      (mt/with-dynamic-fn-redefs [premium-features/is-hosted? (constantly true)
-                                  premium-features/has-feature? (fn [feat]
-                                                                  (cond
-                                                                    (#{:transforms-basic} feat)
-                                                                    false
-
-                                                                    (#{:transforms-python} feat)
-                                                                    true
-
-                                                                    :else
-                                                                    (orig-has-feature feat)))]
-        (is (= #{}
-               (set (#'profiles/filter-by-capabilities transform-tools
-                                                       ["permission:write_transforms"]))))))))
-
 (deftest terminal-tools-test
   (testing "the :sql profile marks its SQL write tools AND clarification terminal"
     (is (= #{"create_sql_query" "edit_sql_query" "replace_sql_query" "ask_for_sql_clarification"}
@@ -268,7 +192,6 @@
   (let [base {:name            :scratch
               :prompt-template "internal.selmer"
               :max-iterations  10
-              :temperature     0.3
               :tools           [#'tools/read-resource-tool]}]
     (testing "rejects :always-on-skills that don't resolve to a registered skill"
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"unknown always-on skill"
@@ -277,4 +200,18 @@
     (testing "rejects :terminal-tools the profile does not expose"
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"terminal tools it does not expose"
                             (#'profiles/register-profile!
-                             (assoc base :terminal-tools #{"nonexistent_tool"})))))))
+                             (assoc base :terminal-tools #{"nonexistent_tool"})))))
+    (testing "rejects :skills? false combined with :always-on-skills"
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"disables skills but lists"
+                            (#'profiles/register-profile!
+                             (assoc base :skills? false :always-on-skills [:read-resource])))))))
+
+(deftest explorations-profile-disables-skills-test
+  (binding [scope/*current-user-scope* api-scope/unrestricted]
+    (testing "explorations opts out of skills so read_resource does not inject load_skill"
+      (let [profile (profiles/get-profile :explorations)
+            tools   (profiles/profile->tools profile [])]
+        (is (false? (:skills? profile)))
+        (is (contains? tools "read_resource")
+            "precondition: read_resource is active (would otherwise match a skill)")
+        (is (not (contains? tools "load_skill")))))))

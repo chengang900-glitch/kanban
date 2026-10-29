@@ -3,6 +3,7 @@
   No-op if none of the notifications are changed.
   If a notification is changed, it will be replaced with a new one."
   (:require
+   [metabase.notification.db :as notification.db]
    [metabase.notification.models :as models.notification]
    [metabase.permissions.core :as perms]
    [metabase.util :as u]
@@ -76,7 +77,7 @@
                             :template     {:name         "Notification Card Created Confirmation"
                                            :channel_type "channel/email"
                                            :details      {:type "email/handlebars-resource"
-                                                          :subject "你已创建预警"
+                                                          :subject "You set up an alert"
                                                           :path "notification_card_new_confirmation"
                                                           :recipient-type "cc"}}
                             :recipients  [{:type    :notification-recipient/template
@@ -93,7 +94,7 @@
                             :template     {:name         "Slack Token Error Email template"
                                            :channel_type "channel/email"
                                            :details      {:type "email/handlebars-resource"
-                                                          :subject "Slack 连接已失效"
+                                                          :subject "Your Slack connection stopped working"
                                                           :path "slack_token_error"
                                                           :recipient-type "cc"}}
                             :recipients   [{:type    :notification-recipient/template
@@ -112,7 +113,7 @@
                             :template     {:name         "Comment Created email template"
                                            :channel_type :channel/email
                                            :details      {:type           "email/handlebars-resource"
-                                                          :subject        "关于 {{payload.event_info.entity_title}} 的新评论"
+                                                          :subject        "Comment on {{payload.event_info.entity_title}}"
                                                           :path           "comment_created"
                                                           :recipient-type "cc"}}
                             :recipients   [{:type    :notification-recipient/template
@@ -129,7 +130,7 @@
                        :template {:name "Support Access Grant Created Email"
                                   :channel_type :channel/email
                                   :details {:type "email/handlebars-resource"
-                                            :subject "已创建技术支持访问授权"
+                                            :subject "Support Access Grant Created"
                                             :path "support_access_grant"
                                             :recipient-type "cc"}}
                        :recipients [{:type :notification-recipient/template
@@ -147,7 +148,7 @@
                        :template {:name "Transform Failed email template"
                                   :channel_type :channel/email
                                   :details {:type "email/handlebars-resource"
-                                            :subject "任务“{{payload.event_info.job_name}}”执行失败"
+                                            :subject "The job \"{{payload.event_info.job_name}}\" had failures"
                                             :path "transform_failed"
                                             :recipient-type "cc"}}
                        :recipients [{:type :notification-recipient/template
@@ -164,7 +165,7 @@
                        :template {:name "Transform Job Failed email template"
                                   :channel_type :channel/email
                                   :details {:type "email/handlebars-resource"
-                                            :subject "任务“{{payload.event_info.job_name}}”执行失败"
+                                            :subject "The job \"{{payload.event_info.job_name}}\" had failures"
                                             :path "transform_failed"
                                             :recipient-type "bcc"}}
                        :recipients [{:type :notification-recipient/group
@@ -181,7 +182,7 @@
                             :template     {:name         "Transform Failure Digest email template"
                                            :channel_type :channel/email
                                            :details      {:type           "email/handlebars-resource"
-                                                          :subject        "最近一天内失败的转换任务"
+                                                          :subject        "Transform jobs that failed in the last day"
                                                           :path           "transform_failure_digest"
                                                           :recipient-type "bcc"}}
                             :recipients   [{:type                 :notification-recipient/group
@@ -189,9 +190,9 @@
 
 (defn- cleanup-notification!
   [internal-id existing-row]
-  (t2/delete! :model/Notification :internal_id internal-id)
+  (notification.db/delete-notification-by-internal-id! internal-id)
   (when-let [template-ids (->> existing-row :handlers (keep (comp :id :template)) seq)]
-    (t2/delete! :model/ChannelTemplate :id [:in template-ids])))
+    (notification.db/delete-channel-templates! template-ids)))
 
 (defn- create-notification!
   [notification]
@@ -199,9 +200,7 @@
                    (if-let [template (:template handler)]
                      (-> handler
                          (dissoc :template)
-                         (assoc :template_id (t2/insert-returning-pk!
-                                              :model/ChannelTemplate
-                                              template)))
+                         (assoc :template_id (notification.db/insert-channel-template! template)))
                      handler))]
     (models.notification/create-notification!
      (dissoc notification :handlers :subscriptions)
@@ -228,12 +227,11 @@
   "Hydrate an existing notification row for comparison. Don't use [[models.notification/hydrate-notification]]
    so we can migrate on schema changes."
   [notification]
-  (t2/hydrate notification :creator :payload :subscriptions
-              [:handlers :channel :template [:recipients :recipients-detail]]))
+  (t2/hydrate notification :creator :payload :subscriptions [:handlers :channel :template [:recipients :recipients-detail]]))
 
 (defn- sync-notification!
   [{:keys [internal_id] :as row}]
-  (let [existing-notification (some-> (t2/select-one :model/Notification :internal_id internal_id)
+  (let [existing-notification (some-> (notification.db/notification-by-internal-id internal_id)
                                       hydrate-existing-notification)]
     (u/prog1 (action existing-notification row)
       (case <>

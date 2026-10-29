@@ -1,9 +1,15 @@
 import { t } from "ttag";
 
+import upsellWhitelabelImage from "assets/img/upsell-whitelabel.png?url";
+import { ExternalLink } from "metabase/common/components/ExternalLink";
 import { UpsellBigCard } from "metabase/common/components/upsells/components";
+import S from "metabase/common/components/upsells/components/Upsells.module.css";
+import { useUpsellLink } from "metabase/common/components/upsells/components/use-upsell-link";
 import { UPGRADE_URL } from "metabase/common/components/upsells/constants";
 import { useHasTokenFeature } from "metabase/common/hooks";
 import { PLUGIN_ADMIN_SETTINGS } from "metabase/plugins";
+import { useSelector } from "metabase/redux";
+import { getDocsUrl } from "metabase/selectors/settings";
 
 export const UpsellWhitelabel = ({ source }: { source: string }) => {
   const isWhitelabeled = useHasTokenFeature("whitelabel");
@@ -12,6 +18,21 @@ export const UpsellWhitelabel = ({ source }: { source: string }) => {
     campaign,
     location: source,
   });
+  const docsUrl = useSelector((state) =>
+    getDocsUrl(state, {
+      page: "configuring-metabase/appearance",
+    }),
+  );
+
+  // Even though getDocsUrl allows to pass utm params as one of the props,
+  // the product requirement is to keep them in sync with the primary CTA.
+  // That's why we're using useUpsellLink hook again here.
+  const url = useUpsellLink({
+    url: docsUrl,
+    campaign: "whitelabel",
+    location: source,
+  });
+
   if (isWhitelabeled) {
     return null;
   }
@@ -23,10 +44,13 @@ export const UpsellWhitelabel = ({ source }: { source: string }) => {
       buttonText={t`Try for free`}
       buttonLink={UPGRADE_URL}
       source={source}
-      illustrationSrc="app/assets/img/upsell-whitelabel.png"
+      illustrationSrc={upsellWhitelabelImage}
       onClick={triggerUpsellFlow}
     >
       {t`Customize your internal or customer-facing analytics with your brand name, logo, colors, font and more, and hide giveaway Metabase elements.`}
+      <ExternalLink className={S.SecondaryCTALink} href={url}>
+        {t`Learn more`}
+      </ExternalLink>
     </UpsellBigCard>
   );
 };

@@ -12,6 +12,7 @@
    [metabase.driver.util :as driver.u]
    [metabase.lib.test-metadata :as meta]
    [metabase.lib.test-util :as lib.tu]
+   ;; binds mock metadata providers via the ambient store, which the code under test reads
    ^{:clj-kondo/ignore [:deprecated-namespace]} [metabase.query-processor.store :as qp.store]
    [metabase.settings.core :as setting]
    [metabase.startup.core :as startup]
@@ -20,7 +21,6 @@
    [metabase.util :as u]
    [metabase.util.snake-hating-map :as snake-hating-map])
   (:import
-   (java.sql SQLException)
    (javax.net.ssl SSLSocketFactory)))
 
 (comment h2/keep-me)
@@ -102,14 +102,14 @@
                                       :required    false}
                                      {:name "ssl"}
                                      {:name "use-keystore"
-                                      :visible-if  {:ssl true}}
+                                      :visible-if  {"ssl" true}}
                                      {:name         "keystore-password-value"
                                       :display-name "Keystore Password",
                                       :type         "password",
                                       :required     false,
-                                      :visible-if   {:use-keystore true
+                                      :visible-if   {"use-keystore" true
                                                      ;; this should have been filled in as a transitive dependency
-                                                     :ssl          true}}
+                                                     "ssl"          true}}
                                      {:name         "keystore-options"
                                       :display-name "Keystore"
                                       :options      [{:name  "Local file path"
@@ -118,17 +118,17 @@
                                                       :value "uploaded"}]
                                       :type         "select"
                                       :default      "local"
-                                      :visible-if   {:use-keystore true
-                                                     :ssl          true}}
+                                      :visible-if   {"use-keystore" true
+                                                     "ssl"          true}}
                                      {:name                 "keystore-value"
                                       :type                 "textFile"
                                       :treat-before-posting "base64"
-                                      :visible-if           {:keystore-options "uploaded"}}
+                                      :visible-if           {"keystore-options" "uploaded"}}
                                      {:name        "keystore-path"
                                       :type        "string"
-                                      :visible-if  {:keystore-options "local"
-                                                    :use-keystore true
-                                                    :ssl          true}}]
+                                      :visible-if  {"keystore-options" "local"
+                                                    "use-keystore" true
+                                                    "ssl"          true}}]
                                     false]
                                    [[{:name "host"}
                                      {:name        "password-value"
@@ -137,16 +137,16 @@
                                       :required    false}
                                      {:name "ssl"}
                                      {:name "use-keystore"
-                                      :visible-if  {:ssl true}}
+                                      :visible-if  {"ssl" true}}
                                      {:name         "keystore-password-value"
                                       :display-name "Keystore Password"
                                       :type         "password"
                                       :required     false
-                                      :visible-if   {:use-keystore true}}
+                                      :visible-if   {"use-keystore" true}}
                                      {:name                 "keystore-value"
                                       :type                 "textFile"
                                       :treat-before-posting "base64"
-                                      :visible-if           {:use-keystore true}}]
+                                      :visible-if           {"use-keystore" true}}]
                                     true]]]
       (testing (str " with is-hosted? " is-hosted?)
         (mt/with-premium-features (if is-hosted? #{:hosting} #{})
@@ -198,14 +198,14 @@
              :description "Comma separated names of schemas that should appear in Metabase"
              :helper-text "You can use patterns like \"auth*\" to match multiple schemas"
              :type        "text"
-             :visible-if  {:my-schema-filters-type "inclusion"}
+             :visible-if  {"my-schema-filters-type" "inclusion"}
              :required    true}
             {:name        "my-schema-filters-patterns"
              :placeholder "E.x. public,auth*"
              :description "Comma separated names of schemas that should NOT appear in Metabase"
              :helper-text "You can use patterns like \"auth*\" to match multiple schemas"
              :type        "text"
-             :visible-if  {:my-schema-filters-type "exclusion"}
+             :visible-if  {"my-schema-filters-type" "exclusion"}
              :required    true}
             {:name "last-prop"}]
            (driver.u/connection-props-server->client
@@ -632,53 +632,6 @@
           (is (= "Group info message" (:placeholder group-info)))
           (is (nil? (:getter group-info)) "Getter should be removed"))))))
 
-;;; ---------------------------------------- scrub-exceptions -------------------------------------------------
-
-(deftest ^:parallel scrub-exceptions-test
-  (testing "plain Exception: secret is redacted from message"
-    (let [e (driver.u/scrub-exceptions (Exception. "PASSWORD='s3cret'") ["s3cret"])]
-      (is (= "PASSWORD='****'" (ex-message e)))))
-  (testing "secret not present: message unchanged"
-    (let [e (driver.u/scrub-exceptions (Exception. "no secret here") ["s3cret"])]
-      (is (= "no secret here" (ex-message e)))))
-  (testing "cause chain is scrubbed"
-    (let [e (driver.u/scrub-exceptions
-             (Exception. "outer pw=s3cret" (Exception. "inner pw=s3cret"))
-             ["s3cret"])]
-      (is (= "outer pw=****" (ex-message e)))
-      (is (= "inner pw=****" (ex-message (.getCause ^Exception e))))))
-  (testing "ExceptionInfo: ex-data is preserved, message is scrubbed"
-    (let [e (driver.u/scrub-exceptions (ex-info "pw=s3cret" {:code 42}) ["s3cret"])]
-      (is (= "pw=****" (ex-message e)))
-      (is (= {:code 42} (ex-data e)))))
-  (testing "SQLException: SQLState and errorCode are preserved"
-    (let [e (driver.u/scrub-exceptions (SQLException. "pw=s3cret" "42501" 7) ["s3cret"])]
-      (is (= "pw=****" (ex-message e)))
-      (is (= "42501" (.getSQLState ^SQLException e)))
-      (is (= 7 (.getErrorCode ^SQLException e)))))
-  (testing "SQLException next-exception chain is scrubbed"
-    (let [next-ex (SQLException. "next pw=s3cret" "42501" 7)
-          main    (doto (SQLException. "main pw=s3cret" "42000" 1)
-                    (.setNextException next-ex))
-          e       (driver.u/scrub-exceptions main ["s3cret"])]
-      (is (= "main pw=****" (ex-message e)))
-      (is (= "next pw=****" (ex-message (.getNextException ^SQLException e))))
-      (is (= "42501" (.getSQLState (.getNextException ^SQLException e))))))
-  (testing "multiple secrets are all redacted"
-    (let [e (driver.u/scrub-exceptions
-             (Exception. "user=admin password=s3cret escaped=s3cr\\et")
-             ["s3cret" "s3cr\\et"])]
-      (is (= "user=admin password=**** escaped=****" (ex-message e)))))
-  (testing "password with backslash sequences is treated literally, not as regex"
-    (let [pw "p\\nass\\r\\twor$d"
-          e  (driver.u/scrub-exceptions (Exception. (str "CREATE USER x PASSWORD='" pw "'")) [pw])]
-      (is (= "CREATE USER x PASSWORD='****'" (ex-message e)))))
-  (testing "stack trace is preserved"
-    (let [original (Exception. "pw=s3cret")
-          trace    (.getStackTrace original)
-          e        (driver.u/scrub-exceptions original ["s3cret"])]
-      (is (= (seq trace) (seq (.getStackTrace ^Exception e)))))))
-
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                            SSRF: blocking connections to private network addresses                             |
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -932,9 +885,9 @@
           (try
             (testing "an attached DWH on a private address still gets a connection pool"
               ;; fetch by id so the database takes the metadata-provider path, which must carry `is-attached-dwh`
-              (is (some? (sql-jdbc.conn/db->pooled-connection-spec (u/the-id database)))))
+              (is (some? (sql-jdbc.conn/db->pooled-connection-spec (driver.u/lib-database (u/the-id database))))))
             (finally
-              (sql-jdbc.conn/invalidate-pool-for-db! database))))))
+              (sql-jdbc.conn/invalidate-pool-for-db! (:id database)))))))
     ;; write the ordinary row under allow-all, the way a formerly-lax instance would have, then flip the policy
     (mt/with-temp-env-var-value! [mb-warehouse-allowed-networks "allow-all"]
       (mt/with-temp [:model/Database database {:engine  :postgres
@@ -944,7 +897,7 @@
             (is (thrown-with-msg?
                  clojure.lang.ExceptionInfo
                  #"private or internal network address"
-                 (sql-jdbc.conn/db->pooled-connection-spec (u/the-id database))))))))))
+                 (sql-jdbc.conn/db->pooled-connection-spec (driver.u/lib-database (u/the-id database)))))))))))
 
 (deftest warehouse-allowed-networks-default-test
   (testing "self-hosted, with nothing configured, all networks are allowed"

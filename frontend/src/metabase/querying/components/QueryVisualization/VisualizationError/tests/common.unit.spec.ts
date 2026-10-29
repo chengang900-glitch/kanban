@@ -27,7 +27,7 @@ describe("VisualizationError (OSS)", () => {
       engine: "postgres",
     });
 
-    it("should hide the SQL help link when `show-metabase-links: true`", () => {
+    it("should show a SQL help link when `show-metabase-links: true`", () => {
       const card = createMockCard({
         dataset_query: {
           database: database.id,
@@ -40,11 +40,11 @@ describe("VisualizationError (OSS)", () => {
       setup({ database, card, showMetabaseLinks: true });
 
       expect(
-        screen.queryByText("Learn how to debug SQL errors"),
-      ).not.toBeInTheDocument();
+        screen.getByText("Learn how to debug SQL errors"),
+      ).toBeInTheDocument();
     });
 
-    it("should hide the SQL help link when `show-metabase-links: false`", () => {
+    it("should show a SQL help link when `show-metabase-links: false`", () => {
       const card = createMockCard({
         dataset_query: {
           database: database.id,
@@ -57,8 +57,23 @@ describe("VisualizationError (OSS)", () => {
       setup({ database, card, showMetabaseLinks: false });
 
       expect(
-        screen.queryByText("Learn how to debug SQL errors"),
-      ).not.toBeInTheDocument();
+        screen.getByText("Learn how to debug SQL errors"),
+      ).toBeInTheDocument();
+    });
+
+    it("should render the error action next to the message", () => {
+      const card = createMockCard({
+        dataset_query: {
+          database: database.id,
+          type: "native",
+          native: {
+            query: "SELECT * FROM ORDERS",
+          },
+        },
+      });
+      setup({ database, card, errorAction: "Have Metabot fix it" });
+
+      expect(screen.getByText("Have Metabot fix it")).toBeInTheDocument();
     });
   });
 

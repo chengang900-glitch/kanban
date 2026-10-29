@@ -2,6 +2,7 @@ import type {
   Cell,
   CellContext,
   Column,
+  ColumnDef,
   ColumnDefTemplate,
   ColumnSizingState,
   HeaderContext,
@@ -20,7 +21,6 @@ import type { ColumnsReordering } from "./hooks/use-columns-reordering";
 import type { VirtualGrid } from "./hooks/use-virtual-grid";
 
 declare module "@tanstack/react-table" {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface ColumnMeta<TData, TValue> {
     wrap?: boolean;
     enableReordering?: boolean;
@@ -113,6 +113,9 @@ export interface ColumnOptions<TRow extends RowData, TValue = unknown> {
 
   /** Initial sort direction for this column */
   sortDirection?: "asc" | "desc";
+
+  /** Function used to sort values in this column */
+  sortingFn?: ColumnDef<TRow, TValue>["sortingFn"];
 
   /** Whether this column can be resized */
   enableResizing?: boolean;

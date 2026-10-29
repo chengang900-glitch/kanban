@@ -9,15 +9,16 @@
    [metabase.permissions.core :as perms]
    [metabase.premium-features.core :refer [defenterprise]]
    [metabase.query-permissions.core :as query-perms]
-   [metabase.query-processor.pipeline :as qp.pipeline]
+   [metabase.query-processor.error-type :as qp.error-type]
    [metabase.query-processor.schema :as qp.schema]
+   ;; the legacy QP pipeline still conveys the metadata provider via the ambient store; no MBQL 5 path yet
    ^{:clj-kondo/ignore [:deprecated-namespace]} [metabase.query-processor.store :as qp.store]
    [metabase.query-processor.util :as qp.util]
-   [metabase.util :as u]
    [metabase.util.i18n :refer [tru]]
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]))
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:dynamic *card-id*
   "ID of the Card currently being executed, if there is one. Bind this in a Card-execution so we will use
   Card [Collection] perms checking rather than ad-hoc perms checking."
@@ -55,6 +56,7 @@
             (throw-inactive-table-error (lib.metadata.protocols/database (qp.store/metadata-provider))
                                         table)))))))
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:dynamic *param-values-query*
   "Used to allow users looking at a dashboard to view (possibly chained) filters."
   false)
@@ -66,40 +68,12 @@
   (throw (ex-info (tru "Querying this database requires the audit-app feature flag")
                   query)))
 
-(mu/defn remove-internal-keys :- ::lib.schema/query
-  "Pre-processing middleware. Strip internal query-processor keys from the incoming `query` so that they can only ever
-  be set by the query processor itself, not supplied by a client. Skipped while re-running pivot sub-queries, which
-  legitimately carry these keys."
-  [query :- ::lib.schema/query]
-  (cond-> query
-    (not qp.pipeline/*pivot?*) lib/prepare-after-deserialization))
-
-(mu/defn record-referenced-card-ids :- ::lib.schema/query
-  "Pre-processing middleware. Records every Card this query reads -- source cards, `{{#123}}` template tags, metrics,
-  and everything those read in turn -- on the query.
-
-  Has to run before the rest of preprocessing, which is where the references stop being references: a source card
-  becomes a stage, a metric is spliced into the aggregation it belongs to, a template tag is substituted into the SQL.
-  Permissions are checked at the end of preprocessing, by which point there is nothing left to follow, so the set is
-  carried forward from here. Reading a Card is what lets a query use it, at whatever depth it sits.
-
-  Set here and nowhere else: whatever the caller sent under this key is replaced, like the other keys the query
-  processor keys off internally."
-  [query :- ::lib.schema/query]
-  (u/assoc-dissoc query :query-permissions/referenced-card-ids (lib/all-source-card-ids-recursive query)))
-
 (mu/defn check-query-permissions*
   "Check that User with `user-id` has permissions to run `query`, or throw an exception."
   [query :- ::qp.schema/any-query]
   (if (:lib/type query)
     (recur (lib/->legacy-MBQL query))
     (let [{database-id :database :as outer-query} query]
-      ;; The audit DB guard must fire regardless of whether a user is bound. Public-card and static-embed
-      ;; execution runs as-admin with `*current-user-id*` nil; gating this solely on `*current-user-id*` let an
-      ;; run a native audit-DB query against the app DB. It fires for userland
-      ;; queries, for parameter-value (chain-filter) queries -- the two caller-driven, nil-user-capable
-      ;; contexts -- and, as before the fix, whenever a user is bound. Only the internal field-values
-      ;; sync job (native audit query, no user, neither userland nor a param-values query) is exempt.
       (when (and (= audit/audit-db-id database-id)
                  (or (qp.util/userland-query? outer-query)
                      *param-values-query*
@@ -115,17 +89,11 @@
           ;; (unless overridden by `gtap-perms`) and any queries that touch blocked tables/DBs
           (check-block-permissions outer-query)
           (cond
-            ;; if card-id is bound this means that this is not an ad hoc query, so the Card's own read permission
-            ;; stands in for the data permissions its query would otherwise need. It does not stand in for the Cards
-            ;; that query reads in turn: those are gated by their own collections, at every depth, exactly as they are
-            ;; for an ad-hoc query.
+            ;; if card-id is bound this means that this is not an ad hoc query and we can just
+            ;; check that the user has permission to read this card
             *card-id*
             (do (query-perms/check-card-read-perms database-id *card-id*)
                 (query-perms/check-card-result-metadata-data-perms database-id *card-id*)
-                ;; ...and view-data on every Table the query reads. The Card's stored result metadata only names the
-                ;; Tables its output columns come from: one read by an aggregation, a filter or a join condition
-                ;; produces no column and so appears nowhere in it. It does appear in the query itself, once the
-                ;; joins -- including the implicit ones -- have been resolved, which is what is being checked here.
                 (when-not (query-perms/has-perm-for-query? outer-query :perms/view-data required-perms)
                   (throw (query-perms/perms-exception required-perms)))
                 (doseq [card-id source-card-ids
@@ -137,10 +105,12 @@
             ;; collection perms for the dashboard and not ad-hoc query perms
             *param-values-query*
             (do
-              ;; The value-source Card itself is read-checked by the caller, but its query may nest other Cards; the
-              ;; user must be able to read every one of those too, just like when running the Card normally.
-              ;; Otherwise a readable wrapper Card launders the values of a Card the user cannot read. The
-              ;; result_metadata check covers tables a Card's saved columns name but its query footprint does not.
+              ;; `source-card-ids` holds the Card the values query is built on as well as every Card its query nests,
+              ;; and the user must be able to read all of them, just like when running the Card normally. Otherwise a
+              ;; readable wrapper Card launders the values of a Card the user cannot read. Don't narrow this to the
+              ;; nested Cards: filter values from field-ref-only dashcard mappings have no caller-side read check on
+              ;; the mapped Card, so this is the only check. The result_metadata check covers tables a Card's saved
+              ;; columns name but its query footprint does not.
               (doseq [card-id source-card-ids]
                 (query-perms/check-card-read-perms database-id card-id)
                 (query-perms/check-card-result-metadata-data-perms database-id card-id))
@@ -178,11 +148,20 @@
 ;;; |                                                Writeback fns                                                   |
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
+(defn- check-no-sandboxed-action-access
+  "Throws a 403 when the current user has a sandbox on any table of the Database with `database-id`, since actions
+  write around sandboxes."
+  [database-id]
+  (when (and *current-user-id* (perms/sandboxed-user-for-db? database-id))
+    (throw (ex-info (tru "You can''t run actions on this database because row and column security applies to your data access.")
+                    {:type        qp.error-type/missing-required-permissions
+                     :status-code 403}))))
+
 (mu/defn check-query-action-permissions*
-  "Check that User with `user-id` has permissions to run query action `query`, or throw an exception. Takes
-  as [[metabase.actions.args/action-arg-map-schema]]."
+  "Throws unless the current user can run an action with the already preprocessed `query`."
   [{database-id :database, :as query} :- ::lib.schema/query]
   (log/tracef "Checking query permissions. Current user perms set = %s" (pr-str @*current-user-permissions-set*))
+  (check-no-sandboxed-action-access database-id)
   (when *card-id*
     (query-perms/check-card-read-perms database-id *card-id*))
   (when-not (query-perms/check-data-perms
@@ -211,8 +190,10 @@
   [{database-id :database, :as _query}]
   (or
    (not *current-user-id*)
-   (= (perms/full-database-permission-for-user *current-user-id* :perms/create-queries database-id)
-      :query-builder-and-native)))
+   (and (= (perms/full-database-permission-for-user *current-user-id* :perms/create-queries database-id)
+           :query-builder-and-native)
+        ;; the compiled SQL of a sandboxed user's query exposes the sandbox definition
+        (not (perms/sandboxed-user-for-db? database-id)))))
 
 (defn check-current-user-has-adhoc-native-query-perms
   "Check that the current user (if bound) has adhoc native query permissions to run `query`, or throw an

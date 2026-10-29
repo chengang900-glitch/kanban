@@ -1,8 +1,11 @@
+import { createMockState } from "__support__/state";
 import { userApi } from "metabase/api";
 import type { DispatchFn } from "metabase/redux";
 import type { InviteInfo, State } from "metabase/redux/store";
+import { settingsApi } from "metabase/settings";
 
-import { submitUserInvite } from "./actions";
+import { submitUsageReason, submitUserInvite, updateTracking } from "./actions";
+import { reducer } from "./reducers";
 
 const { trackUserInvited } = jest.requireMock("metabase/common/analytics");
 const mockCreateUser = jest.fn();
@@ -54,6 +57,7 @@ describe("submitUserInvite", () => {
   });
 
   it("tracks user_invited from setup when the create succeeds", async () => {
+    // Unjustified type cast. FIXME
     (dispatch as unknown as jest.Mock).mockReturnValue({
       unwrap: () => Promise.resolve(),
     });
@@ -68,5 +72,38 @@ describe("submitUserInvite", () => {
       eventDetail: "new_user",
     });
     expect(trackUserInvited).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("locked setup preferences", () => {
+  it("never sends an enabling tracking request, including from stale callers", async () => {
+    const initiate = jest.spyOn(
+      settingsApi.endpoints.updateSetting,
+      "initiate",
+    );
+    const dispatch = jest
+      .fn()
+      .mockReturnValue({ unwrap: () => Promise.resolve() });
+    await updateTracking(true)(dispatch, () => createMockState(), undefined);
+    expect(initiate).toHaveBeenCalledWith({
+      key: "anon-tracking-enabled",
+      value: false,
+    });
+    const initial = reducer(undefined, { type: "init" });
+    expect(initial.isTrackingAllowed).toBe(false);
+    expect(
+      reducer(initial, updateTracking.fulfilled(undefined, "request", true))
+        .isTrackingAllowed,
+    ).toBe(false);
+    initiate.mockRestore();
+  });
+
+  it("keeps the self-service flow when an old caller submits embedding", () => {
+    const initial = reducer(undefined, { type: "init" });
+    expect(initial.usageReason).toBe("self-service-analytics");
+    expect(
+      reducer(initial, submitUsageReason.pending("request", "embedding"))
+        .usageReason,
+    ).toBe("self-service-analytics");
   });
 });

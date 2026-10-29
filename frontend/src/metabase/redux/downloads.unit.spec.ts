@@ -2,15 +2,10 @@ import { setupBasename } from "__support__/basename";
 import { mockIsEmbeddingSdk } from "metabase/embedding-sdk/mocks/config-mock";
 import Question from "metabase-lib/v1/Question";
 import type { EntityToken } from "metabase-types/api/entity";
-import {
-  createMockCard,
-  createMockDashboard,
-  createMockDataset,
-} from "metabase-types/api/mocks";
+import { createMockCard, createMockDataset } from "metabase-types/api/mocks";
 
 import {
   getChartFileName,
-  getDashboardPdfFileName,
   getDatasetDownloadUrl,
   getDatasetParams,
   readDownloadBlob,
@@ -61,6 +56,7 @@ describe("getDatasetResponse", () => {
 });
 
 describe("getDatasetParams - embed question (token-based)", () => {
+  // Unjustified type cast. FIXME
   const TOKEN = "fake.jwt.token" as EntityToken;
   const question = new Question(createMockCard({ id: 1 }), undefined);
   const result = createMockDataset();
@@ -164,12 +160,14 @@ describe("getDatasetParams - public question (uuid-based)", () => {
 describe("readDownloadBlob", () => {
   it("returns the blob when the response reads to completion", async () => {
     const blob = new Blob(["a,b,c"], { type: "text/csv" });
+    // Unjustified type cast. FIXME
     const response = { blob: () => Promise.resolve(blob) } as Response;
 
     await expect(readDownloadBlob(response)).resolves.toBe(blob);
   });
 
   it("surfaces a localized error when the stream was aborted mid-download", async () => {
+    // Unjustified type cast. FIXME
     const response = {
       blob: () => Promise.reject(new TypeError("Failed to fetch")),
     } as unknown as Response;
@@ -213,13 +211,5 @@ describe("getChartFileName", () => {
   it("should return an unbranded filename with default name when question has no name", () => {
     const fileName = getChartFileName(noNameQuestion, false);
     expect(fileName).toBe(`New question-${getDatePart()}.png`);
-  });
-});
-
-describe("getDashboardPdfFileName", () => {
-  it("returns the dashboard name without Metabase branding", () => {
-    const dashboard = createMockDashboard({ name: "Sales dashboard" });
-
-    expect(getDashboardPdfFileName(dashboard)).toBe("Sales dashboard.pdf");
   });
 });

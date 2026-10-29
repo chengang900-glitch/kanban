@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { t } from "ttag";
 
-import { skipToken, useGetCardQuery } from "metabase/api";
 import {
   executeRowAction,
   reloadDashboardCards,
@@ -11,12 +10,10 @@ import {
   getParameterValues,
 } from "metabase/dashboard/selectors";
 import { getActionIsEnabledInDatabase } from "metabase/dashboard/utils";
-import { connect, useSelector } from "metabase/redux";
+import { connect } from "metabase/redux";
 import type { Dispatch, State } from "metabase/redux/store";
-import { getMetadata } from "metabase/selectors/metadata";
 import { Tooltip } from "metabase/ui";
 import type { VisualizationProps } from "metabase/visualizations/types";
-import Question from "metabase-lib/v1/Question";
 import type {
   ActionDashboardCard,
   Dashboard,
@@ -60,15 +57,6 @@ const ActionComponent = ({
   parameterValues,
   isEditingDashcard,
 }: ActionProps) => {
-  const { data: card } = useGetCardQuery(
-    dashcard.action?.model_id ? { id: dashcard.action.model_id } : skipToken,
-  );
-  const metadata = useSelector(getMetadata);
-  const model = useMemo(
-    () => (card ? new Question(card, metadata) : undefined),
-    [card, metadata],
-  );
-
   const actionSettings = dashcard.action?.visualization_settings;
   const actionDisplayType =
     settings?.actionDisplayType ?? actionSettings?.type ?? "button";
@@ -106,8 +94,6 @@ const ActionComponent = ({
     shouldConfirm
   );
 
-  const canWrite = Boolean(model?.canWriteActions());
-
   const onSubmit = useCallback(
     async (parameters: ParametersForActionExecution) => {
       const result = await executeRowAction({
@@ -129,6 +115,7 @@ const ActionComponent = ({
 
   return (
     <ActionVizForm
+      // Unjustified type cast. FIXME
       action={dashcard.action as WritebackAction}
       dashboard={dashboard}
       dashcard={dashcard}
@@ -139,7 +126,7 @@ const ActionComponent = ({
       isSettings={isSettings}
       shouldDisplayButton={shouldDisplayButton}
       isEditingDashcard={isEditingDashcard}
-      canEditAction={canWrite}
+      canEditAction={dashcard.action?.can_write === true}
       onSubmit={onSubmit}
     />
   );
@@ -159,11 +146,13 @@ function ActionFn(props: ActionProps) {
   const { action } = dashcard;
 
   const hasActionsEnabled = getActionIsEnabledInDatabase(dashcard);
+  const isArchived = action?.archived === true;
 
-  if (!action || !hasActionsEnabled) {
+  if (!action || !hasActionsEnabled || isArchived) {
     const tooltip = getErrorTooltip({
       hasActionAssigned: !!action,
       hasActionsEnabled,
+      isArchived,
     });
 
     return (
@@ -187,12 +176,18 @@ function ActionFn(props: ActionProps) {
 function getErrorTooltip({
   hasActionAssigned,
   hasActionsEnabled,
+  isArchived,
 }: {
   hasActionAssigned: boolean;
   hasActionsEnabled: boolean;
+  isArchived: boolean;
 }) {
   if (!hasActionAssigned) {
     return t`No action assigned`;
+  }
+
+  if (isArchived) {
+    return t`This action is archived`;
   }
 
   if (!hasActionsEnabled) {
@@ -202,5 +197,4 @@ function getErrorTooltip({
   return t`Something’s gone wrong`;
 }
 
-// eslint-disable-next-line import/no-default-export -- deprecated usage
-export default connect(mapStateToProps)(ActionFn);
+export const Action = connect(mapStateToProps)(ActionFn);

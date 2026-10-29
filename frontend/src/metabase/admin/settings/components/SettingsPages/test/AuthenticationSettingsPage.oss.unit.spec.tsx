@@ -6,14 +6,14 @@ describe("AuthenticationSettingsPage (OSS)", () => {
   it("should render oss auth providers", async () => {
     await setup();
 
-    expect(screen.queryByText("Sign in with Google")).not.toBeInTheDocument();
+    expect(await screen.findByText("Sign in with Google")).toBeInTheDocument();
     expect(await screen.findByText("LDAP")).toBeInTheDocument();
     expect(await screen.findByText("API Keys")).toBeInTheDocument();
   });
 
   it("should not render EE auth providers", async () => {
     await setup();
-    expect(screen.queryByText("Sign in with Google")).not.toBeInTheDocument();
+    expect(await screen.findByText("Sign in with Google")).toBeInTheDocument();
 
     expect(screen.queryByText(/saml/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/jwt/i)).not.toBeInTheDocument();
@@ -29,7 +29,7 @@ describe("AuthenticationSettingsPage (OSS)", () => {
       "google-auth-configured": true,
     });
 
-    expect(await screen.findAllByText("Active")).toHaveLength(1);
+    expect(await screen.findAllByText("Active")).toHaveLength(2);
   });
 
   it("should show paused badges for configured but not enabled auth providers", async () => {
@@ -40,6 +40,6 @@ describe("AuthenticationSettingsPage (OSS)", () => {
       "google-auth-configured": true,
     });
 
-    expect(await screen.findAllByText("Paused")).toHaveLength(1);
+    expect(await screen.findAllByText("Paused")).toHaveLength(2);
   });
 });

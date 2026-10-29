@@ -1,17 +1,16 @@
-import cx from "classnames";
 import { t } from "ttag";
 
 import {
   COPY_BUTTON_ICON,
   CopyButton,
 } from "metabase/common/components/CopyButton";
+import { ExternalLink } from "metabase/common/components/ExternalLink";
 import {
   SidesheetCard,
   type SidesheetCardProps,
   SidesheetCardTitle,
 } from "metabase/common/components/Sidesheet";
-import { useHasTokenFeature } from "metabase/common/hooks";
-import CS from "metabase/css/core/index.css";
+import { useDocsUrl, useHasTokenFeature } from "metabase/common/hooks";
 import {
   Flex,
   Group,
@@ -37,15 +36,30 @@ const EntityIdTitle = (props?: TitleProps) => {
 };
 
 export const EntityInfoIcon = () => {
+  const { url: docsLink, showMetabaseLinks } = useDocsUrl(
+    "installation-and-operation/serialization",
+  );
+
   return (
     <Popover position="top-start">
       <Popover.Target>
         <Icon tabIndex={0} name="info" className={Styles.InfoIcon} />
       </Popover.Target>
       <Popover.Dropdown>
-        <Paper p="md" maw="13rem">
+        <Paper p="lg" maw="13rem">
           <Text fz="sm">
-            {t`When using serialization, replace the sequential ID with this global entity ID to have stable URLs across environments. Also useful when troubleshooting serialization.`}
+            {t`When using serialization, replace the sequential ID with this global entity ID to have stable URLs across environments. Also useful when troubleshooting serialization.`}{" "}
+            {showMetabaseLinks && (
+              <>
+                <ExternalLink
+                  target="_new"
+                  href={docsLink}
+                  style={{ color: "var(--mb-color-core-brand)" }}
+                >
+                  {t`Learn more`}
+                </ExternalLink>
+              </>
+            )}
           </Text>
         </Paper>
       </Popover.Dropdown>
@@ -55,15 +69,18 @@ export const EntityInfoIcon = () => {
 
 export const EntityCopyButton = ({ entityId }: { entityId: string }) => (
   <CopyButton
-    className={cx(Styles.CopyButton, CS.hoverParent, CS.hoverVisibility)}
+    className={Styles.CopyButton}
     value={entityId}
+    aria-label={t`Copy entity ID ${entityId}`}
     style={{
       height: "1rem",
     }}
     target={
-      <Flex gap="sm" wrap="nowrap" align="center">
-        <div className={cx(CS.hoverChild)}>{COPY_BUTTON_ICON}</div>
-        <Text lh="1rem">{entityId}</Text>
+      <Flex component="span" gap="sm" wrap="nowrap" align="center">
+        <span className={Styles.CopyIcon}>{COPY_BUTTON_ICON}</span>
+        <Text component="span" lh="1rem">
+          {entityId}
+        </Text>
       </Flex>
     }
   />

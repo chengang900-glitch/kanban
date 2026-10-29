@@ -2,6 +2,7 @@ import { match } from "ts-pattern";
 import { jt, t } from "ttag";
 
 import { ExternalLink } from "metabase/common/components/ExternalLink";
+import { UpsellMetabaseBanner } from "metabase/common/components/upsells/UpsellMetabaseBanner";
 import { useDocsUrl } from "metabase/common/hooks";
 import type {
   DisplayTheme,
@@ -9,32 +10,40 @@ import type {
   EmbeddingDisplayOptions,
 } from "metabase/embedding/types";
 import { useSelector } from "metabase/redux";
-import { getSetting } from "metabase/selectors/settings";
+import { getUpgradeUrl } from "metabase/selectors/settings";
 import { getCanWhitelabel } from "metabase/selectors/whitelabel";
-import { SegmentedControl, Select, Stack, Switch, Text } from "metabase/ui";
+import { getSetting } from "metabase/settings";
+import {
+  Divider,
+  SegmentedControl,
+  type SegmentedControlItem,
+  Select,
+  Stack,
+  Switch,
+  Text,
+} from "metabase/ui";
 
+import { DisplayOptionSection } from "./DisplayOptionSection";
 import {
   DashboardDownloadSettings,
   QuestionDownloadSettings,
 } from "./DownloadSettings";
-import { DisplayOptionSection } from "./StaticEmbedSetupPane.styled";
 import { StaticEmbedSetupPaneSettingsContentSection } from "./StaticEmbedSetupPaneSettingsContentSection";
 
-const THEME_OPTIONS = [
+const THEME_OPTIONS: readonly SegmentedControlItem<DisplayTheme>[] = [
   {
     get label() {
       return t`Light`;
     },
-    value: "light" as DisplayTheme,
+    value: "light",
   },
   {
     get label() {
       return t`Dark`;
     },
-    value: "night" as DisplayTheme,
+    value: "night",
   },
-] as const;
-type ThemeOptions = (typeof THEME_OPTIONS)[number]["value"];
+];
 
 interface AppearanceSettingsProps {
   resourceType: EmbedResourceType;
@@ -47,17 +56,21 @@ export const LookAndFeelSettings = ({
   displayOptions,
   onChangeDisplayOptions,
 }: AppearanceSettingsProps): JSX.Element => {
-  const { url: docsUrl, showMetabaseLinks } = useDocsUrl(
-    "embedding/static-embedding",
-    {
-      anchor: "customizing-the-appearance-of-static-embeds",
-      utm: {
-        utm_source: "product",
-        utm_medium: "docs",
-        utm_campaign: "embedding-static",
-        utm_content: "static-embed-settings-look-and-feel",
-      },
+  // eslint-disable-next-line metabase/no-unconditional-metabase-links-render -- Only appear to admins
+  const { url: docsUrl } = useDocsUrl("embedding/static-embedding", {
+    anchor: "customizing-the-appearance-of-static-embeds",
+    utm: {
+      utm_source: "product",
+      utm_medium: "docs",
+      utm_campaign: "embedding-static",
+      utm_content: "static-embed-settings-look-and-feel",
     },
+  });
+  const upgradePageUrl = useSelector((state) =>
+    getUpgradeUrl(state, {
+      utm_campaign: "embedding-static-font",
+      utm_content: "static-embed-settings-look-and-feel",
+    }),
   );
   const canWhitelabel = useSelector(getCanWhitelabel);
   const availableFonts = useSelector((state) =>
@@ -71,16 +84,12 @@ export const LookAndFeelSettings = ({
         title={t`Customizing look and feel`}
       >
         <Stack gap="1rem">
-          <Text>
-            {showMetabaseLinks
-              ? jt`These options require changing the server code. You can play around with and preview the options here. Check out the ${(
-                  <ExternalLink
-                    key="doc"
-                    href={docsUrl}
-                  >{t`documentation`}</ExternalLink>
-                )} for more.`
-              : t`These options require changing the server code. You can play around with and preview the options here.`}
-          </Text>
+          <Text>{jt`These options require changing the server code. You can play around with and preview the options here. Check out the ${(
+            <ExternalLink
+              key="doc"
+              href={docsUrl}
+            >{t`documentation`}</ExternalLink>
+          )} for more.`}</Text>
 
           {canWhitelabel ? (
             <Select
@@ -107,14 +116,21 @@ export const LookAndFeelSettings = ({
                 });
               }}
             />
-          ) : null}
+          ) : (
+            <Text>{jt`You can change the font with ${(
+              <ExternalLink
+                key="fontPlan"
+                href={upgradePageUrl}
+              >{t`a paid plan`}</ExternalLink>
+            )}.`}</Text>
+          )}
 
           <DisplayOptionSection title={t`Theme`}>
             <SegmentedControl
               value={displayOptions.theme ?? undefined}
-              data={[...THEME_OPTIONS]}
+              data={THEME_OPTIONS}
               fullWidth
-              onChange={(value: ThemeOptions) => {
+              onChange={(value) => {
                 onChangeDisplayOptions({
                   ...displayOptions,
                   theme: value,
@@ -132,7 +148,6 @@ export const LookAndFeelSettings = ({
             <Switch
               label={t`Dashboard background`}
               labelPosition="left"
-              size="sm"
               variant="stretch"
               checked={displayOptions.background}
               onChange={(e) =>
@@ -147,7 +162,6 @@ export const LookAndFeelSettings = ({
           <Switch
             label={getBorderLabel(resourceType)}
             labelPosition="left"
-            size="sm"
             variant="stretch"
             checked={displayOptions.bordered}
             onChange={(e) =>
@@ -161,7 +175,6 @@ export const LookAndFeelSettings = ({
           <Switch
             label={getTitleLabel(resourceType)}
             labelPosition="left"
-            size="sm"
             variant="stretch"
             checked={displayOptions.titled}
             onChange={(e) =>
@@ -186,6 +199,15 @@ export const LookAndFeelSettings = ({
             ))}
         </Stack>
       </StaticEmbedSetupPaneSettingsContentSection>
+
+      {!canWhitelabel && (
+        <>
+          <Divider my="2rem" />
+          <div aria-label={t`Removing the banner`}>
+            <UpsellMetabaseBanner />
+          </div>
+        </>
+      )}
     </>
   );
 };

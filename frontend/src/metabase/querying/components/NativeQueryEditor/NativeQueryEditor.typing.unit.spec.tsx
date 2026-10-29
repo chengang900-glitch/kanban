@@ -5,7 +5,6 @@ import { createMockMetadata } from "__support__/metadata";
 import {
   setupCollectionsEndpoints,
   setupNativeQuerySnippetEndpoints,
-  setupUserMetabotPermissionsEndpoint,
 } from "__support__/server-mocks";
 import {
   fireEvent,
@@ -126,7 +125,6 @@ function TestEditor({
 async function setup({ withRunButton = false } = {}) {
   setupNativeQuerySnippetEndpoints();
   setupCollectionsEndpoints({ collections: [] });
-  setupUserMetabotPermissionsEndpoint();
 
   const metadata = createMockMetadata({
     databases: [createSampleDatabase()],

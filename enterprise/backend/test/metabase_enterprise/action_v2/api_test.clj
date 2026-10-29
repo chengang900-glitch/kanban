@@ -14,12 +14,12 @@
    [metabase.driver.mysql :as mysql]
    [metabase.driver.sql-jdbc :as sql-jdbc]
    [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
+   [metabase.lib.metadata :as lib.metadata]
    [metabase.query-processor.test :as qp]
    [metabase.sync.core :as sync]
    [metabase.test :as mt]
    [metabase.test.data.interface :as tx]
    [metabase.test.data.sql :as sql.tx]
-   [metabase.util.malli.registry :as mr]
    [metabase.warehouse-schema.models.field-values :as field-values]
    [toucan2.core :as t2])
   (:import
@@ -335,7 +335,7 @@
   (mt/test-drivers (mt/normal-drivers-with-feature :actions/data-editing)
     (mt/with-premium-features #{actions-feature-flag}
       (action-v2.tu/with-actions-temp-db mutual-recursion-users-teams
-        (jdbc/execute! (sql-jdbc.conn/db->pooled-connection-spec (mt/db))
+        (jdbc/execute! (sql-jdbc.conn/db->pooled-connection-spec (lib.metadata/database (mt/metadata-provider)))
                        (sql.tx/add-fk-sql driver/*driver*
                                           mutual-recursion-users-teams
                                           {:table-name "user"}
@@ -448,7 +448,7 @@
                                 field-id      (t2/select-one-fn :id [:model/Field :id] :table_id table-id :name "o")
                                 driver        driver/*driver*
                                 get-qp-state  (fn [] (map #(zipmap [:id :o] %) (table-rows table-id)))
-                                get-db-state  (fn [] (sql-jdbc/query driver (mt/id) {:select [:*] :from [table-name-kw]}))]
+                                get-db-state  (fn [] (sql-jdbc/query driver (lib.metadata/database (mt/metadata-provider)) {:select [:*] :from [table-name-kw]}))]
                             (t2/update! :model/Field field-id {:coercion_strategy coercion-strategy})
                             (testing "create"
                               (let [row                {:o input}
@@ -565,12 +565,10 @@
                                                    {:primary-key [:id]}]]
           (mt/with-temp-vals-in-db :model/Database (mt/id) {:settings {:database-enable-table-editing false}}
             (testing "execute-form should return 400 error when data editing is not enabled"
-              (is (= {:message "Data editing is not enabled."}
-                     (select-keys
-                      (mt/user-http-request :crowberto :post 400 execute-form-url
-                                            {:scope  {:table-id table-id}
-                                             :action "data-grid.row/create"})
-                      [:message])))))))
+              (is (= "Data editing is not enabled."
+                     (mt/user-http-request :crowberto :post 400 execute-form-url
+                                           {:scope  {:table-id table-id}
+                                            :action "data-grid.row/create"})))))))
       (testing "Non auto-incrementing pk"
         (action-v2.tu/with-test-tables! [table-id [(ordered-map
                                                     :id        [:int]
@@ -737,7 +735,7 @@
                                                          :dbms_version {:flavor "MySQL"}
                                                          :settings     {:database-enable-table-editing true
                                                                         :database-enable-actions       true}}]
-                  (sync/sync-database! database)
+                  (sync/sync-database! (:id database))
                   (let [writable-id (t2/select-one-fn :id :model/Table :db_id (:id database) :name "writable_table")]
                     (testing "the writable table syncs as editable despite the REVOKE on the other table"
                       (is (true? (t2/select-one-fn :is_writable :model/Table :id writable-id))))
@@ -783,7 +781,7 @@
                                                          :dbms_version {:flavor "MySQL"}
                                                          :settings     {:database-enable-table-editing true
                                                                         :database-enable-actions       true}}]
-                  (sync/sync-database! database)
+                  (sync/sync-database! (:id database))
                   (let [table-id (t2/select-one-fn :id :model/Table :db_id (:id database) :name "optimistic_table")]
                     (testing "the table optimistically syncs as writable (the schema-level REVOKE line is ignored)"
                       (is (true? (t2/select-one-fn :is_writable :model/Table :id table-id))))
@@ -805,38 +803,3 @@
                 ;; restriction. Doing it in the other order leaves the shared server poisoned for later tests.
                 (jdbc/execute! spec "DROP USER IF EXISTS 'partial_revokes_runtime_user';")
                 (jdbc/execute! spec "SET GLOBAL partial_revokes = OFF;")))))))))
-
-(deftest ^:parallel action-value-map-rejects-map-values-test
-  (testing "an action `:params`/`:input`/`:inputs` value is a parameter value -- never a map"
-    (are [m valid?] (= valid?
-                       (mr/validate :metabase-enterprise.action-v2.api/action-value-map m))
-      ;; scalar values -- the values that survive JSON transport as a row cell
-      {:name "Pichu"}          true
-      {:id 1}                  true
-      {:delete-children true}  true
-      {:note nil}              true
-      {}                       true
-      ;; a sequence of scalars, same as `POST /api/action/:id/execute` allows: a query action binds its parameters to
-      ;; native template tags, which take multiple values
-      {:ids [1 2 3]}           true
-      {:tags ["a" "b"]}        true
-      {:ids []}                true
-      ;; a value that carries nested structure into the write
-      {:x {:nested "map"}}     false
-      {:x [{:a 1}]}            false
-      {:x [[1 2]]}             false)))
-
-(deftest map-cell-value-is-rejected-not-dropped-test
-  (testing "a map cell value is a 400, not a row quietly written without that column"
-    (mt/with-premium-features #{actions-feature-flag}
-      (mt/test-drivers (mt/normal-drivers-with-feature :actions/data-editing)
-        (action-v2.tu/with-test-tables! [table-id action-v2.tu/default-test-table]
-          (doseq [[label value] [["a map"              {:nested "map"}]
-                                 ["a sequence of maps" [{:nested "map"}]]]]
-            (testing label
-              (mt/user-http-request :crowberto :post 400 execute-bulk-url
-                                    {:action :data-grid.row/create
-                                     :scope  {:table-id table-id}
-                                     :inputs [{:name "Pidgey" :song value}]})))
-          (testing "and nothing was written"
-            (is (= [] (table-rows table-id)))))))))

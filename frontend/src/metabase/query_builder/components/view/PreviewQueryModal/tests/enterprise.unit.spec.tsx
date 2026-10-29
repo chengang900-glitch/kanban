@@ -8,21 +8,21 @@ function setup(opts: SetupOpts) {
 }
 
 describe("PreviewQueryModal (EE without token)", () => {
-  it("should hide the external help link when `show-metabase-links: true", async () => {
+  it("should render help link when `show-metabase-links: true", async () => {
     setup({ showMetabaseLinks: true });
 
     expect(await screen.findByText("Query preview")).toBeInTheDocument();
     expect(
-      screen.queryByText("Learn how to debug SQL errors"),
-    ).not.toBeInTheDocument();
+      await screen.findByText("Learn how to debug SQL errors"),
+    ).toBeInTheDocument();
   });
 
-  it("should hide the external help link when `show-metabase-links: false", async () => {
+  it("should render help link when `show-metabase-links: false", async () => {
     setup({ showMetabaseLinks: false });
 
     expect(await screen.findByText("Query preview")).toBeInTheDocument();
     expect(
-      screen.queryByText("Learn how to debug SQL errors"),
-    ).not.toBeInTheDocument();
+      await screen.findByText("Learn how to debug SQL errors"),
+    ).toBeInTheDocument();
   });
 });

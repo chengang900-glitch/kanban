@@ -100,6 +100,7 @@ jobs:
     env:
       MB_EDITION: ee
       MB_RUN_MODE: e2e
+      MB_WAREHOUSE_ALLOWED_NETWORKS: "allow-all"
       METASTORE_DEV_SERVER_URL: ${{ secrets.METASTORE_DEV_SERVER_URL }}
       CYPRESS_MB_ALL_FEATURES_TOKEN: ${{ secrets.STAGING_MB_ALL_FEATURES_TOKEN }}
       SAMPLE_APP_BRANCH_NAME: ${{ needs.get-sample-apps-data.outputs.branch_name }}
@@ -156,9 +157,9 @@ jobs:
           REPO_URL="https://github.com/metabase/${REPO_NAME}.git"
           echo "Checking if branch '${SAMPLE_APP_BRANCH_NAME}' exists in ${REPO_URL}..."
           if git ls-remote --exit-code --heads "$REPO_URL" "${SAMPLE_APP_BRANCH_NAME}"; then
-            echo "sample_app_branch_exists=true" >> $GITHUB_OUTPUT
+            echo "sample_app_branch_exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "sample_app_branch_exists=false" >> $GITHUB_OUTPUT
+            echo "sample_app_branch_exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Prepare and launch Sample Apps
@@ -211,6 +212,7 @@ jobs:
     env:
       MB_EDITION: ee
       MB_RUN_MODE: e2e
+      MB_WAREHOUSE_ALLOWED_NETWORKS: "allow-all"
       METASTORE_DEV_SERVER_URL: ${{ secrets.METASTORE_DEV_SERVER_URL }}
       CYPRESS_MB_ALL_FEATURES_TOKEN: ${{ secrets.STAGING_MB_ALL_FEATURES_TOKEN }}
       SAMPLE_APP_BRANCH_NAME: ${{ needs.get-sample-apps-data.outputs.branch_name }}
@@ -273,6 +275,7 @@ jobs:
     env:
       MB_EDITION: ee
       MB_RUN_MODE: e2e
+      MB_WAREHOUSE_ALLOWED_NETWORKS: "allow-all"
       METASTORE_DEV_SERVER_URL: ${{ secrets.METASTORE_DEV_SERVER_URL }}
       CYPRESS_MB_ALL_FEATURES_TOKEN: ${{ secrets.STAGING_MB_ALL_FEATURES_TOKEN }}
       SAMPLE_APP_BRANCH_NAME: ${{ needs.get-sample-apps-data.outputs.branch_name }}
@@ -350,6 +353,7 @@ jobs:
         test_suite:
           [
             "vite-6-host-app-e2e",
+            "vite-6-data-app-host-app-e2e",
             "next-15-app-router-host-app-e2e",
             "next-15-pages-router-host-app-e2e",
             "angular-20-host-app-e2e",
@@ -405,15 +409,53 @@ jobs:
         id: cypress-prep
         uses: ./.github/actions/prepare-cypress
 
+      # esbuild resolves every import in the spec bundle's graph, even the ones tree shaking then drops.
+      # The cljs imports resolve into target/cljs_dev, so the compiled CLJS has to exist before Cypress runs.
+      # run-tests.yml compiles it in parallel with the uberjar build, so downloading is ~10x faster than compiling here.
+      - name: Download pre-built CLJS
+        id: prebuilt-cljs
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: e2e-cljs-${{ github.event.pull_request.head.sha || github.sha }}
+          path: target/cljs_dev
+
+      - name: Compile CLJS
+        if: steps.prebuilt-cljs.outcome != 'success'
+        run: bun run build-pure:cljs
+
+      # The data-app suite publishes copies of real actions, and Metabase only permits
+      # those against a writable warehouse, which comes from the `qa-db`
+      # snapshot below. That snapshot creator builds every QA database in one
+      # pass — Mongo and MySQL included — so all three have to be up even though
+      # only `postgres-writable` is restored. The other host apps read the sample
+      # database, so they skip the pull entirely.
+      - name: Prepare Docker containers
+        if: ${{ matrix.test_suite == 'vite-6-data-app-host-app-e2e' }}
+        uses: ./.github/actions/e2e-prepare-containers
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          postgres: true
+          mysql: true
+          mongo: true
+
       - name: Run Metabase
         run: node e2e/runner/run_cypress_ci.js start
 
       - uses: ./.github/actions/resolve-job-id
 
+      # Without `--spec` the snapshot config picks up `qa-db.cy.snap.js` too,
+      # which is what creates the `postgres-writable` snapshot the data-app
+      # action tests restore.
       - name: Generate database snapshots
         run: |
-          node e2e/runner/run_cypress_ci.js snapshot \
-            --spec "e2e/snapshot-creators/default.cy.snap.js"
+          if [ "${{ matrix.test_suite }}" = "vite-6-data-app-host-app-e2e" ]; then
+            node e2e/runner/run_cypress_ci.js snapshot
+          else
+            node e2e/runner/run_cypress_ci.js snapshot \
+              --spec "e2e/snapshot-creators/default.cy.snap.js"
+          fi
 
       - name: Prepare and launch Host App
         run: npx tsx ./e2e/runner/embedding-sdk/host-apps/start-ci.ts ${{ matrix.test_suite }}

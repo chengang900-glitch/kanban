@@ -1,8 +1,10 @@
 import userEvent from "@testing-library/user-event";
+import fetchMock from "fetch-mock";
 
 import { screen } from "__support__/ui";
 import { createMockSettingDefinition } from "metabase-types/api/mocks";
 
+import type { SetupOpts } from "./setup";
 import {
   clickNextStep,
   expectSectionToHaveLabel,
@@ -11,7 +13,9 @@ import {
   getSection,
   selectUsageReason,
   setup,
+  skipAiConfigStep,
   skipWelcomeScreen,
+  startAiConfigStep,
   submitUserInfoStep,
 } from "./setup";
 
@@ -20,11 +24,15 @@ describe("setup (OSS)", () => {
     await setup();
     await skipWelcomeScreen();
     expectSectionToHaveLabel("What should we call you?", "1");
-    expectSectionToHaveLabel("What will you use Dashboard for?", "2");
+    expectSectionToHaveLabel("What will you use Metabase for?", "2");
     expectSectionToHaveLabel("Add your data", "3");
     expectSectionToHaveLabel("Usage data preferences", "4");
 
     expectSectionsToHaveLabelsInOrder();
+    expect(screen.queryByText(/If you feel stuck/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /getting started guide/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("should keep steps in order through the whole setup", async () => {
@@ -38,7 +46,7 @@ describe("setup (OSS)", () => {
     await clickNextStep(); // Usage question
     expectSectionsToHaveLabelsInOrder({ from: 2 });
 
-    await userEvent.click(screen.getByText("Continue with sample data"));
+    await userEvent.click(await screen.findByText("Continue with sample data"));
     expectSectionsToHaveLabelsInOrder({ from: 3 });
   });
 
@@ -52,19 +60,6 @@ describe("setup (OSS)", () => {
     describe("when selecting 'Self service'", () => {
       it("should keep the 'Add your data' step", async () => {
         await setupForUsageQuestion();
-
-        expect(
-          screen.queryByRole("radio", {
-            name: "Embedding analytics into my application",
-          }),
-        ).not.toBeInTheDocument();
-        expect(
-          screen.queryByRole("radio", { name: "A bit of both" }),
-        ).not.toBeInTheDocument();
-        expect(
-          screen.queryByRole("radio", { name: "Not sure yet" }),
-        ).not.toBeInTheDocument();
-
         await selectUsageReason("self-service-analytics");
         await clickNextStep();
 
@@ -81,19 +76,16 @@ describe("setup (OSS)", () => {
     });
 
     describe("when selecting 'Embedding'", () => {
-      it("should hide the 'Add your data' step", async () => {
+      it("keeps the first option selected and the data step when trying embedding", async () => {
         await setupForUsageQuestion();
         await selectUsageReason("embedding");
         await clickNextStep();
 
-        expect(screen.queryByText("Add your data")).not.toBeInTheDocument();
-
-        expect(getSection("Usage data preferences")).toHaveAttribute(
+        expect(getSection("Add your data")).toHaveAttribute(
           "aria-current",
           "step",
         );
-
-        expectSectionToHaveLabel("Usage data preferences", "3");
+        expectSectionToHaveLabel("Usage data preferences", "4");
       });
     });
 
@@ -134,20 +126,75 @@ describe("setup (OSS)", () => {
     });
   });
 
+  describe("AI config step", () => {
+    const completeSetup = async (opts?: SetupOpts) => {
+      await setup(opts);
+      await skipWelcomeScreen();
+      await submitUserInfoStep();
+      await selectUsageReason("self-service-analytics");
+      await clickNextStep();
+      await userEvent.click(
+        await screen.findByText("Continue with sample data"),
+      );
+      await userEvent.click(screen.getByText("Finish"));
+    };
+
+    it("should not be part of the wizard until it is opted into", async () => {
+      await completeSetup();
+
+      expect(
+        screen.queryByText("Connect to an AI provider"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("You're all set up!")).toBeInTheDocument();
+    });
+
+    it("should become the last step when opting in from the completed step", async () => {
+      await completeSetup();
+      await startAiConfigStep();
+
+      expect(getSection("Connect to an AI provider")).toHaveAttribute(
+        "aria-current",
+        "step",
+      );
+      expectSectionToHaveLabel("Connect to an AI provider", "5");
+      expect(screen.queryByText("You're all set up!")).not.toBeInTheDocument();
+    });
+
+    it("should go back to the completed step when skipping, without offering AI again", async () => {
+      await completeSetup();
+      await startAiConfigStep();
+      await skipAiConfigStep();
+
+      expect(await screen.findByText("You're all set up!")).toBeInTheDocument();
+      expect(screen.getByText("I'll set up AI later")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Set up AI" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("should not offer the step when AI features are disabled", async () => {
+      await completeSetup({ settings: { "ai-features-enabled?": false } });
+
+      expect(
+        screen.queryByRole("button", { name: "Set up AI" }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe("embedding homepage flags", () => {
-    it("should set the correct flags when interested in embedding", async () => {
+    it("does not enable embedding when the locked choice is clicked", async () => {
       await setup();
       await skipWelcomeScreen();
       await submitUserInfoStep();
 
       await selectUsageReason("embedding");
       await clickNextStep();
-
+      await userEvent.click(
+        await screen.findByText("Continue with sample data"),
+      );
       await userEvent.click(screen.getByText("Finish"));
 
       expect(await getLastSettingsPutPayload()).toEqual({
-        "embedding-homepage": "visible",
-        "setup-embedding-autoenabled": true,
         "setup-license-active-at-setup": false,
       });
     });
@@ -160,7 +207,9 @@ describe("setup (OSS)", () => {
       await selectUsageReason("self-service-analytics");
       await clickNextStep();
 
-      await userEvent.click(screen.getByText("Continue with sample data"));
+      await userEvent.click(
+        await screen.findByText("Continue with sample data"),
+      );
 
       await userEvent.click(screen.getByText("Finish"));
 
@@ -172,8 +221,9 @@ describe("setup (OSS)", () => {
     });
 
     it("should not autoenable embedding if it was set by an env", async () => {
-      await setup({
-        settingOverrides: [
+      await setup();
+      fetchMock.modifyRoute("settings-list", {
+        response: [
           createMockSettingDefinition({
             key: "enable-embedding",
             value: false,
@@ -186,35 +236,74 @@ describe("setup (OSS)", () => {
 
       await selectUsageReason("embedding");
       await clickNextStep();
-
+      await userEvent.click(
+        await screen.findByText("Continue with sample data"),
+      );
       await userEvent.click(screen.getByText("Finish"));
 
       const flags = await getLastSettingsPutPayload();
 
       expect(flags).toEqual({
-        "embedding-homepage": "visible",
-        "setup-embedding-autoenabled": true,
         "setup-license-active-at-setup": false,
       });
     });
   });
 
-  it("should keep newsletter opt-in disabled", async () => {
-    await setup();
-    await skipWelcomeScreen();
-    await submitUserInfoStep();
-    await selectUsageReason("self-service-analytics");
-    await clickNextStep();
-    await userEvent.click(screen.getByText("Continue with sample data"));
+  describe("newsletter step", () => {
+    let originalSendBeacon: typeof window.navigator.sendBeacon;
 
-    await userEvent.click(screen.getByText("Finish"));
-
-    const newsletterSwitch = screen.getByRole("switch", {
-      name: "Get infrequent emails about new releases and feature updates.",
+    beforeEach(() => {
+      originalSendBeacon = window.navigator.sendBeacon;
+      window.navigator.sendBeacon = jest.fn();
     });
 
-    expect(newsletterSwitch).not.toBeChecked();
-    expect(newsletterSwitch).toBeDisabled();
-    expect(screen.getByText("进入数据看板")).toBeInTheDocument();
+    afterEach(() => {
+      window.navigator.sendBeacon = originalSendBeacon;
+      jest.clearAllMocks();
+    });
+
+    it("does not subscribe when the locked newsletter control is clicked", async () => {
+      await setup();
+      await skipWelcomeScreen();
+      await submitUserInfoStep();
+      await selectUsageReason("self-service-analytics");
+      await clickNextStep();
+      await userEvent.click(
+        await screen.findByText("Continue with sample data"),
+      );
+      await userEvent.click(screen.getByText("Finish"));
+
+      await userEvent.click(
+        screen.getByText(
+          "Get infrequent emails about new releases and feature updates.",
+        ),
+      );
+
+      await userEvent.click(screen.getByText("Take me to Metabase"));
+
+      const toggle = screen.getByRole("switch", {
+        name: /Get infrequent emails/,
+      });
+      expect(toggle).toBeDisabled();
+      expect(toggle).not.toBeChecked();
+      expect(window.navigator.sendBeacon).not.toHaveBeenCalled();
+    });
+
+    it("should *NOT* call navigator.sendBeacon if the user has not checked the box", async () => {
+      await setup();
+      await skipWelcomeScreen();
+      await submitUserInfoStep();
+      await selectUsageReason("self-service-analytics");
+      await clickNextStep();
+      await userEvent.click(
+        await screen.findByText("Continue with sample data"),
+      );
+
+      await userEvent.click(screen.getByText("Finish"));
+
+      await userEvent.click(screen.getByText("Take me to Metabase"));
+
+      expect(window.navigator.sendBeacon).not.toHaveBeenCalled();
+    });
   });
 });

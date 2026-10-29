@@ -1,0 +1,156 @@
+{
+  "verified_at": "2026-10-18T01:47:04.839673+08:00",
+  "official_base": "43a24f64f0e522aaeb6f3b2cf39001c6e451bc56",
+  "runtime_source": "a26b7ad156eb54f951f84fc47624d2529453fd0e",
+  "artifact": {
+    "size_bytes": 715143865,
+    "sha256": "74aee7ca7423e602904da0e62468e3419f64fd890409ce976c32ed2e2f6d30e9",
+    "zip_bad_entry": null,
+    "version": "tag=v0.64.2.5\nhash=a26b7ad\ndate=2026-10-18",
+    "enterprise_backend_entries": 0,
+    "keycloak_classes": 94,
+    "custom_migration": true,
+    "sqlglot_bundled": true,
+    "linux_native_entries": 101
+  },
+  "tests": {
+    "frontend_suites": 18,
+    "frontend_tests": 257,
+    "backend_tests": 186,
+    "backend_assertions": 8782,
+    "translation_tests": 5,
+    "translation_assertions": 27,
+    "type_check": true,
+    "targeted_eslint": true,
+    "git_connectivity": true
+  },
+  "native_ai_trees": {
+    "src/metabase/llm": {
+      "unchanged": true,
+      "tree": "6061f8a248fc717f9f518dff205bd974fac8f16d"
+    },
+    "src/metabase/metabot": {
+      "unchanged": true,
+      "tree": "bd9074b0b5c49a7b81aadb6ad8bbb2c60d2fdd71"
+    },
+    "resources/metabot": {
+      "unchanged": true,
+      "tree": "4c96f1b19532c4f68691dc70a0ffeae89d303c52"
+    },
+    "resources/instance_analytics": {
+      "unchanged": true,
+      "tree": "d731612075bc5ee6f0effe4417149bd9577fd148"
+    },
+    "frontend/src/metabase/metabot": {
+      "unchanged": true,
+      "tree": "183cf7a96bf08cfd0a938f45932585253e781444"
+    }
+  },
+  "browser": {
+    "publicSiteName": true,
+    "identityA": {
+      "issuer": "http://127.0.0.1:33421/realms/isolated",
+      "subject": "user-a",
+      "user_id": 2
+    },
+    "ordinaryAdminDenied": 403,
+    "ordinaryBrandWriteDenied": 403,
+    "progressGeometry": [
+      {
+        "ratio": 0.6499854876160991,
+        "gradient": "linear-gradient(90deg, rgb(0, 210, 187), rgb(0, 118, 105))"
+      },
+      {
+        "ratio": 0.00998935758513932,
+        "gradient": "linear-gradient(90deg, rgb(0, 210, 187), rgb(0, 118, 105))"
+      }
+    ],
+    "accents": [
+      "error",
+      "success"
+    ],
+    "identityB": {
+      "issuer": "http://127.0.0.1:33421/realms/isolated",
+      "subject": "user-b",
+      "user_id": 3
+    },
+    "replacedCookieRejected": 401,
+    "backchannelRejected": 401,
+    "logoutCookieRejected": 401,
+    "adminCommercialLinks": [],
+    "englishUserOverride": true,
+    "monitorDefault": "http://127.0.0.1:33419/metabase/monitor/tasks/list",
+    "hiddenBackground": {
+      "gradient": "none",
+      "badge": "none"
+    },
+    "darkScheme": true,
+    "mobileNoHorizontalOverflow": true,
+    "publicStyles": [
+      {
+        "custom": false,
+        "gradient": "none",
+        "badge": "none"
+      },
+      {
+        "custom": false,
+        "gradient": "none",
+        "badge": null
+      },
+      {
+        "custom": false,
+        "gradient": "none",
+        "badge": null
+      },
+      {
+        "custom": false,
+        "gradient": "none",
+        "badge": null
+      },
+      {
+        "custom": false,
+        "gradient": "none",
+        "badge": null
+      },
+      {
+        "custom": false,
+        "gradient": "none",
+        "badge": null
+      },
+      {
+        "custom": false,
+        "gradient": "none",
+        "badge": "none"
+      }
+    ]
+  },
+  "environment": "loopback H2 and synthetic OIDC, not production Keycloak",
+  "production_changed": false,
+  "production_deployment": {
+    "date": "2026-10-18",
+    "target": "uhooai / 192.168.60.30 / 122.224.218.82:9443",
+    "image": "uhooai/metabase:v0.64.2.5-a26b7ad",
+    "image_id": "sha256:622a9ed8c91539ccacc08544807685d835aa211a50bc58678bcc53f69a83c211",
+    "runtime_hash": "a26b7ad",
+    "postgresql": "17.11",
+    "preserved_counts": {
+      "users": 2,
+      "active_users": 1,
+      "cards": 39,
+      "dashboards": 1
+    },
+    "custom_tables": 4,
+    "restore_and_clone_migration": true,
+    "stopped_app_rollback_snapshot_restore": true,
+    "encryption_enabled_on_clone_then_production": true,
+    "real_keycloak_login": true,
+    "non_cached_queries": 10,
+    "successful_queries": 10,
+    "external_health": true,
+    "invalid_logout_token_status": 401,
+    "native_model_tested": false,
+    "portal_iframe": "initial rendering confirmed; subsequent refresh blank/about:blank unresolved",
+    "full_logout_and_cross_account_uat": false,
+    "details": "UHOOAI_V64_DEPLOYMENT.md"
+  }
+}

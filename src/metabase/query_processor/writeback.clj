@@ -15,6 +15,7 @@
    [metabase.query-processor.middleware.process-userland-query :as qp.process-userland-query]
    [metabase.query-processor.preprocess :as qp.preprocess]
    [metabase.query-processor.setup :as qp.setup]
+   ;; the legacy QP pipeline still conveys the metadata provider via the ambient store; no MBQL 5 path yet
    ^{:clj-kondo/ignore [:deprecated-namespace]} [metabase.query-processor.store :as qp.store]
    [metabase.util.i18n :refer [tru]]
    [metabase.util.log :as log]
@@ -76,7 +77,7 @@
                          :string
                          [:cat
                           :string
-                          [:* :any]]]]
+                          [:* :metabase.lib.schema.common/field-value]]]]
   (let [mp             (lib-be/application-database-metadata-provider db-id)
         [sql & params] (if (string? sql-or-sql+params)
                          (cons sql-or-sql+params nil)

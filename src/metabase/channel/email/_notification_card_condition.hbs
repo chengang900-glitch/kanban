@@ -1,11 +1,11 @@
 {{#if (equals send_condition "has_result")}}
-  该问题有任何结果
+  whenever this question has any results
 {{else}}
   {{#if (equals send_condition "goal_above")}}
-    该问题达到目标值
+    when this question meets its goal
   {{else}}
     {{#if (equals send_condition "goal_below")}}
-      该问题低于目标值
+      when this question goes below its goal
     {{/if}}
   {{/if}}
 {{/if}} 

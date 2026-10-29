@@ -61,6 +61,6 @@
                                                   :start_time (t/minus (t/offset-date-time) (t/days 1))})
               (transforms.notification/send-failure-digest!)
               ;; crowberto is a superuser and receives the admin digest
-              (is (mt/received-email-subject? :crowberto #"最近一天内失败的转换任务"))
+              (is (mt/received-email-subject? :crowberto #"Transform jobs that failed"))
               (is (mt/received-email-body? :crowberto #"nightly-job"))
               (is (mt/received-email-body? :crowberto #"boom")))))))))

@@ -1,6 +1,5 @@
-import { Route } from "react-router";
-
 import { renderWithProviders, screen } from "__support__/ui";
+import { Route } from "metabase/router";
 
 import { SearchButton } from "./SearchButton";
 
@@ -19,7 +18,7 @@ const setup = ({
     removeEventListener: jest.fn(),
   });
 
-  renderWithProviders(<Route path="*" component={() => <SearchButton />} />, {
+  renderWithProviders(<Route path="*" element={<SearchButton />} />, {
     withKBar: true,
     withRouter: true,
     initialRoute,

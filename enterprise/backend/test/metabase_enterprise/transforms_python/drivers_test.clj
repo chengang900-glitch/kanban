@@ -142,7 +142,7 @@
                                                      :else
                                                      v)) row))
                                               data)}))
-    (sync/sync-database! (mt/db) {:scan :schema})
+    (sync/sync-database! (mt/id) {:scan :schema})
     (t2/select-one-pk :model/Table :name (name qualified-table-name) :db_id db-id)))
 
 (defn- cleanup-table!
@@ -191,7 +191,6 @@
        :rows rows
        :metadata metadata})))
 
-#_:clj-kondo/ignore
 (defmacro with-test-table
   [[table-id table-name] [schema data] & body]
   `(let [table-name# (if (= :redshift driver/*driver*)

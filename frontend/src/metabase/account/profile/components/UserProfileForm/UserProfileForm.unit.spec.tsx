@@ -1,7 +1,7 @@
 import userEvent from "@testing-library/user-event";
 
+import { createMockState } from "__support__/state";
 import { renderWithProviders, screen } from "__support__/ui";
-import { createMockState } from "metabase/redux/store/mocks";
 import { createMockUser } from "metabase-types/api/mocks";
 
 import type { UserProfileFormProps } from "./UserProfileForm";
@@ -16,26 +16,6 @@ const setup = (props: UserProfileFormProps) => {
 };
 
 describe("UserProfileForm", () => {
-  it("should show last name before first name", () => {
-    setup(getProps());
-
-    const lastName = screen.getByLabelText("Last name");
-    const firstName = screen.getByLabelText("First name");
-
-    expect(
-      lastName.compareDocumentPosition(firstName) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-  });
-
-  it("should not show the community localization notice", () => {
-    setup(getProps());
-
-    expect(
-      screen.queryByText(/translations are created by the Metabase community/i),
-    ).not.toBeInTheDocument();
-  });
-
   it("should show a success message after form submit", async () => {
     const props = getProps({
       onSubmit: jest.fn().mockResolvedValue({}),

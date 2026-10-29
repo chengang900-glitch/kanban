@@ -1,5 +1,8 @@
 import { t } from "ttag";
 
+import { useSelector } from "metabase/redux";
+import { getDocsUrl, getLearnUrl } from "metabase/selectors/settings";
+import { getShowMetabaseLinks } from "metabase/selectors/whitelabel";
 import type Question from "metabase-lib/v1/Question";
 import {
   isDateParameter,
@@ -11,6 +14,7 @@ import type { Parameter } from "metabase-types/api";
 import {
   NativeCardDefault,
   NativeCardIcon,
+  NativeCardLink,
   NativeCardText,
 } from "./DisabledNativeCardHelpTextComponents";
 
@@ -31,12 +35,20 @@ export function DisabledNativeCardHelpText({
 }
 
 function ModelHelpText() {
+  const showMetabaseLinks = useSelector(getShowMetabaseLinks);
+  const learnUrl = getLearnUrl(
+    "metabase-basics/getting-started/models#skip-the-sql-variables",
+  );
+
   return (
     <NativeCardDefault>
       <NativeCardIcon name="info" />
       <NativeCardText>
         {t`Models are data sources and thus can’t have parameters mapped.`}
       </NativeCardText>
+      {showMetabaseLinks && (
+        <NativeCardLink href={learnUrl}>{t`Learn more`}</NativeCardLink>
+      )}
     </NativeCardDefault>
   );
 }
@@ -46,10 +58,18 @@ interface ParameterHelpTextProps {
 }
 
 function ParameterHelpText({ parameter }: ParameterHelpTextProps) {
+  const showMetabaseLinks = useSelector(getShowMetabaseLinks);
+  const docsUrl = useSelector((state) =>
+    getDocsUrl(state, { page: "questions/native-editor/sql-parameters" }),
+  );
+
   return (
     <NativeCardDefault>
       <NativeCardIcon name="info" />
       <NativeCardText>{getParameterHelpText(parameter)}</NativeCardText>
+      {showMetabaseLinks && (
+        <NativeCardLink href={docsUrl}>{t`Learn how`}</NativeCardLink>
+      )}
     </NativeCardDefault>
   );
 }

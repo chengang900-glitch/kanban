@@ -1,8 +1,8 @@
 import type { AnchorHTMLAttributes, ReactNode, Ref } from "react";
-import { forwardRef } from "react";
+import { Children, forwardRef, isValidElement } from "react";
 
 import CS from "metabase/css/core/index.css";
-import { getUrlTarget } from "metabase/visualizations/lib/open-url";
+import { getUrlTarget } from "metabase/urls";
 
 import S from "./ExternalLink.module.css";
 
@@ -13,10 +13,34 @@ interface Props extends AnchorHTMLAttributes<HTMLAnchorElement> {
   children?: ReactNode;
 }
 
+// Keep the customized UI free of promotional/help links labelled "Learn more".
+// Read nested labels too (e.g. Text plus a share icon), without filtering URLs.
+function getLabelText(children: ReactNode): string {
+  return Children.toArray(children)
+    .map((child) => {
+      if (typeof child === "string" || typeof child === "number") {
+        return String(child);
+      }
+      return isValidElement<{ children?: ReactNode }>(child)
+        ? getLabelText(child.props.children)
+        : "";
+    })
+    .join("");
+}
+
 export const ExternalLink = forwardRef(function ExternalLink(
   { href, target = getUrlTarget(href), className, children, ...props }: Props,
   ref: Ref<HTMLAnchorElement>,
 ) {
+  const label =
+    getLabelText(children).trim() || props["aria-label"] || props.title || "";
+  if (
+    /^learn\s+more\b/i.test(label) ||
+    /^了解(?:更多|.*更多信息)/.test(label)
+  ) {
+    return null;
+  }
+
   return (
     <a
       ref={ref}

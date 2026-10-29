@@ -1,8 +1,7 @@
-import { useState } from "react";
 import { t } from "ttag";
 
 import { useDispatch } from "metabase/redux";
-import { Button, Divider, Radio, Stack } from "metabase/ui";
+import { Button, Divider, Radio, Stack, Text } from "metabase/ui";
 import type { UsageReason } from "metabase-types/api";
 
 import { submitUsageReason } from "../../actions";
@@ -28,9 +27,7 @@ const COMPLETED_STEP_TITLE: Record<UsageReason, string> = {
 
 export const UsageQuestionStep = ({ stepLabel }: NumberedStepProps) => {
   const { isStepActive, isStepCompleted } = useStep("usage_question");
-  const [usageReason, setUsageReason] = useState<UsageReason>(
-    "self-service-analytics",
-  );
+  const usageReason = "self-service-analytics";
 
   const dispatch = useDispatch();
 
@@ -38,14 +35,10 @@ export const UsageQuestionStep = ({ stepLabel }: NumberedStepProps) => {
     dispatch(submitUsageReason(usageReason));
   };
 
-  const handleChange = (value: string) => {
-    setUsageReason(value as UsageReason);
-  };
-
   if (!isStepActive) {
     const title = isStepCompleted
       ? COMPLETED_STEP_TITLE[usageReason]
-      : t`What will you use Dashboard for?`;
+      : t`What will you use Metabase for?`;
     return (
       <InactiveStep
         title={title}
@@ -56,28 +49,33 @@ export const UsageQuestionStep = ({ stepLabel }: NumberedStepProps) => {
   }
 
   return (
-    <ActiveStep title={t`What will you use Dashboard for?`} label={stepLabel}>
+    <ActiveStep title={t`What will you use Metabase for?`} label={stepLabel}>
       <Radio.Group
         name="usage-reason"
-        defaultValue="self-service-analytics"
         value={usageReason}
-        onChange={handleChange}
+        label={
+          <Text
+            color="text-disabled"
+            fw="normal"
+          >{t`Let us know your plans with Metabase so that we can best guide you`}</Text>
+        }
       >
-        <Stack pt="lg">
+        <Stack pt="xl">
           <Radio
+            disabled
             value="self-service-analytics"
             label={t`Self-service analytics for my own company`}
           />
           <Radio
-            hidden
+            disabled
             value="embedding"
             label={t`Embedding analytics into my application`}
           />
-          <Radio hidden value="both" label={t`A bit of both`} />
-          <Radio hidden value="not-sure" label={t`Not sure yet`} />
+          <Radio disabled value="both" label={t`A bit of both`} />
+          <Radio disabled value="not-sure" label={t`Not sure yet`} />
         </Stack>
       </Radio.Group>
-      <Divider my="xl" />
+      <Divider my="xxl" />
       <Button variant="filled" onClick={handleSubmit}>
         {t`Next`}
       </Button>

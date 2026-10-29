@@ -25,23 +25,8 @@
          (some-> (slurp "/tmp/out.edn")
                  edn/read-string))))
 
-(deftest replace-product-name-test
-  (testing "Chinese product references"
-    (is (= "登录数据看板"
-           (#'backend/replace-product-name "zh-CN" "Log in to Metabase" "登录系统"))))
-  (testing "non-Chinese product references"
-    (is (= "Welcome to Dashboard"
-           (#'backend/replace-product-name "en" "Welcome to Metabase" "Welcome to Metabase"))))
-  (testing "legal product references are preserved"
-    (is (= "Metabase is a Trademark of Metabase, Inc"
-           (#'backend/replace-product-name
-            "en"
-            "Metabase is a Trademark of Metabase, Inc"
-            "Metabase is a Trademark of Metabase, Inc")))))
-
 (deftest ^:parallel backend-message?
   (testing "messages present in any .clj and .cljc files are detected as backend messages"
-    #_{:clj-kondo/ignore [:equals-true]}
     (are [source-references expected] (= expected
                                          (i18n/backend-message? {:source-references source-references}))
       ;; Simple .clj and .cljc files with and without line numbers
@@ -69,3 +54,10 @@
       ;; Invalid or empty references
       []                                                                            false
       ["foo"]                                                                       false)))
+
+(deftest chinese-api-identifiers-remain-literal-test
+  (let [messages (:messages (i18n/po-contents "zh-CN"))
+        message (some #(when (= (:id %) "At least one of `database`, `dashboard`, or `question` is required.") %) messages)]
+    (is (= "必须至少提供 `database`、`dashboard` 或 `question` 其中一个。" (:str message)))
+    (is (= "此图表出现了问题。"
+           (:str (some #(when (= (:id %) "There was a problem with this question.") %) messages))))))

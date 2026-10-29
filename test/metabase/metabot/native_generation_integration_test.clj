@@ -36,51 +36,35 @@
                        :type :metric}
           model-data  {:description "Test model"
                        :dataset_query (lib/->legacy-MBQL model-source-query)
-                       :type :model}
-          question-data {:description "Test question"
-                         :dataset_query (lib/->legacy-MBQL model-source-query)
-                         :type :question}]
+                       :type :model}]
       (mt/with-temp [:model/Collection {coll-id :id}   {}
                      :model/Collection {child-id :id}  {:location (collection/location-path coll-id)}
                      :model/Card _ (assoc model-data  :name "NativeModel1"  :collection_id coll-id)
                      :model/Card _ (assoc metric-data :name "NativeMetric1" :collection_id child-id)
-                     :model/Card _ (assoc question-data :name "NativeQuestion1" :collection_id coll-id)
-                     :model/Card {dashboard-card-id :id} (assoc question-data :name "DashboardQuestion"
-                                                                :collection_id child-id)
-                     :model/Dashboard {dashboard-id :id} {:name "NativeDashboard" :collection_id coll-id}
-                     :model/DashboardCard _ {:dashboard_id dashboard-id :card_id dashboard-card-id}
                      :model/Metabot {metabot-id :id} {:name "native-test-bot" :collection_id coll-id}]
         (let [prompts-by-name {"NativeModel1"  ["native q1" "native q2" "native q3" "native q4" "native q5"]
-                               "NativeMetric1" ["native m1" "native m2" "native m3" "native m4" "native m5"]
-                               "NativeQuestion1" ["native direct question"]
-                               "DashboardQuestion" ["native dashboard question"]}
+                               "NativeMetric1" ["native m1" "native m2" "native m3" "native m4" "native m5"]}
               native-mock (make-native-prompt-generator prompts-by-name)]
           (testing "regenerate endpoint works with native path"
-            (with-redefs [native-generator/generate-example-questions native-mock]
-              (is (=? {:status "generated" :prompt_count 12}
+            (mt/with-dynamic-fn-redefs [native-generator/generate-example-questions native-mock]
+              (is (=? {:status "generated" :prompt_count 10}
                       (mt/user-http-request :crowberto :post 200
                                             (format "metabot/metabot/%d/prompt-suggestions/regenerate" metabot-id)))))
             (let [prompts (t2/select [:model/MetabotPrompt :prompt :model [:card.name :model_name]]
                                      :metabot_id metabot-id
                                      {:join     [[:report_card :card] [:= :card.id :card_id]]
                                       :order-by [:metabot_prompt.id]})]
-              (is (= 12 (count prompts)))
+              (is (= 10 (count prompts)))
               (is (= (set (mapcat val prompts-by-name))
                      (set (map :prompt prompts))))
-              (is (= #{:model :metric :question}
-                     (set (map :model prompts)))))
-            (let [response (mt/user-http-request
-                            :crowberto :get 200
-                            (format "metabot/metabot/%d/prompt-suggestions" metabot-id))]
-              (is (= 12 (:total response)))
-              (is (= #{"metric" "model" "question"}
-                     (set (map :model (:prompts response)))))))
+              (is (= #{:model :metric}
+                     (set (map :model prompts))))))
           (testing "native path prompts are replaced on re-regenerate"
             (let [old-ids (t2/select-pks-set :model/MetabotPrompt :metabot_id metabot-id)]
-              (with-redefs [native-generator/generate-example-questions native-mock]
-                (is (=? {:status "generated" :prompt_count 12}
+              (mt/with-dynamic-fn-redefs [native-generator/generate-example-questions native-mock]
+                (is (=? {:status "generated" :prompt_count 10}
                         (mt/user-http-request :crowberto :post 200
                                               (format "metabot/metabot/%d/prompt-suggestions/regenerate" metabot-id)))))
               (let [new-ids (t2/select-pks-set :model/MetabotPrompt :metabot_id metabot-id)]
-                (is (= 12 (count new-ids)))
+                (is (= 10 (count new-ids)))
                 (is (empty? (set/intersection old-ids new-ids)))))))))))

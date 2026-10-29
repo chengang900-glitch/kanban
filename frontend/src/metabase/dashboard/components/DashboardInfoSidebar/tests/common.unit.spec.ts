@@ -32,13 +32,6 @@ describe("DashboardInfoSidebar", () => {
     expect(screen.getByRole("tab", { name: "History" })).toBeInTheDocument();
   });
 
-  it("should not render the insights tab", () => {
-    setup();
-    expect(
-      screen.queryByRole("tab", { name: "Insights" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("should show description when clicking on overview tab", async () => {
     await setup();
     await userEvent.click(screen.getByRole("tab", { name: "History" }));
@@ -128,7 +121,7 @@ describe("DashboardInfoSidebar", () => {
     });
     expect(screen.getByText("Creator and last editor")).toBeInTheDocument();
     expect(screen.getByText("September 22, 1793")).toBeInTheDocument();
-    expect(screen.getByText("by BagginsFrodo")).toBeInTheDocument();
+    expect(screen.getByText("by Frodo Baggins")).toBeInTheDocument();
   });
 
   it("should show creator info", async () => {
@@ -147,7 +140,7 @@ describe("DashboardInfoSidebar", () => {
 
     expect(screen.getByText("Creator and last editor")).toBeInTheDocument();
     expect(await screen.findByText("January 1, 2024")).toBeInTheDocument();
-    expect(screen.getByText("by TabletonTesty")).toBeInTheDocument();
+    expect(screen.getByText("by Testy Tableton")).toBeInTheDocument();
   });
 
   it("should show collection", async () => {
@@ -202,6 +195,7 @@ describe("DashboardInfoSidebar", () => {
     describe("entity id display", () => {
       it("should not show entity ids without serialization feature", async () => {
         const dashboard = createMockDashboard({
+          // Unjustified type cast. FIXME
           entity_id: "jenny8675309" as Dashboard["entity_id"],
         });
         await setup({ dashboard });

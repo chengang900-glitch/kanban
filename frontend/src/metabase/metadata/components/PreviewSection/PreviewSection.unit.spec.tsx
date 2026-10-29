@@ -2,9 +2,9 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
 import { setupCardDataset } from "__support__/server-mocks";
+import { createMockState } from "__support__/state";
 import { createMockEntitiesState } from "__support__/store";
 import { renderWithProviders, screen } from "__support__/ui";
-import { createMockState } from "metabase/redux/store/mocks";
 import { registerVisualizations } from "metabase/visualizations/register";
 import {
   createOrdersTable,

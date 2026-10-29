@@ -41,18 +41,16 @@ This table contains data that can be analyzed by grouping and filtering using th
 
 ## Instructions
 
-1. Write every generated question in natural Simplified Chinese. Do not output an English question.
-2. Translate table and field names into natural Simplified Chinese when possible. Keep proper nouns, established acronyms, and identifiers in their original language only when translating them would reduce clarity.
-3. Generate 5 diverse, natural-sounding example questions using the provided schema.
-4. Use your understanding of field types to select appropriate:
+1. Generate 5 diverse, natural-sounding example questions using the provided schema.
+2. Use your understanding of field types to select appropriate:
    - **metrics** (numeric fields that can be aggregated),
    - **dimensions** (categorical/text fields for grouping/filtering),
    - **time dimensions** (date or datetime fields),
    - **statuses** (boolean fields indicating a state like "active").
-5. Rewrite field names into natural language where needed. Avoid using raw field names unless already user-friendly.
-6. Do not use exact values (like specific names, dates, or IDs).
-7. Use different templates to reflect a variety of analytical intents.
-8. Ensure the questions are realistic, safe to execute, and business-appropriate.
+3. Rewrite field names into natural language where needed. Avoid using raw field names unless already user-friendly.
+4. Do not use exact values (like specific names, dates, or IDs).
+5. Use different templates to reflect a variety of analytical intents.
+6. Ensure the questions are realistic, safe to execute, and business-appropriate.
 
 
 ## Response format
@@ -89,11 +87,11 @@ Response:
 ```json
 {
     "questions": [
-        "按销售额排名前 10 的产品有哪些？",
-        "有多少订单没有地址？",
-        "按产品类别查看订单金额趋势。",
-        "订单按国家或地区如何分布？",
-        "自去年以来订单金额的环比增长情况如何？"
+        "Top 10 products by sales amount",
+        "How many orders don't have an address?",
+        "Show trends in order amount by product category",
+        "What is the breakdown of orders by country?",
+        "Month over month growth in order amount since last year"
     ]
 }
 ```

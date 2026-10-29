@@ -28,7 +28,7 @@
 
 (defn- construct-email
   [& [data]]
-  (merge {:subject        (format "预警：%s 有结果" notification.tu/default-card-name)
+  (merge {:subject        (format "Alert: %s has results" notification.tu/default-card-name)
           :recipients     #{"rasta@metabase.com"}
           :message-type   :attachments
           :recipient-type nil
@@ -72,7 +72,7 @@
                 (fn [[email]]
                   (is (= (construct-email
                           {:message [{notification.tu/default-card-name true
-                                      "管理订阅"                         true
+                                      "Manage your subscriptions"       true
                                       card-content                      true}
                                      ;; icon
                                      notification.tu/png-attachment
@@ -80,7 +80,7 @@
                          (mt/summarize-multipart-single-email
                           email
                           card-name-regex
-                          #"管理订阅"
+                          #"Manage your subscriptions"
                           (re-pattern card-content)))))
 
                 :channel/slack
@@ -120,7 +120,7 @@
         (fn [[email]]
           (is (= (construct-email
                   {:message [{notification.tu/default-card-name true
-                              "管理订阅"                         true}
+                              "Manage your subscriptions"       true}
                              ;; static viz
                              notification.tu/png-attachment
                              ;; icon
@@ -129,7 +129,7 @@
                  (mt/summarize-multipart-single-email
                   email
                   card-name-regex
-                  #"管理订阅"))))
+                  #"Manage your subscriptions"))))
         :channel/slack
         (fn [[message]]
           (is (=? {:channel "#general"
@@ -160,14 +160,14 @@
                   (fn [[email]]
                     (is (= (construct-email
                             {:message [{notification.tu/default-card-name true
-                                        "管理订阅"                         true}
+                                        "Manage your subscriptions"       true}
                                        ;; icon
                                        notification.tu/png-attachment
                                        notification.tu/csv-attachment]})
                            (mt/summarize-multipart-single-email
                             email
                             card-name-regex
-                            #"管理订阅"))))
+                            #"Manage your subscriptions"))))
                   :channel/slack
                   (fn [[message]]
                     (is (=? {:blocks  (default-slack-blocks (-> notification :payload :card_id) true)
@@ -363,16 +363,16 @@
        {:channel/email
         (fn [[email]]
           (is (= (construct-email
-                  {:subject "预警：Card notification test card 已达到目标值"
+                  {:subject "Alert: Card notification test card has reached its goal"
                    :message [{notification.tu/default-card-name true
-                              "该问题已达到目标值 5\\.9。" true}
+                              "This question has reached its goal of 5\\.9\\." true}
                              notification.tu/png-attachment
                              notification.tu/png-attachment
                              notification.tu/csv-attachment]})
                  (mt/summarize-multipart-single-email
                   email
                   card-name-regex
-                  #"该问题已达到目标值 5\.9。"))))}))))
+                  #"This question has reached its goal of 5\.9\."))))}))))
 
 (deftest send-condition-below-goal-test
   (testing "skip is the goal is not met"
@@ -413,16 +413,16 @@
        {:channel/email
         (fn [[email]]
           (is (= (construct-email
-                  {:subject "预警：Card notification test card 已低于目标值"
+                  {:subject "Alert: Card notification test card has gone below its goal"
                    :message [{notification.tu/default-card-name true
-                              "该问题已低于目标值 1\\.1。" true}
+                              "This question has gone below its goal of 1\\.1\\." true}
                              notification.tu/png-attachment
                              notification.tu/png-attachment
                              notification.tu/csv-attachment]})
                  (mt/summarize-multipart-single-email
                   email
                   card-name-regex
-                  #"该问题已低于目标值 1\.1。"))))}))))
+                  #"This question has gone below its goal of 1\.1\."))))}))))
 
 (deftest send-once-archive-on-first-successful-send
   (notification.tu/with-card-notification
@@ -487,15 +487,15 @@
           (is (= (construct-email
                   {:recipients #{"ngoc@metabase.com"}
                    :message [{notification.tu/default-card-name true
-                              "管理订阅"                         false
-                              "取消订阅"                         true}
+                              "Manage your subscriptions"       false
+                              "Unsubscribe"                     true}
                              notification.tu/png-attachment
                              notification.tu/csv-attachment]})
                  (mt/summarize-multipart-single-email
                   email
                   card-name-regex
-                  #"管理订阅"
-                  #"取消订阅"))))
+                  #"Manage your subscriptions"
+                  #"Unsubscribe"))))
 
         (testing "the unsubscribe url is correct"
           (let [url    (re-find #"https://[^/]+/unsubscribe[^\"]*" (-> email :message first :content))
@@ -516,7 +516,7 @@
       (testing "rasta has no permissions and will get error"
         (is (thrown-with-msg?
              clojure.lang.ExceptionInfo
-             #"你没有权限这么做"
+             #"You don't have permissions"
              (payload! :rasta))))
       (testing "crowberto can see the card"
         (is (pos-int? (:row_count (payload! :crowberto))))))))
@@ -533,15 +533,15 @@
                                                       (if (= :channel/slack (first args))
                                                         (throw (ex-info "Slack failed" {}))
                                                         (apply original-render-noti args)))]
-            ;; slack failed but email should still be sent
-            (notification.tu/test-send-notification!
-             notification
-             {:channel/email
-              (fn [emails]
-                (is (pos-int? (count emails))))
-              :channel/slack
-              (fn [messages]
-                (is (nil?  messages)))})))))))
+            ;; slack failed but email should still be sent; the synchronous caller then learns that slack
+            ;; failed (GDGT-3144)
+            (notification.tu/with-channel-fixtures [:channel/email :channel/slack]
+              (let [messages (notification.tu/with-captured-channel-send!
+                               (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                                                     #"Failed to deliver to channel/slack$"
+                                                     (notification/send-notification! notification))))]
+                (is (pos-int? (count (:channel/email messages))))
+                (is (nil? (:channel/slack messages)))))))))))
 
 (deftest skip-for-archived-cards-test
   (testing "should not send for archived cards"

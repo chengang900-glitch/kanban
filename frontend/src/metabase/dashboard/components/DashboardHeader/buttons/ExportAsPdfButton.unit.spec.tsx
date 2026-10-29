@@ -1,10 +1,15 @@
 import userEvent from "@testing-library/user-event";
 
+import { createMockDashboardState } from "__support__/state";
 import { renderWithProviders, screen, waitFor } from "__support__/ui";
 import { MockDashboardContext } from "metabase/dashboard/context/mock-context";
-import { createMockDashboardState } from "metabase/redux/store/mocks";
-import { saveDashboardPdf } from "metabase/visualizations/lib/save-dashboard-pdf";
-import { createMockDashboard } from "metabase-types/api/mocks";
+import type { SelectedTabId } from "metabase/redux/store";
+import type { Dashboard } from "metabase-types/api";
+import {
+  createMockDashboard,
+  createMockDashboardCard,
+  createMockDashboardTab,
+} from "metabase-types/api/mocks";
 
 import { ExportAsPdfButton } from "./ExportAsPdfButton";
 
@@ -18,10 +23,16 @@ jest.mock("metabase/redux/analytics", () => ({
   trackExportDashboardToPDF: jest.fn(),
 }));
 
-const setup = () => {
-  const dashboard = createMockDashboard();
-
-  const view = renderWithProviders(
+const setup = ({
+  dashboard = createMockDashboard({
+    dashcards: [createMockDashboardCard()],
+  }),
+  selectedTabId = null,
+}: {
+  dashboard?: Dashboard;
+  selectedTabId?: SelectedTabId;
+} = {}) => {
+  return renderWithProviders(
     <MockDashboardContext dashboardId={dashboard.id} dashboard={dashboard}>
       <ExportAsPdfButton />
     </MockDashboardContext>,
@@ -29,6 +40,7 @@ const setup = () => {
       storeInitialState: {
         dashboard: createMockDashboardState({
           dashboardId: dashboard.id,
+          selectedTabId,
           dashboards: {
             [dashboard.id]: { ...dashboard, dashcards: [] },
           },
@@ -36,8 +48,6 @@ const setup = () => {
       },
     },
   );
-
-  return { dashboard, ...view };
 };
 
 describe("ExportAsPdfButton", () => {
@@ -58,19 +68,35 @@ describe("ExportAsPdfButton", () => {
     expect(button).toBeDisabled();
   });
 
-  it("exports an unbranded PDF", async () => {
-    jest.mocked(saveDashboardPdf).mockResolvedValueOnce(undefined);
-    const { dashboard } = setup();
+  it("does not render when the dashboard is empty", () => {
+    setup({ dashboard: createMockDashboard({ dashcards: [] }) });
 
-    await userEvent.click(screen.getByTestId("export-as-pdf-button"));
+    expect(
+      screen.queryByTestId("export-as-pdf-button"),
+    ).not.toBeInTheDocument();
+  });
 
-    await waitFor(() =>
-      expect(saveDashboardPdf).toHaveBeenCalledWith(
-        expect.objectContaining({
-          fileName: `${dashboard.name}.pdf`,
-          includeBranding: false,
-        }),
-      ),
-    );
+  describe("multi-tab dashboards", () => {
+    const dashboard = createMockDashboard({
+      tabs: [
+        createMockDashboardTab({ id: 1 }),
+        createMockDashboardTab({ id: 2 }),
+      ],
+      dashcards: [createMockDashboardCard({ dashboard_tab_id: 2 })],
+    });
+
+    it("does not render when the selected tab is empty", () => {
+      setup({ dashboard, selectedTabId: 1 });
+
+      expect(
+        screen.queryByTestId("export-as-pdf-button"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders when the selected tab has cards", () => {
+      setup({ dashboard, selectedTabId: 2 });
+
+      expect(screen.getByTestId("export-as-pdf-button")).toBeEnabled();
+    });
   });
 });

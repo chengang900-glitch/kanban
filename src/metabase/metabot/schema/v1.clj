@@ -56,10 +56,6 @@
                    [:type [:= "text"]]
                    [:id {:optional true} [:maybe :string]]
                    [:text :string]]]
-   ["reasoning"   [:map {:closed true}
-                   [:type [:= "reasoning"]]
-                   [:id {:optional true} [:maybe :string]]
-                   [:text :string]]]
    ["tool-input"  [:map {:closed true}
                    [:type [:= "tool-input"]]
                    [:id :string]

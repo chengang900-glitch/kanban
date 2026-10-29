@@ -5,9 +5,8 @@ import { datasetApi } from "metabase/api";
 import { useLazyGetBugReportDetailsQuery } from "metabase/api/bug-report";
 import { useLazyListLogsQuery } from "metabase/api/logger";
 import { runRtkEndpoint } from "metabase/api/utils/run-rtk-endpoint";
+import { getUser, getUserIsAdmin } from "metabase/current-user";
 import { useDispatch, useSelector } from "metabase/redux";
-import { getUser, getUserIsAdmin } from "metabase/selectors/user";
-import { getUserName } from "metabase/utils/user";
 
 import type { ErrorPayload, ReportableEntityName } from "./types";
 import { getBrowserInfo, getEntityDetails, hasQueryData } from "./utils";
@@ -43,6 +42,7 @@ export const useErrorInfo = (
       /(question|model|dashboard|collection|metric)[[\/\#]([\d\w]+)/,
     );
 
+    // Unjustified type cast. FIXME
     const entity = (matches?.[1] ?? undefined) as
       | ReportableEntityName
       | undefined;
@@ -113,7 +113,9 @@ export const useErrorInfo = (
 
     const payload: ErrorPayload = {
       reporter: {
-        name: currentUser ? getUserName(currentUser) : "",
+        name: currentUser
+          ? `${currentUser.first_name} ${currentUser.last_name}`
+          : "",
         email: currentUser ? currentUser.email : "",
       },
       url: location,

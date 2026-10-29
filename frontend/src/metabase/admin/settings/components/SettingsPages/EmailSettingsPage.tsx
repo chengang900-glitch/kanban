@@ -1,18 +1,17 @@
 import { t } from "ttag";
 
-import {
-  SettingsPageWrapper,
-  SettingsSection,
-} from "metabase/admin/components/SettingsSection";
 import { UpsellHostingBanner } from "metabase/admin/upsells";
-import { useGetSettingsQuery } from "metabase/api";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
 import { useHasTokenFeature } from "metabase/common/hooks";
+import { useGetSettingsQuery } from "metabase/settings";
+import {
+  AdminSettingInput,
+  SettingsPageWrapper,
+  SettingsSection,
+} from "metabase/settings-components";
 import { Center } from "metabase/ui";
-import { getProductName } from "metabase/utils/branding";
 
 import { SMTPConnectionCard } from "../Email/SMTPConnectionCard";
-import { AdminSettingInput } from "../widgets/AdminSettingInput";
 import { EmailFromAddressWidget } from "../widgets/EmailFromAddressWidget";
 import { EmailReplyToWidget } from "../widgets/EmailReplyToWidget";
 import { SendTestEmailWidget } from "../widgets/SendTestEmailWidget";
@@ -38,7 +37,7 @@ export function EmailSettingsPage() {
             <AdminSettingInput
               name="email-from-name"
               title={t`From Name`}
-              placeholder={getProductName()}
+              placeholder="Metabase"
               inputType="text"
             />
             <EmailFromAddressWidget />

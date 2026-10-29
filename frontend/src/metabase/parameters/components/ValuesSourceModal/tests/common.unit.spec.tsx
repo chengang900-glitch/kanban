@@ -396,7 +396,7 @@ describe("ValuesSourceModal", () => {
 
       expect(screen.getByRole("textbox")).toHaveValue("Gadget, Label\nWidget");
       expect(screen.getByText("do it once in a model")).toBeInTheDocument();
-      expect(screen.getByText("do it once in a model").tagName).not.toBe("A");
+      expect(screen.getByText("do it once in a model").tagName).toBe("A");
     });
   });
 });

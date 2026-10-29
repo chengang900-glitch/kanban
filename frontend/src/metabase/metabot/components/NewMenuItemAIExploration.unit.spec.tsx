@@ -1,35 +1,30 @@
-import userEvent from "@testing-library/user-event";
-import { assocIn } from "icepick";
-import { Route } from "react-router";
-
+import { createMockState } from "__support__/state";
 import { renderWithProviders, screen } from "__support__/ui";
-import { getMessages, metabotReducer } from "metabase/metabot/state";
+import { metabotReducer } from "metabase/metabot/state";
 import { getMetabotInitialState } from "metabase/metabot/state/reducer-utils";
-import { createMockState } from "metabase/redux/store/mocks";
+import { Route } from "metabase/router";
 import { Menu } from "metabase/ui";
 
 import { NewMenuItemAIExploration } from "./NewMenuItemAIExploration";
 
-function setup() {
-  const metabotInitialState = assocIn(
-    getMetabotInitialState(),
-    ["conversations", "ask", "messages"],
-    [{ id: "1", role: "user", type: "text", message: "hi" }],
-  );
-
+function setup(
+  { hasNlqAccess } = {
+    hasNlqAccess: true,
+  },
+) {
   const TestComponent = () => (
     <Menu opened>
       <Menu.Dropdown>
-        <NewMenuItemAIExploration />
+        <NewMenuItemAIExploration hasNlqAccess={hasNlqAccess} />
       </Menu.Dropdown>
     </Menu>
   );
 
   const { store } = renderWithProviders(
-    <Route path="*" component={TestComponent} />,
+    <Route path="*" element={<TestComponent />} />,
     {
       withRouter: true,
-      storeInitialState: createMockState({ metabot: metabotInitialState }),
+      storeInitialState: createMockState({ metabot: getMetabotInitialState() }),
       customReducers: { metabot: metabotReducer },
     },
   );
@@ -38,22 +33,21 @@ function setup() {
 }
 
 describe("NewMenuItemAIExploration", () => {
-  it("links to the ask mode question page", () => {
+  it("links to the ask mode question page when hasNlqAccess is true", () => {
     setup();
 
-    expect(screen.getByRole("menuitem", { name: /AI问数/ })).toHaveAttribute(
-      "href",
-      "/question/ask",
-    );
+    expect(
+      screen.getByRole("menuitem", { name: /AI exploration/ }),
+    ).toHaveAttribute("href", "/question/ask");
   });
 
-  it("resets the ask conversation when clicked", async () => {
-    const { store } = setup();
+  it("should link to the research mode page when hasNlqAccess is false", () => {
+    setup({
+      hasNlqAccess: false,
+    });
 
-    expect(getMessages(store.getState(), "ask")).toHaveLength(1);
-
-    await userEvent.click(screen.getByRole("menuitem", { name: /AI问数/ }));
-
-    expect(getMessages(store.getState(), "ask")).toHaveLength(0);
+    expect(
+      screen.getByRole("menuitem", { name: /AI exploration/ }),
+    ).toHaveAttribute("href", "/question/research");
   });
 });

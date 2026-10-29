@@ -3,18 +3,19 @@ import { useTimeout } from "react-use";
 import { t } from "ttag";
 
 import { useDispatch, useSelector } from "metabase/redux";
-import { Button } from "metabase/ui";
+import { useSetting } from "metabase/settings";
+import { Box, Button, Flex, Text } from "metabase/ui";
+import { getDisplaySiteName } from "metabase/utils/branding";
 
 import { goToNextStep, loadDefaults } from "../../actions";
 import { LOCALE_TIMEOUT } from "../../constants";
 import { getIsLocaleLoaded } from "../../selectors";
 
-import { PageMain, PageRoot, PageTitle } from "./WelcomePage.styled";
-
 export const WelcomePage = (): JSX.Element | null => {
   const [isElapsed] = useTimeout(LOCALE_TIMEOUT);
   const isLocaleLoaded = useSelector(getIsLocaleLoaded);
   const dispatch = useDispatch();
+  const siteName = getDisplaySiteName(useSetting("site-name"));
 
   const handleStepSubmit = () => {
     dispatch(goToNextStep());
@@ -29,13 +30,40 @@ export const WelcomePage = (): JSX.Element | null => {
   }
 
   return (
-    <PageRoot data-testid="welcome-page">
-      <PageMain>
-        <PageTitle>{t`欢迎使用数据看板`}</PageTitle>
-        <Button variant="filled" mt="xl" autoFocus onClick={handleStepSubmit}>
-          {t`开始使用`}
+    <Flex
+      direction="column"
+      align="center"
+      mih="100vh"
+      data-testid="welcome-page"
+    >
+      <Flex
+        direction="column"
+        align="center"
+        justify="center"
+        flex="1 0 auto"
+        mt="7rem"
+        mb="xxl"
+        maw="34.4rem"
+      >
+        <Text
+          fz="2rem"
+          fw={700}
+          ta="center"
+          style={{ overflowWrap: "anywhere" }}
+        >
+          {siteName}
+        </Text>
+        <Box component="h1" c="core-brand" fz="2.2rem" mt="xl">
+          {t`Welcome to Metabase`}
+        </Box>
+        <Box c="text-secondary" fz="lg" lh="xl" my="lg" ta="center">
+          {t`Looks like everything is working.`}{" "}
+          {t`Now let’s get to know you, connect to your data, and start finding you some answers!`}
+        </Box>
+        <Button variant="filled" mt="xxl" autoFocus onClick={handleStepSubmit}>
+          {t`Let's get started`}
         </Button>
-      </PageMain>
-    </PageRoot>
+      </Flex>
+    </Flex>
   );
 };

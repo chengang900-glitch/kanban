@@ -34,7 +34,7 @@ twitter.com,
 x.com")
 
 (defsetting allowed-iframe-hosts
-  (deferred-tru "Allowed iframe hosts")
+  (deferred-tru "Allowed iframe hosts. Includes a list of popular hosts by default; set to '' '' to disable the default list.")
   :encryption :when-encryption-key-set
   :default    default-allowed-iframe-hosts
   :audit      :getter
@@ -114,6 +114,7 @@ x.com")
   :doc "Timeout in milliseconds to wait after query cancellation before escalating to thread interruption.
         This is used to free up threads that are stuck waiting for a DB response after a query has been cancelled.")
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:dynamic ^Long *thread-interrupt-escalation-timeout-ms*
   "Timeout in milliseconds to wait after query cancellation before escalating to thread interruption."
   (thread-interrupt-escalation-timeout-ms))

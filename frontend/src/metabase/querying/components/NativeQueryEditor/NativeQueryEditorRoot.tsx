@@ -15,8 +15,8 @@ import { useLatest, useMount } from "react-use";
 import { t } from "ttag";
 
 import { useListCollectionsQuery, useListSnippetsQuery } from "metabase/api";
-import { getMetabotVisible } from "metabase/metabot/state";
 import { PLUGIN_REMOTE_SYNC } from "metabase/plugins";
+import type { DataSelectorDatabase } from "metabase/querying/common/components/DataSelector";
 import {
   CodeMirrorEditor,
   type CodeMirrorEditorProps,
@@ -24,13 +24,12 @@ import {
 } from "metabase/querying/components/CodeMirrorEditor";
 import { SnippetFormModal } from "metabase/querying/components/NativeQueryEditor/SnippetFormModal";
 import { useNotebookScreenSize } from "metabase/querying/components/NativeQueryEditor/use-notebook-screen-size";
-import type { QueryModalType } from "metabase/querying/constants";
 import type { SelectionRange } from "metabase/querying/editor/types";
 import { useSelector } from "metabase/redux";
+import type { QueryModalType } from "metabase/redux/store";
 import { Button, Flex, Icon, Stack, Tooltip } from "metabase/ui";
 import * as Lib from "metabase-lib";
 import type Question from "metabase-lib/v1/Question";
-import type Database from "metabase-lib/v1/metadata/Database";
 import type NativeQuery from "metabase-lib/v1/queries/NativeQuery";
 import type {
   CardId,
@@ -70,12 +69,15 @@ export type NativeQueryEditorCoreProps = Omit<
   "query"
 > & {
   availableHeight?: number;
+  canAutoOpenDataReference?: boolean;
   canChangeDatabase?: boolean;
   cancelQuery?: () => void;
   className?: string;
   closeSnippetModal?: () => void;
-  databaseIsDisabled?: (database: Database) => boolean;
-  databaseDisabledTooltip?: (database: Database) => string | undefined;
+  databaseIsDisabled?: (database: DataSelectorDatabase) => boolean;
+  databaseDisabledTooltip?: (
+    database: DataSelectorDatabase,
+  ) => string | undefined;
   editorContext?: "question" | "action";
   handleResize?: () => void;
   highlightedLineNumbers?: number[];
@@ -130,6 +132,8 @@ export const NativeQueryEditorRoot = forwardRef<
   const {
     children,
     availableHeight = Infinity,
+    canAutoOpenDataReference = true,
+    hasSqlGenerationAccess,
     canChangeDatabase = true,
     cancelQuery,
     className,
@@ -197,11 +201,8 @@ export const NativeQueryEditorRoot = forwardRef<
 
   // do not show reference sidebar on small screens automatically
   const screenSize = useNotebookScreenSize();
-  const isMetabotSidebarOpen = useSelector((state) =>
-    getMetabotVisible(state, "omnibot"),
-  );
   const shouldOpenDataReference =
-    screenSize !== "small" && !isMetabotSidebarOpen;
+    screenSize !== "small" && canAutoOpenDataReference;
 
   useMount(() => {
     setIsNativeEditorOpen?.(
@@ -387,6 +388,7 @@ export const NativeQueryEditorRoot = forwardRef<
                   proposedQuery={proposedQuestion?.query()}
                   readOnly={readOnly}
                   placeholder={placeholder}
+                  hasSqlGenerationAccess={hasSqlGenerationAccess}
                   highlightedLineNumbers={highlightedLineNumbers}
                   extensions={extensions}
                   onBlur={handleBlur}
@@ -400,9 +402,9 @@ export const NativeQueryEditorRoot = forwardRef<
 
                 <Stack
                   display={readOnly ? "none" : undefined}
-                  gap="md"
+                  gap="lg"
                   justify="flex-end"
-                  p="md"
+                  p="lg"
                 >
                   {proposedQuestion && onRejectProposed && onAcceptProposed && (
                     <>
@@ -412,10 +414,8 @@ export const NativeQueryEditorRoot = forwardRef<
                       >
                         <Button
                           data-testid="accept-proposed-changes-button"
-                          variant="filled"
-                          bg="feedback-positive"
-                          px="0"
-                          w="2.5rem"
+                          variant="light"
+                          color="positive"
                           onClick={() => {
                             const proposedQuery =
                               proposedQuestion.legacyNativeQuery();
@@ -425,9 +425,8 @@ export const NativeQueryEditorRoot = forwardRef<
                               onAcceptProposed(proposedQuery.datasetQuery());
                             }
                           }}
-                        >
-                          <Icon name="check" />
-                        </Button>
+                          leftSection={<Icon name="check" />}
+                        />
                       </Tooltip>
                       <Tooltip
                         label={t`Reject proposed changes`}
@@ -435,14 +434,11 @@ export const NativeQueryEditorRoot = forwardRef<
                       >
                         <Button
                           data-testid="reject-proposed-changes-button"
-                          w="2.5rem"
-                          px="0"
-                          variant="filled"
-                          bg="feedback-negative"
+                          variant="light"
+                          color="negative"
                           onClick={onRejectProposed}
-                        >
-                          <Icon name="close" />
-                        </Button>
+                          leftSection={<Icon name="close" />}
+                        />
                       </Tooltip>
                     </>
                   )}

@@ -29,12 +29,12 @@
   Returns `nil` for invalid strings -- you can use this to check whether a String is valid."
   ^String [s]
   {:pre [((some-fn nil? string?) s)]}
-  #_{:clj-kondo/ignore [:discouraged-var]}
   (when (string? s)
     (when-let [[_ language country] (re-matches #"^(\w{2})(?:[-_](\w{2}))?$" s)]
-      (let [language (str/lower-case language)]
+      ;; Locale/US casing so a Turkish default locale can't mangle codes like "ID"
+      (let [language (.toLowerCase ^String language Locale/US)]
         (if country
-          (str language \_ (some-> country str/upper-case))
+          (str language \_ (some-> ^String country (.toUpperCase Locale/US)))
           language)))))
 
 (extend-protocol CoerceToLocale
@@ -171,11 +171,21 @@
           (translated-format-string* fallback-locale format-string n))
         format-string)))
 
+(defn- brand-product-name
+  "Brand translation templates before interpolation, leaving caller-supplied values unchanged."
+  [locale-or-name format-string translated]
+  (if (and (str/includes? format-string "Metabase")
+           (not (contains? #{"Metabase is a Trademark of Metabase, Inc" "Metabase AI service"} format-string)))
+    (str/replace translated
+                 #"(?<![\p{L}\p{N}_/.])Metabase(?:s)?(?![\p{L}\p{N}_]|\.[a-z])"
+                 (if (= "zh" (some-> (locale locale-or-name) .getLanguage)) "数据看板" "Dashboard"))
+    translated))
+
 (defn- message-format ^MessageFormat [locale-or-name ^String format-string pluralization-opts]
   (or (when-let [a-locale (locale locale-or-name)]
         (when-let [^String translated (translated-format-string a-locale format-string pluralization-opts)]
-          (MessageFormat. translated a-locale)))
-      (MessageFormat. format-string)))
+          (MessageFormat. (brand-product-name a-locale format-string translated) a-locale)))
+      (MessageFormat. (brand-product-name locale-or-name format-string format-string))))
 
 (defn translate
   "Find the translated version of `format-string` for a `locale-or-name`, then format it. Translates using the resource
@@ -213,6 +223,7 @@
              (log/errorf "Invalid format string %s: %s" (pr-str format-string) (ex-message e))
              format-string)))))))
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:private ^:dynamic *in-site-locale-from-setting*
   "Whether we're currently inside a call to [[site-locale-from-setting]], so we can prevent infinite recursion."
   false)

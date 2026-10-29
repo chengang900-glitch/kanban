@@ -9,7 +9,7 @@ async function setup(opts: SetupOpts) {
 
 describe("ExpressionEditorHelpText (EE without token)", () => {
   describe("Metabase links", () => {
-    it("should hide the external help link when `show-metabase-links: true`", async () => {
+    it("should show a help link when `show-metabase-links: true`", async () => {
       await setup({
         enclosingFunction: { name: "concat" },
         showMetabaseLinks: true,
@@ -21,7 +21,7 @@ describe("ExpressionEditorHelpText (EE without token)", () => {
       expect(screen.queryByText("Learn more")).not.toBeInTheDocument();
     });
 
-    it("should hide the external help link when `show-metabase-links: false`", async () => {
+    it("should show a help link when `show-metabase-links: false`", async () => {
       await setup({
         enclosingFunction: { name: "concat" },
         showMetabaseLinks: false,

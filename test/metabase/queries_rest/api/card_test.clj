@@ -19,6 +19,7 @@
    [metabase.content-verification.models.moderation-review :as moderation-review]
    [metabase.driver :as driver]
    [metabase.driver.sql-jdbc.execute :as sql-jdbc.execute]
+   [metabase.events.core :as events]
    [metabase.lib-be.core :as lib-be]
    [metabase.lib.convert :as lib.convert]
    [metabase.lib.core :as lib]
@@ -30,7 +31,6 @@
    [metabase.permissions.models.data-permissions :as data-perms]
    [metabase.permissions.models.permissions :as perms]
    [metabase.permissions.models.permissions-group :as perms-group]
-   [metabase.permissions.util :as perms.u]
    [metabase.queries-rest.api.card :as api.card]
    [metabase.queries.card :as queries.card]
    [metabase.queries.models.card.metadata :as card.metadata]
@@ -201,6 +201,154 @@
                                 :type   :number
                                 :target [:variable [:template-tag :category]]
                                 :value  2}]})))))))
+
+(defn- venues-count-query
+  "A count over venues. Built with Lib rather than `mt/mbql-query`, which is deprecated for new
+  tests in favour of generating MBQL through Lib."
+  []
+  (let [mp (mt/metadata-provider)]
+    (lib/->legacy-MBQL (-> (lib/query mp (lib.metadata/table mp (mt/id :venues)))
+                           (lib/aggregate (lib/count))))))
+
+(deftest ^:parallel card-query-cached-stored-result-pairing-test
+  (testing "POST /api/card/:card-id/query with `stored_result_id`"
+    (let [result-bytes (qp/do-with-serialization
+                        (fn [in result-fn]
+                          (in {:data {:cols [{:name "count"}] :rows [[7]]} :row_count 1 :status :completed})
+                          (result-fn)))
+          count-query  (venues-count-query)]
+      (mt/with-temp [:model/Card card {:dataset_query count-query}
+                     :model/Card other-card {:dataset_query count-query}
+                     :model/StoredResult sr {:result_data       result-bytes
+                                             :creator_id        (mt/user->id :crowberto)
+                                             :database_id       (mt/id)
+                                             :dataset_query     count-query
+                                             :data_access_token {}}
+                     :model/StoredResultUse _ {:stored_result_id (:id sr) :card_id (:id card)}]
+        (testing "serves the cached snapshot when the (card, stored_result) pairing exists in stored_result_use"
+          (is (=? {:status    "completed"
+                   :row_count 1
+                   :data      {:rows [[7]]}}
+                  (mt/user-http-request :rasta :post 200 (format "card/%d/query" (:id card))
+                                        {:stored_result_id (:id sr)}))))
+        (testing "404s when the stored result is not paired with the read-checked card — a readable card must
+                  not serve as a skeleton key for arbitrary snapshot ids"
+          (is (= "Not found."
+                 (mt/user-http-request :rasta :post 404 (format "card/%d/query" (:id other-card))
+                                       {:stored_result_id (:id sr)}))))
+        (testing "404s for a nonexistent stored result id"
+          (is (= "Not found."
+                 (mt/user-http-request :rasta :post 404 (format "card/%d/query" (:id card))
+                                       {:stored_result_id Integer/MAX_VALUE}))))))))
+
+(deftest ^:parallel card-query-cached-stored-result-gates-the-creator-too-test
+  (testing "POST /api/card/:card-id/query applies the cached-read gate to the snapshot's own creator —
+            having created a snapshot is not a permanent pass to it, since the creator's own permissions
+            may have narrowed since it was taken"
+    (let [result-bytes (qp/do-with-serialization
+                        (fn [in result-fn]
+                          (in {:data {:cols [{:name "count"}] :rows [[7]]} :row_count 1 :status :completed})
+                          (result-fn)))
+          count-query  (venues-count-query)]
+      (mt/with-temp [:model/Card card {:dataset_query count-query}
+                     ;; A nil token is what the gate treats as "lens unknowable" and denies.
+                     :model/StoredResult sr {:result_data       result-bytes
+                                             :creator_id        (mt/user->id :rasta)
+                                             :database_id       (mt/id)
+                                             :dataset_query     count-query
+                                             :data_access_token nil}
+                     :model/StoredResultUse _ {:stored_result_id (:id sr) :card_id (:id card)}]
+        (is (mt/user-http-request :rasta :post 403 (format "card/%d/query" (:id card))
+                                  {:stored_result_id (:id sr)})
+            "the creator is gated like any other viewer")))))
+
+(deftest ^:parallel card-query-cached-stored-result-gates-every-paired-snapshot-test
+  (testing "POST /api/card/:card-id/query gates every snapshot the card renders from, not just the requested one —
+            a composite blob draws its rows from all of them, while describing itself with only the first source's
+            query and lens"
+    (let [result-bytes (qp/do-with-serialization
+                        (fn [in result-fn]
+                          (in {:data {:cols [{:name "count"}] :rows [[7]]} :row_count 1 :status :completed})
+                          (result-fn)))
+          count-query  (venues-count-query)
+          snapshot     {:result_data       result-bytes
+                        :creator_id        (mt/user->id :crowberto)
+                        :database_id       (mt/id)
+                        :dataset_query     count-query
+                        :data_access_token {}}]
+      (mt/with-temp [:model/Card card {:dataset_query count-query}
+                     :model/StoredResult composite snapshot
+                     :model/StoredResult source    (assoc snapshot :data_access_token nil)
+                     :model/StoredResultUse _ {:stored_result_id (:id composite) :card_id (:id card)}
+                     :model/StoredResultUse _ {:stored_result_id (:id source)    :card_id (:id card)}]
+        (is (mt/user-http-request :rasta :post 403 (format "card/%d/query" (:id card))
+                                  {:stored_result_id (:id composite)})
+            "denied because one of the card's source snapshots is not viewable, even though the requested row is")))))
+(deftest dashboard-and-collection-context-metric-query-uses-default-dimension-test
+  (testing "POST card query endpoints use collection-specific metric dimension fallbacks (UXW-4769, UXW-4771, UXW-4958)"
+    (mt/dataset test-data
+      (let [mp           (mt/metadata-provider)
+            orders       (lib.metadata/table mp (mt/id :orders))
+            created-at   (lib.metadata/field mp (mt/id :orders :created_at))
+            product-id   (lib.metadata/field mp (mt/id :orders :product_id))
+            dimension-id (str (random-uuid))
+            dimension    {:id             dimension-id
+                          :display-name   "Product ID"
+                          :effective-type :type/Integer
+                          :semantic-type  :type/FK
+                          :status         :status/active
+                          :sources        [{:type :field, :field-id (mt/id :orders :product_id)}]}]
+        (mt/with-temp [:model/Card {metric-id :id}
+                       {:name               "Orders metric"
+                        :type               :metric
+                        :display            :line
+                        :database_id        (mt/id)
+                        :table_id           (mt/id :orders)
+                        :dataset_query      (-> (lib/query mp orders)
+                                                (lib/aggregate (lib/count))
+                                                (lib/breakout (lib/with-temporal-bucket created-at :month)))
+                        :dimensions         [dimension]
+                        :dimension_mappings [{:type         :table
+                                              :table-id     (mt/id :orders)
+                                              :dimension-id dimension-id
+                                              :target       (lib/ref product-id)}]}
+                       :model/Dashboard {dashboard-id :id} {}]
+          (let [path            (format "card/%d/query" metric-id)
+                canonical      (mt/user-http-request :crowberto :post 202 path)
+                stored-metadata (t2/select-one-fn :result_metadata :model/Card :id metric-id)]
+            (is (= "CREATED_AT" (-> canonical mt/cols first :name)))
+            (testing "without a curated default, dashboards keep the saved breakout and collection previews are scalar"
+              (let [dashboard-result  (mt/user-http-request :crowberto :post 202 path
+                                                            {:dashboard_id dashboard-id})
+                    collection-result (mt/user-http-request :crowberto :post 202 path
+                                                            {:collection_preview true})]
+                (is (= "CREATED_AT" (-> dashboard-result mt/cols first :name)))
+                (is (= 1 (count (mt/cols collection-result))))
+                (is (= 1 (count (mt/rows collection-result))))))
+            (t2/update! :model/Card metric-id {:dimensions [(assoc dimension :default true)]})
+            (doseq [query-path [path (format "card/pivot/%d/query" metric-id)]]
+              (let [result (mt/user-http-request :crowberto :post 202 query-path {:dashboard_id dashboard-id})]
+                (is (= "PRODUCT_ID" (-> result mt/cols first :name)))
+                (is (= stored-metadata
+                       (t2/select-one-fn :result_metadata :model/Card :id metric-id)))))
+            (let [result (mt/user-http-request :crowberto :post 202 path {:collection_preview true})]
+              (is (= "PRODUCT_ID" (-> result mt/cols first :name)))
+              (is (= stored-metadata
+                     (t2/select-one-fn :result_metadata :model/Card :id metric-id))))
+            (t2/update! :model/Card metric-id {:dimensions [(assoc dimension
+                                                                   :default true
+                                                                   :status :status/orphaned)]})
+            (testing "an orphaned default keeps the saved dashboard breakout and makes collection previews scalar"
+              (let [dashboard-result  (mt/user-http-request :crowberto :post 202 path
+                                                            {:dashboard_id dashboard-id})
+                    collection-result (mt/user-http-request :crowberto :post 202 path
+                                                            {:collection_preview true})]
+                (is (= "CREATED_AT" (-> dashboard-result mt/cols first :name)))
+                (is (= 1 (count (mt/cols collection-result))))
+                (is (= 1 (count (mt/rows collection-result))))))
+            (is (= stored-metadata
+                   (t2/select-one-fn :result_metadata :model/Card :id metric-id)))
+            (mt/user-http-request :crowberto :post 404 path {:dashboard_id Integer/MAX_VALUE})))))))
 
 (deftest execute-card-with-default-parameters-test
   (testing "GET /api/card/:id/query with parameters with default values"
@@ -483,7 +631,9 @@
     [:model/Card {card-id :id} {:name          "Card"
                                 :display       "line"
                                 :dataset_query (mt/mbql-query venues)
-                                :collection_id (t2/select-one-pk :model/Collection :personal_owner_id (mt/user->id :crowberto))}]
+                                ;; Use get-or-create because the Personal Collection may not exist yet. A nil
+                                ;; `collection_id` would place the Card in the root Collection, which Rasta can read.
+                                :collection_id (u/the-id (collection/user->personal-collection (mt/user->id :crowberto)))}]
     (is (= "You don't have permissions to do that."
            (mt/user-http-request :rasta :get 403 (format "card/%d/series" card-id))))
     (is (seq? (mt/user-http-request :crowberto :get 200 (format "card/%d/series" card-id))))))
@@ -494,7 +644,7 @@
       [:model/Card {card-id :id} {:name    "Card"
                                   :display "table"}]
       (is (= "Card with type table is not compatible to have series"
-             (:message (mt/user-http-request :crowberto :get 400 (format "card/%d/series" card-id)))))))
+             (mt/user-http-request :crowberto :get 400 (format "card/%d/series" card-id))))))
   (testing "404 if the card does not exsits"
     (is (= "Not found."
            (mt/user-http-request :crowberto :get 404 (format "card/%d/series" Integer/MAX_VALUE))))))
@@ -518,7 +668,6 @@
        :model/Card scalar-2 (merge (mt/card-with-source-metadata-for-query
                                     (mt/mbql-query venues {:aggregation [[:count]]}))
                                    {:name "A Scalar 2" :display :scalar})
-
        :model/Card native  (merge (mt/card-with-source-metadata-for-query (mt/native-query {:query "select sum(price) from venues;"}))
                                   {:name       "A Native query"
                                    :display    :scalar
@@ -527,7 +676,6 @@
        :model/Card metric-2 (merge (mt/card-with-source-metadata-for-query
                                     (mt/mbql-query venues {:aggregation [[:sum $venues.price]]}))
                                    {:name "Another Metric" :type :metric :display :scalar})
-
        ;; compatible but user doesn't have access so should not be readble
        :model/Card _       (simple-mbql-chart-query {:name "A Line with no access"   :display :line})
        ;; incomptabile cards
@@ -613,11 +761,10 @@
                              :effective_type :type/DateTime
                              :display_name "Timestamp"
                              :name "timestamp"
-                             :unit "week"}
+                             :unit :week}
                             {:base_type :type/Integer
                              :display_name "count"
-                             :name "severity"
-                             :semantic_type :type/Number}]})
+                             :name "severity"}]})
 
 (deftest series-are-compatible-test
   (testing "area-line-bar charts"
@@ -675,7 +822,6 @@
        :model/Card scalar-2       (merge (mt/card-with-source-metadata-for-query
                                           (mt/mbql-query venues {:aggregation [[:count]]}))
                                          {:name "A Scalar 2" :display :scalar})
-
        :model/Card scalar-2-cols  (merge (mt/card-with-source-metadata-for-query
                                           (mt/mbql-query venues {:aggregation [[:count]
                                                                                [:sum $venues.price]]}))
@@ -714,7 +860,7 @@
           type-schema            (resolve-schema (get body-properties "type"))
           result-metadata-schema (resolve-schema (get body-properties "result_metadata"))]
       (testing 'type
-        (is (=? {:oneOf [{:$ref "#/components/schemas/metabase.queries.schema.card-type"} {:type :null}]}
+        (is (=? {:oneOf [{:$ref "#/components/schemas/metabase.queries.schema..card.type"} {:type :null}]}
                 type-schema)))
       (testing 'result_metadata
         (is (=? {:oneOf [{:$ref "#/components/schemas/metabase.lib.schema.metadata..card.result-metadata"} {:type :null}]}
@@ -778,24 +924,25 @@
 
 (deftest create-a-card-with-result-metadata-updates-recents-test
   (testing "POST /api/card adds user-created questions to recents (UXW-3171)"
-    (mt/with-full-data-perms-for-all-users!
-      (mt/with-model-cleanup [:model/Card]
-        (t2/delete! :model/RecentViews :user_id (mt/user->id :rasta))
-        (let [card    (assoc (card-with-name-and-query) :result_metadata [])
-              card-id (:id (mt/user-http-request :rasta :post 200 "card" card))]
-          (is (= {:user_id  (mt/user->id :rasta)
-                  :model    "card"
-                  :model_id card-id}
-                 (t2/select-one [:model/RecentViews :user_id :model :model_id]
-                                :user_id  (mt/user->id :rasta)
-                                :model_id card-id
-                                :model    "card"))))
-        (testing "Cards saved without result metadata are not treated as viewed"
-          (let [card-id (:id (mt/user-http-request :rasta :post 200 "card" (card-with-name-and-query)))]
-            (is (nil? (t2/select-one :model/RecentViews
-                                     :user_id  (mt/user->id :rasta)
-                                     :model_id card-id
-                                     :model    "card")))))))))
+    (mt/with-temporary-setting-values [synchronous-batch-updates true]
+      (mt/with-full-data-perms-for-all-users!
+        (mt/with-model-cleanup [:model/Card]
+          (t2/delete! :model/RecentViews :user_id (mt/user->id :rasta))
+          (let [card    (assoc (card-with-name-and-query) :result_metadata [])
+                card-id (:id (mt/user-http-request :rasta :post 200 "card" card))]
+            (is (= {:user_id  (mt/user->id :rasta)
+                    :model    "card"
+                    :model_id card-id}
+                   (t2/select-one [:model/RecentViews :user_id :model :model_id]
+                                  :user_id  (mt/user->id :rasta)
+                                  :model_id card-id
+                                  :model    "card"))))
+          (testing "Cards saved without result metadata are not treated as viewed"
+            (let [card-id (:id (mt/user-http-request :rasta :post 200 "card" (card-with-name-and-query)))]
+              (is (nil? (t2/select-one :model/RecentViews
+                                       :user_id  (mt/user->id :rasta)
+                                       :model_id card-id
+                                       :model    "card"))))))))))
 
 (deftest ^:parallel create-card-validation-test
   (testing "POST /api/card"
@@ -943,7 +1090,7 @@
     (testing "Ignore values of `enable_embedding` while creating a Card (this must be done via `PUT /api/card/:id` instead)"
       ;; should be ignored regardless of the value of the `enable-embedding` Setting.
       (doseq [enable-embedding? [true false]]
-        (mt/with-temporary-setting-values [enable-embedding-static enable-embedding?]
+        (mt/with-temporary-setting-values [enable-embedding-modular enable-embedding?]
           (mt/with-model-cleanup [:model/Card]
             (is (=? {:enable_embedding false}
                     (mt/user-http-request :crowberto :post 200 "card" {:name                   "My Card"
@@ -957,7 +1104,7 @@
     (testing "Ignore values of `embedding_type` while creating a Card (this must be done via `PUT /api/card/:id` instead)"
       ;; should be ignored regardless of the value of the `embedding-type` Setting.
       (doseq [embedding-type [true false]]
-        (mt/with-temporary-setting-values [enable-embedding-static embedding-type]
+        (mt/with-temporary-setting-values [enable-embedding-modular embedding-type]
           (mt/with-model-cleanup [:model/Card]
             (is (=? {:embedding_type nil}
                     (mt/user-http-request :crowberto :post 200 "card" {:name                   "My Card"
@@ -1054,73 +1201,6 @@
                         :field_ref     [:aggregation 0]}]
                       (t2/select-one-fn :result_metadata :model/Card :name card-name))))))))))
 
-(deftest create-card-accepts-legacy-and-lib-result-metadata-test
-  (testing "POST /api/card takes `result_metadata` in either the legacy snake_case or the lib kebab-case shape"
-    (let [query (mt/mbql-query venues {:fields [$id]})]
-      (testing "legacy snake_case metadata is kept as sent, down to the columns the QP annotates it with"
-        (mt/with-model-cleanup [:model/Card]
-          (let [card-name (mt/random-name)
-                legacy    [{:name              "ID"
-                            :display_name      "ID"
-                            :base_type         :type/BigInteger
-                            :effective_type    :type/BigInteger
-                            :semantic_type     :type/PK
-                            :field_ref         [:field (mt/id :venues :id) nil]
-                            :id                (mt/id :venues :id)
-                            ;; the keys this endpoint used to drop on the floor
-                            :table_id          (mt/id :venues)
-                            :database_type     "BIGINT"
-                            :coercion_strategy nil
-                            :remapped_to       "NAME"
-                            :remapped_from     nil
-                            :active            true
-                            :has_field_values  "none"}]]
-            (mt/user-http-request :crowberto :post 200 "card"
-                                  (assoc (card-with-name-and-query card-name query)
-                                         :result_metadata legacy))
-            (is (=? [{:name          "ID"
-                      :table_id      (mt/id :venues)
-                      :database_type "BIGINT"
-                      :remapped_to   "NAME"
-                      :active        true}]
-                    (t2/select-one-fn :result_metadata :model/Card :name card-name))))))
-      (testing "lib kebab-case metadata is accepted too"
-        (mt/with-model-cleanup [:model/Card]
-          (let [card-name (mt/random-name)
-                lib       [{:lib/type       :metadata/column
-                            :name           "ID"
-                            :display-name   "ID"
-                            :base-type      :type/BigInteger
-                            :effective-type :type/BigInteger
-                            :semantic-type  :type/PK
-                            :id             (mt/id :venues :id)}]]
-            (mt/user-http-request :crowberto :post 200 "card"
-                                  (assoc (card-with-name-and-query card-name query)
-                                         :result_metadata lib))
-            (testing "the card saves, with metadata for the one column its query returns"
-              (is (=? [{:name "ID"}]
-                      (t2/select-one-fn :result_metadata :model/Card :name card-name))))))))))
-
-(deftest update-card-legacy-result-metadata-with-remaps-test
-  (testing "PUT /api/card accepts legacy result_metadata columns carrying lib-style remap keys (qualified keywords)"
-    (mt/with-temp [:model/Card {card-id :id} {:dataset_query (mt/mbql-query venues {:fields [$category_id]})}]
-      (let [metadata [{:name          "CATEGORY_ID"
-                       :display_name  "Category ID"
-                       :base_type     :type/Integer
-                       :semantic_type :type/FK
-                       :id            (mt/id :venues :category_id)
-                       :field_ref     [:field (mt/id :venues :category_id) nil]
-                       :lib/external-remap {:lib/type :metadata.column.remapping/external
-                                            :id       1
-                                            :name     "Category"
-                                            :field-id (mt/id :categories :name)}}]]
-        (mt/user-http-request :crowberto :put 200 (str "card/" card-id)
-                              {:result_metadata metadata})
-        (is (=? [{:name               "CATEGORY_ID"
-                  :lib/external-remap {:lib/type :metadata.column.remapping/external
-                                       :field-id (mt/id :categories :name)}}]
-                (t2/select-one-fn :result_metadata :model/Card :id card-id)))))))
-
 (defn- updating-card-updates-metadata-query []
   (mt/mbql-query venues {:fields [$id $name]}))
 
@@ -1189,6 +1269,33 @@
                       :collection_position 1))
               (is (= 1
                      @called)))))))))
+
+(deftest save-card-metadata-asynchronously-test
+  (testing "POST and PUT /api/card save result metadata that is not ready within the sync wait once it is computed"
+    (let [orig    (mt/original-fn #'card.metadata/legacy-result-metadata-future)
+          release (atom (promise))
+          mp      (mt/metadata-provider)]
+      (mt/with-dynamic-fn-redefs [card.metadata/legacy-result-metadata-future (fn [query]
+                                                                                (let [gate     @release
+                                                                                      metadata (orig query)]
+                                                                                  (future @gate @metadata)))]
+        (mt/with-model-cleanup [:model/Card]
+          (let [saved-names (fn [card-id n]
+                              (map norm (u/poll {:thunk       #(t2/select-one-fn :result_metadata :model/Card :id card-id)
+                                                 :done?       #(= n (count %))
+                                                 :timeout-ms  10000
+                                                 :interval-ms 50})))
+                card        (mt/user-http-request :crowberto :post 200 "card"
+                                                  (card-with-name-and-query (mt/random-name)
+                                                                            (lib/native-query mp "SELECT count(*) AS n FROM venues")))]
+            (is (empty? (:result_metadata card)))
+            (deliver @release true)
+            (is (= ["N"] (saved-names (:id card) 1)))
+            (reset! release (promise))
+            (mt/user-http-request :crowberto :put 200 (str "card/" (:id card))
+                                  {:dataset_query (lib/native-query mp "SELECT count(*) AS n, max(price) AS p FROM venues")})
+            (deliver @release true)
+            (is (= ["N" "P"] (saved-names (:id card) 2)))))))))
 
 (deftest ^:parallel updating-card-updates-metadata-3
   (let [query (updating-card-updates-metadata-query)]
@@ -1266,52 +1373,55 @@
 
 (deftest updating-model-query-does-not-shift-metadata-overrides-test
   (testing "Metadata should not shift to another column with the same name when the query changes (#60930)"
-    (let [mp                 (mt/metadata-provider)
-          orders-table       (lib.metadata/table mp (mt/id :orders))
-          products-table     (lib.metadata/table mp (mt/id :products))
-          reviews-table      (lib.metadata/table mp (mt/id :reviews))
-          orders-id          (lib.metadata/field mp (mt/id :orders :id))
-          orders-user-id     (lib.metadata/field mp (mt/id :orders :user_id))
-          orders-product-id  (lib.metadata/field mp (mt/id :orders :product_id))
-          orders-created-at  (lib.metadata/field mp (mt/id :orders :created_at))
-          products-id        (lib.metadata/field mp (mt/id :products :id))
-          products-created   (lib.metadata/field mp (mt/id :products :created_at))
-          reviews-id         (lib.metadata/field mp (mt/id :reviews :id))
-          reviews-product-id (lib.metadata/field mp (mt/id :reviews :product_id))
-          reviews-created-at (lib.metadata/field mp (mt/id :reviews :created_at))
-          join-query (fn [products-fields]
-                       (-> (lib/query mp orders-table)
-                           (lib/with-fields [orders-id orders-user-id orders-product-id orders-created-at])
-                           (lib/join (-> (lib/join-clause products-table
-                                                          [(lib/= orders-product-id products-id)])
-                                         (lib/with-join-alias "Products")
-                                         (lib/with-join-fields products-fields)))
-                           (lib/join (-> (lib/join-clause reviews-table
-                                                          [(lib/= orders-product-id reviews-product-id)])
-                                         (lib/with-join-alias "Reviews")
-                                         (lib/with-join-fields [reviews-id reviews-product-id reviews-created-at])))))
-          with-products (mt/user-http-request :crowberto :post 200 "card"
-                                              {:name                   "model 60930"
-                                               :type                   :model
-                                               :display                :table
-                                               :dataset_query          (join-query [products-id products-created])
-                                               :visualization_settings {}})
-          card-id (:id with-products)
-          without-products (mt/user-http-request :crowberto :put 200 (str "card/" card-id)
-                                                 {:dataset_query   (join-query :none)})]
-      (testing "columns get the correct display name after columns with the same name are removed"
-        (is (= ["ID" "User ID" "Product ID" "Created At"
-                "Reviews → ID" "Reviews → Product ID" "Reviews → Created At"]
-               (map :display_name (:result_metadata without-products))
-               (map :display_name (t2/select-one-fn :result_metadata :model/Card :id card-id)))))
-      (let [with-products-again (mt/user-http-request :crowberto :put 200 (str "card/" card-id)
-                                                      {:dataset_query   (join-query [products-id products-created])})]
-        (testing "columns get the correct display name after columns with the same name are added"
+    ;; Clean up Revisions explicitly. Direct Card cleanup bypasses the hook that would normally delete the
+    ;; Revisions created by this test's POST and PUT requests.
+    (mt/with-model-cleanup [:model/Card :model/Revision]
+      (let [mp                 (mt/metadata-provider)
+            orders-table       (lib.metadata/table mp (mt/id :orders))
+            products-table     (lib.metadata/table mp (mt/id :products))
+            reviews-table      (lib.metadata/table mp (mt/id :reviews))
+            orders-id          (lib.metadata/field mp (mt/id :orders :id))
+            orders-user-id     (lib.metadata/field mp (mt/id :orders :user_id))
+            orders-product-id  (lib.metadata/field mp (mt/id :orders :product_id))
+            orders-created-at  (lib.metadata/field mp (mt/id :orders :created_at))
+            products-id        (lib.metadata/field mp (mt/id :products :id))
+            products-created   (lib.metadata/field mp (mt/id :products :created_at))
+            reviews-id         (lib.metadata/field mp (mt/id :reviews :id))
+            reviews-product-id (lib.metadata/field mp (mt/id :reviews :product_id))
+            reviews-created-at (lib.metadata/field mp (mt/id :reviews :created_at))
+            join-query (fn [products-fields]
+                         (-> (lib/query mp orders-table)
+                             (lib/with-fields [orders-id orders-user-id orders-product-id orders-created-at])
+                             (lib/join (-> (lib/join-clause products-table
+                                                            [(lib/= orders-product-id products-id)])
+                                           (lib/with-join-alias "Products")
+                                           (lib/with-join-fields products-fields)))
+                             (lib/join (-> (lib/join-clause reviews-table
+                                                            [(lib/= orders-product-id reviews-product-id)])
+                                           (lib/with-join-alias "Reviews")
+                                           (lib/with-join-fields [reviews-id reviews-product-id reviews-created-at])))))
+            with-products (mt/user-http-request :crowberto :post 200 "card"
+                                                {:name                   "model 60930"
+                                                 :type                   :model
+                                                 :display                :table
+                                                 :dataset_query          (join-query [products-id products-created])
+                                                 :visualization_settings {}})
+            card-id (:id with-products)
+            without-products (mt/user-http-request :crowberto :put 200 (str "card/" card-id)
+                                                   {:dataset_query   (join-query :none)})]
+        (testing "columns get the correct display name after columns with the same name are removed"
           (is (= ["ID" "User ID" "Product ID" "Created At"
-                  "Products → ID" "Products → Created At"
                   "Reviews → ID" "Reviews → Product ID" "Reviews → Created At"]
-                 (map :display_name (:result_metadata with-products-again))
-                 (map :display_name (t2/select-one-fn :result_metadata :model/Card :id card-id)))))))))
+                 (map :display_name (:result_metadata without-products))
+                 (map :display_name (t2/select-one-fn :result_metadata :model/Card :id card-id)))))
+        (let [with-products-again (mt/user-http-request :crowberto :put 200 (str "card/" card-id)
+                                                        {:dataset_query   (join-query [products-id products-created])})]
+          (testing "columns get the correct display name after columns with the same name are added"
+            (is (= ["ID" "User ID" "Product ID" "Created At"
+                    "Products → ID" "Products → Created At"
+                    "Reviews → ID" "Reviews → Product ID" "Reviews → Created At"]
+                   (map :display_name (:result_metadata with-products-again))
+                   (map :display_name (t2/select-one-fn :result_metadata :model/Card :id card-id))))))))))
 
 (deftest ^:parallel updating-native-card-preserves-metadata
   (testing "A trivial change in a native question should not remove result_metadata (#37009)"
@@ -1473,19 +1583,80 @@
           (testing "admin should be able to save a Card if All Users doesn't have ad-hoc data perms"
             (is (some? (create-card! :crowberto 200))))
           (testing "non-admin should get an error"
-            (testing "Permissions errors should be meaningful and include info for debugging (#14931)"
-              (is (malli= [:map
-                           [:message        [:= "You cannot save this Question because you do not have permissions to run its query."]]
-                           [:query          [:map
-                                             [:lib/type [:= "mbql/query"]]
-                                             [:stages [:sequential
-                                                       {:min 1, :max 1}
-                                                       [:map
-                                                        [:source-table [:= (mt/id :venues)]]]]]]]
-                           [:required-perms :map]
-                           [:actual-perms   [:sequential perms.u/PathSchema]]
-                           [:trace          [:sequential :any]]]
-                          (create-card! :rasta 403))))))))))
+            (testing "Permissions errors keep their meaningful message (#14931)"
+              (testing "but not the ex-data: the (preprocessed) query inlines source Cards the user may not read (SEC-1173)"
+                (is (= "You cannot save this Question because you do not have permissions to run its query."
+                       (create-card! :rasta 403)))))))))))
+
+(deftest create-card-nested-unreadable-card-403-does-not-leak-definition-test
+  (testing "POST /api/card"
+    (testing "the 403 for a query nesting a Card the caller cannot read does not echo that Card's definition"
+      (mt/with-temp [:model/Card {secret-id :id} {:collection_id (u/the-id (collection/user->personal-collection
+                                                                            (mt/user->id :crowberto)))
+                                                  :dataset_query (mt/native-query {:query "SELECT 1 AS sec_1173_marker"})}]
+        (let [body (mt/with-model-cleanup [:model/Card]
+                     (mt/user-http-request :rasta :post 403 "card"
+                                           (merge (mt/with-temp-defaults :model/Card)
+                                                  {:dataset_query (mt/mbql-query nil {:source-table (str "card__" secret-id)})
+                                                   :collection_id (-> :rasta mt/user->id collection/user->personal-collection u/the-id)})))]
+          (is (= "You cannot save this Question because you do not have permissions to run its query."
+                 body)))))))
+
+(deftest save-card-with-sensitive-field-test
+  (testing "non-admins can't save a query that references a :sensitive column (SEC-829)"
+    (let [sensitive-query (mt/mbql-query users {:fields [$id $password]})]
+      (mt/with-model-cleanup [:model/Card]
+        (testing "POST /api/card"
+          (let [body (mt/user-http-request :rasta :post 400 "card"
+                                           (card-with-name-and-query (mt/random-name) sensitive-query))]
+            (is (=? #".*not available for querying.*" body))
+            (testing "without naming the column"
+              (is (not (re-find #"(?i)password" (pr-str body))))))
+          (is (some? (mt/user-http-request :crowberto :post 200 "card"
+                                           (card-with-name-and-query (mt/random-name) sensitive-query))))))
+      (mt/with-temp [:model/Card card {:creator_id    (mt/user->id :crowberto)
+                                       :dataset_query sensitive-query}]
+        (testing "PUT /api/card/:id without changing the query still works on a card an admin saved"
+          (is (=? {:name "Renamed"}
+                  (mt/user-http-request :rasta :put 200 (format "card/%d" (:id card)) {:name "Renamed"}))))
+        (testing "PUT /api/card/:id changing the query to another one that references the column is rejected"
+          (is (=? #".*not available for querying.*"
+                  (mt/user-http-request :rasta :put 400 (format "card/%d" (:id card))
+                                        {:dataset_query (mt/mbql-query users {:fields [$password]})})))))
+      (mt/with-temp [:model/Card card {:dataset_query (mt/mbql-query users)}]
+        (testing "PUT /api/card/:id adding the column to a query is rejected"
+          (is (=? #".*not available for querying.*"
+                  (mt/user-http-request :rasta :put 400 (format "card/%d" (:id card))
+                                        {:dataset_query sensitive-query}))))))))
+
+(deftest sensitive-field-in-saved-content-test
+  (testing "content someone else saved that uses a :sensitive column keeps working for non-admins who can see it"
+    (mt/with-temp [:model/Card    card    {:creator_id    (mt/user->id :crowberto)
+                                           :dataset_query (mt/mbql-query users
+                                                            {:fields   [$id $password]
+                                                             :filter   [:not-null $password]
+                                                             :order-by [[:asc $id]]
+                                                             :limit    1})}
+                   :model/Segment segment {:table_id   (mt/id :users)
+                                           :definition (mt/mbql-query users {:filter [:starts-with $password "4"]})}]
+      (testing "running the saved card"
+        (is (= [[1 "4be68cda-6fd5-4ba7-944e-2b475600bda5"]]
+               (mt/rows (mt/user-http-request :rasta :post 202 (format "card/%d/query" (:id card)))))))
+      (testing "an ad-hoc query built on top of the saved card"
+        (is (= [["4be68cda-6fd5-4ba7-944e-2b475600bda5"]]
+               (mt/rows (mt/user-http-request :rasta :post 202 "dataset"
+                                              {:database (mt/id)
+                                               :type     :query
+                                               :query    {:source-table (str "card__" (:id card))
+                                                          :fields       [[:field "PASSWORD" {:base-type :type/Text}]]}})))))
+      (testing "an ad-hoc query using a segment defined on the column"
+        (is (= [[1]]
+               (mt/rows (mt/user-http-request :rasta :post 202 "dataset"
+                                              (mt/mbql-query users
+                                                {:fields   [$id]
+                                                 :filter   [:segment (:id segment)]
+                                                 :order-by [[:asc $id]]
+                                                 :limit    1})))))))))
 
 (deftest create-card-parameter-permissions-generic-error-test
   (testing "POST /api/card"
@@ -1503,7 +1674,9 @@
                                                             :target [:dimension [:field (mt/id :venues :name) nil]]}])))))))))
 
 (deftest ^:parallel create-card-with-type-and-dataset-test
-  (t2/with-transaction [_]
+  ;; Use `:rollback-only` like the sibling tests below. Otherwise, the two Cards created through the API
+  ;; commit and leak into later tests that scan the Card table.
+  (t2/with-transaction [_ nil {:rollback-only true}]
     (testing "can create a model using type"
       (is (=? {:type "model"}
               (mt/user-http-request :crowberto :post 200 "card" (assoc (card-with-name-and-query (mt/random-name))
@@ -1858,11 +2031,11 @@
   (testing "PUT /api/card/:id"
     (mt/with-temp [:model/Card card]
       (testing "If embedding is disabled, even an admin should not be allowed to update embedding params"
-        (mt/with-temporary-setting-values [enable-embedding-static false]
+        (mt/with-temporary-setting-values [enable-embedding-modular false]
           (is (= "Embedding is not enabled."
                  (mt/user-http-request :crowberto :put 400 (str "card/" (u/the-id card))
                                        {:embedding_params {:abc "enabled"}})))))
-      (mt/with-temporary-setting-values [enable-embedding-static true]
+      (mt/with-temporary-setting-values [enable-embedding-modular true]
         (testing "Non-admin should not be allowed to update Card's embedding parms"
           (is (= "You don't have permissions to do that."
                  (mt/user-http-request :rasta :put 403 (str "card/" (u/the-id card))
@@ -1870,13 +2043,13 @@
         (testing "Admin should be able to update Card's embedding params"
           (mt/user-http-request :crowberto :put 200 (str "card/" (u/the-id card))
                                 {:embedding_params {:abc "enabled"}})
-          (is (= {:abc "enabled"}
+          (is (= {"abc" "enabled"}
                  (t2/select-one-fn :embedding_params :model/Card :id (u/the-id card)))))))))
 
 (deftest update-embedding-type-to-nil-test
   (testing "PUT /api/card/:id"
     (testing "Admin should be able to set embedding_type to nil to clear it"
-      (mt/with-temporary-setting-values [enable-embedding-static true]
+      (mt/with-temporary-setting-values [enable-embedding-modular true]
         (mt/with-temp [:model/Card card {:enable_embedding true
                                          :embedding_type "static-legacy"}]
           (testing "Verify initial state has embedding_type set"
@@ -2197,18 +2370,10 @@
                          :name "Updated name"}
                         (update-card! :rasta 200 {:name "Updated name"}))))
               (testing "should *not* be allowed to update query"
-                (testing "Permissions errors should be meaningful and include info for debugging (#14931)"
-                  (is (malli= [:map
-                               [:message        [:= "You cannot save this Question because you do not have permissions to run its query."]]
-                               [:query          [:map
-                                                 [:stages [:sequential
-                                                           {:min 1, :max 1}
-                                                           [:map
-                                                            [:source-table [:= (mt/id :users)]]]]]]]
-                               [:required-perms :map]
-                               [:actual-perms   [:sequential perms.u/PathSchema]]
-                               [:trace          [:sequential :any]]]
-                              (update-card! :rasta 403 {:dataset_query (mt/mbql-query users)}))))
+                (testing "Permissions errors keep their meaningful message (#14931)"
+                  (testing "but not the ex-data: the (preprocessed) query inlines source Cards the user may not read (SEC-1173)"
+                    (is (= "You cannot save this Question because you do not have permissions to run its query."
+                           (update-card! :rasta 403 {:dataset_query (mt/mbql-query users)})))))
                 (testing "make sure query hasn't changed in the DB"
                   (is (=? {:lib/type :mbql/query
                            :stages   [{:source-table (mt/id :checkins)}]}
@@ -2242,7 +2407,7 @@
             (let [[email] (notification.tu/with-mock-inbox-email!
                             (f (->> notification :payload :card_id (t2/select-one :model/Card))))]
               (is (=? {:bcc     #{"rasta@metabase.com" "crowberto@metabase.com" "ngoc@metabase.com"}
-                       :subject "一个预警已停止运行"
+                       :subject "One of your alerts has stopped working"
                        :body    [{(str expected-email-re) (not should-re-not-match?)}]}
                       (mt/summarize-multipart-single-email email expected-email-re)))))
           (if deleted?
@@ -2385,6 +2550,18 @@
                 (mt/user-http-request :rasta :delete 204 (str "card/" (u/the-id card)))
                 (t2/select-one :model/Card :id (u/the-id card)))))))
 
+(deftest delete-model-publishes-action-delete-events-test
+  (testing "GHY-4722: deleting a model announces the deletion of each of its actions, which the database removes with it"
+    (mt/with-temp [:model/Card   {model-id :id} {:type :model :dataset_query (mt/mbql-query venues)}
+                   :model/Action {query :id}    {:type :query :name "Rename" :model_id model-id}
+                   :model/Action {archived :id} {:type :query :name "Old" :model_id model-id :archived true}]
+      (let [published (atom #{})]
+        (mt/with-dynamic-fn-redefs [events/publish-event! (fn [topic {:keys [object]}]
+                                                            (when (= :event/action-delete topic)
+                                                              (swap! published conj (:id object))))]
+          (mt/user-http-request :crowberto :delete 204 (str "card/" model-id)))
+        (is (= #{query archived} @published))))))
+
 ;; deleting a card that doesn't exist should return a 404 (#1957)
 (deftest deleting-a-card-that-doesnt-exist-should-return-a-404---1957-
   (is (= "Not found."
@@ -2421,6 +2598,16 @@
                   "8"]
                  (cond-> response
                    (string? response) (-> u/strip-bom str/split-lines)))))))))
+
+(deftest csv-download-pivot-results-on-non-pivot-card-test
+  (testing "pivot_results is ignored on non-pivot cards (#81323)"
+    (with-temp-native-card [_ card]
+      (let [response (mt/user-http-request :crowberto :post 200 (format "card/%d/query/csv" (u/the-id card))
+                                           {:pivot_results true})]
+        (is (= ["COUNT(*)"
+                "75"]
+               (cond-> response
+                 (string? response) (-> u/strip-bom str/split-lines))))))))
 
 (deftest json-download-test
   (testing "no parameters"
@@ -2901,6 +3088,179 @@
                (mt/user-http-request :rasta :put 403 (str "card/" (u/the-id card))
                                      {:name "Number of Blueberries Consumed Per Month"})))))))
 
+(deftest update-card-timeline-selection-permissions-test
+  (testing "PUT /api/card/:id requires read perms for the timelines selected in visualization settings"
+    (mt/with-temp [:model/Collection collection {}
+                   :model/Timeline timeline {:collection_id (:id collection)}
+                   :model/Card card {}]
+      (perms/revoke-collection-permissions! (perms-group/all-users) collection)
+      (is (= "You don't have permissions to do that."
+             (mt/user-http-request :rasta :put 403 (str "card/" (:id card))
+                                   {:visualization_settings {:timeline.selected_timeline_ids [(:id timeline)]}})))
+      (is (not (contains? (t2/select-one-fn :visualization_settings :model/Card (:id card))
+                          :timeline.selected_timeline_ids))))))
+
+(deftest card-timeline-moved-to-private-collection-test
+  (testing "PUT /api/card/:id after one of the card's timelines moved into a collection the editor cannot read"
+    (mt/with-temp [:model/Collection restricted {}
+                   :model/Timeline moved {}
+                   :model/Timeline readable {}
+                   :model/TimelineEvent readable-event {:timeline_id (:id readable)}
+                   :model/Card card {:display                :line
+                                     :dataset_query          (mt/mbql-query venues)
+                                     :visualization_settings {:timeline.selected_timeline_ids       [(:id readable) (:id moved)]
+                                                              :timeline.excluded_timeline_event_ids []}}]
+      (perms/revoke-collection-permissions! (perms-group/all-users) restricted)
+      (t2/update! :model/Timeline (:id moved) {:collection_id (:id restricted)})
+      (testing "an event of the timeline the editor can still read can be hidden"
+        (let [settings {:timeline.selected_timeline_ids       [(:id readable) (:id moved)]
+                        :timeline.excluded_timeline_event_ids [(:id readable-event)]}]
+          (is (= [(:id readable-event)]
+                 (get-in (mt/user-http-request :rasta :put 200 (str "card/" (:id card))
+                                               {:visualization_settings settings})
+                         [:visualization_settings :timeline.excluded_timeline_event_ids]))))))))
+
+(deftest copy-card-keeps-inaccessible-timeline-selection-test
+  (testing "POST /api/card/:id/copy keeps a timeline selection the user cannot read"
+    (mt/with-temp [:model/Collection collection {}
+                   :model/Timeline timeline {:collection_id (:id collection)}
+                   :model/Card card {:dataset_query          (mt/mbql-query venues)
+                                     :visualization_settings {:timeline.selected_timeline_ids [(:id timeline)]}}]
+      (perms/revoke-collection-permissions! (perms-group/all-users) collection)
+      (mt/with-model-cleanup [:model/Card]
+        (is (= [(:id timeline)]
+               (get-in (mt/user-http-request :rasta :post 200 (format "card/%d/copy" (:id card)))
+                       [:visualization_settings :timeline.selected_timeline_ids])))))))
+
+(deftest create-card-with-source-card-id-preserves-timeline-selection-test
+  (testing "POST /api/card with source_card_id treats the new card as a copy for timeline permission purposes"
+    (mt/with-temp [:model/Collection collection {}
+                   :model/Timeline timeline {:collection_id (:id collection)}
+                   :model/Timeline timeline-2 {:collection_id (:id collection)}
+                   :model/TimelineEvent hidden-event {:timeline_id (:id timeline)}
+                   :model/TimelineEvent other-event {:timeline_id (:id timeline)}
+                   :model/Card source-card {:dataset_query          (mt/mbql-query venues)
+                                            :display                :line
+                                            :visualization_settings {:timeline.selected_timeline_ids       [(:id timeline)]
+                                                                     :timeline.excluded_timeline_event_ids [(:id hidden-event)]}}]
+      (perms/revoke-collection-permissions! (perms-group/all-users) collection)
+      (mt/with-model-cleanup [:model/Card]
+        (testing "an identical selection is preserved without a fresh read check"
+          (let [card (mt/user-http-request :rasta :post 200 "card"
+                                           (assoc (card-with-name-and-query)
+                                                  :source_card_id (:id source-card)
+                                                  :visualization_settings (:visualization_settings source-card)))]
+            (is (= [(:id timeline)]
+                   (get-in card [:visualization_settings :timeline.selected_timeline_ids])))))
+        (testing "a selection that differs from the source card is still permission-checked"
+          (is (= "You don't have permissions to do that."
+                 (mt/user-http-request :rasta :post 403 "card"
+                                       (assoc (card-with-name-and-query)
+                                              :source_card_id (:id source-card)
+                                              :visualization_settings {:timeline.selected_timeline_ids
+                                                                       [(:id timeline) (:id timeline-2)]})))))
+        (testing "un-hiding an event of the inaccessible timeline is still permission-checked"
+          (is (= "You don't have permissions to do that."
+                 (mt/user-http-request :rasta :post 403 "card"
+                                       (assoc (card-with-name-and-query)
+                                              :display "line"
+                                              :source_card_id (:id source-card)
+                                              :visualization_settings
+                                              (assoc (:visualization_settings source-card)
+                                                     :timeline.excluded_timeline_event_ids []))))))
+        (testing "hiding one more event keeps the inherited selection"
+          (is (= [(:id hidden-event) (:id other-event)]
+                 (get-in (mt/user-http-request :rasta :post 200 "card"
+                                               (assoc (card-with-name-and-query)
+                                                      :display "line"
+                                                      :source_card_id (:id source-card)
+                                                      :visualization_settings
+                                                      (assoc (:visualization_settings source-card)
+                                                             :timeline.excluded_timeline_event_ids
+                                                             [(:id hidden-event) (:id other-event)])))
+                         [:visualization_settings :timeline.excluded_timeline_event_ids]))))
+        (testing "source_card_id must itself be readable"
+          (mt/with-temp [:model/Collection unreadable-collection {}
+                         :model/Card unreadable-card {:collection_id (:id unreadable-collection)}]
+            (perms/revoke-collection-permissions! (perms-group/all-users) unreadable-collection)
+            (is (= "You don't have permissions to do that."
+                   (mt/user-http-request :rasta :post 403 "card"
+                                         (assoc (card-with-name-and-query)
+                                                :source_card_id (:id unreadable-card)))))))))))
+
+(deftest card-with-restricted-timeline-on-public-dashboard-test
+  (mt/with-temporary-setting-values [enable-public-sharing true]
+    (mt/with-temp [:model/Collection restricted {}
+                   :model/Timeline timeline {:collection_id (:id restricted)}
+                   :model/Card source-card {:dataset_query          (mt/mbql-query venues)
+                                            :display                :line
+                                            :visualization_settings {:timeline.selected_timeline_ids [(:id timeline)]}}
+                   :model/Dashboard dashboard {:public_uuid (str (random-uuid))}]
+      (perms/revoke-collection-permissions! (perms-group/all-users) restricted)
+      (mt/with-model-cleanup [:model/Card]
+        (testing "POST /api/card cannot copy the card into a public dashboard"
+          (is (= "You don't have permissions to do that."
+                 (mt/user-http-request :rasta :post 403 "card"
+                                       (assoc (card-with-name-and-query)
+                                              :display                "line"
+                                              :source_card_id         (:id source-card)
+                                              :dashboard_id           (:id dashboard)
+                                              :visualization_settings (:visualization_settings source-card))))))
+        (testing "PUT /api/card/:id cannot move the card into a public dashboard"
+          (is (= "You don't have permissions to do that."
+                 (mt/user-http-request :rasta :put 403 (str "card/" (:id source-card))
+                                       {:dashboard_id (:id dashboard)})))
+          (is (nil? (t2/select-one-fn :dashboard_id :model/Card (:id source-card)))))
+        (testing "a user who can read the timeline can move the card into the public dashboard"
+          (is (= (:id dashboard)
+                 (:dashboard_id (mt/user-http-request :crowberto :put 200 (str "card/" (:id source-card))
+                                                      {:dashboard_id (:id dashboard)})))))))))
+
+(deftest archived-card-with-restricted-timeline-on-public-dashboard-test
+  (testing "PUT /api/card/:id moving an archived card onto a public dashboard unarchives and autoplaces it, so it still needs timeline read access"
+    (mt/with-temporary-setting-values [enable-public-sharing true]
+      (mt/with-temp [:model/Collection restricted {}
+                     :model/Timeline timeline {:collection_id (:id restricted)}
+                     :model/Card {card-id :id} {:dataset_query          (mt/mbql-query venues)
+                                                :display                :line
+                                                :archived               true
+                                                :visualization_settings {:timeline.selected_timeline_ids [(:id timeline)]}}
+                     :model/Dashboard {dash-id :id} {:public_uuid (str (random-uuid))}]
+        (perms/revoke-collection-permissions! (perms-group/all-users) restricted)
+        (is (= "You don't have permissions to do that."
+               (mt/user-http-request :rasta :put 403 (str "card/" card-id) {:dashboard_id dash-id})))
+        (is (=? {:archived true, :dashboard_id nil}
+                (t2/select-one :model/Card card-id)))
+        (is (empty? (t2/select :model/DashboardCard :dashboard_id dash-id)))
+        (testing "a user who can read the timeline can still move it"
+          (is (=? {:archived false, :dashboard_id dash-id}
+                  (mt/user-http-request :crowberto :put 200 (str "card/" card-id) {:dashboard_id dash-id})))
+          (is (= [card-id] (map :card_id (t2/select :model/DashboardCard :dashboard_id dash-id)))))))))
+
+(deftest copy-card-onto-public-dashboard-timeline-permissions-test
+  (testing "POST /api/card/:id/copy autoplaces the copy on the source's dashboard, so it needs timeline read access"
+    (mt/with-temporary-setting-values [enable-public-sharing true]
+      (mt/with-temp [:model/Collection restricted {}
+                     :model/Timeline timeline {:collection_id (:id restricted)}
+                     :model/Dashboard {dash-id :id} {:public_uuid (str (random-uuid))}
+                     :model/Card {card-id :id} {:dataset_query          (mt/mbql-query venues)
+                                                :display                :line
+                                                :dashboard_id           dash-id
+                                                :visualization_settings {:timeline.selected_timeline_ids [(:id timeline)]}}
+                     ;; the source is shown by a visualizer dashcard, which never emits its card's events
+                     :model/DashboardCard _ {:dashboard_id           dash-id
+                                             :card_id                card-id
+                                             :visualization_settings {:visualization {}}}]
+        (perms/revoke-collection-permissions! (perms-group/all-users) restricted)
+        (mt/with-model-cleanup [:model/Card]
+          (is (= "You don't have permissions to do that."
+                 (mt/user-http-request :rasta :post 403 (format "card/%d/copy" card-id))))
+          (is (= [card-id] (map :card_id (t2/select :model/DashboardCard :dashboard_id dash-id))))
+          (testing "a user who can read the timeline can copy it"
+            (let [copy-id (:id (mt/user-http-request :crowberto :post 200 (format "card/%d/copy" card-id)))]
+              (is (= #{card-id copy-id}
+                     (set (map :card_id (t2/select :model/DashboardCard :dashboard_id dash-id))))))))))))
+
 (deftest change-collection-permissions-test
   (testing "PUT /api/card/:id"
     (testing "\nChange the `collection_id` of a Card"
@@ -3054,6 +3414,18 @@
     (is (= {:response    {:status "ok"}
             :collections ["New Collection" "New Collection"]}
            (POST-card-collections! :crowberto 200 new-collection [card-1 card-2])))))
+
+(deftest bulk-move-moves-model-actions-test
+  (testing "bulk-moving models moves their actions too"
+    (mt/with-temp [:model/Collection old-collection {}
+                   :model/Collection new-collection {}
+                   :model/Card       model-1        {:type :model :collection_id (u/the-id old-collection)}
+                   :model/Card       model-2        {:type :model :collection_id (u/the-id old-collection)}
+                   :model/Action     action-1       {:type :query :name "One" :model_id (u/the-id model-1)}
+                   :model/Action     action-2       {:type :query :name "Two" :model_id (u/the-id model-2)}]
+      (POST-card-collections! :crowberto 200 new-collection [model-1 model-2])
+      (is (= #{(u/the-id new-collection)}
+             (t2/select-fn-set :collection_id :model/Action :id [:in [(u/the-id action-1) (u/the-id action-2)]]))))))
 
 (deftest test-that-we-can-bulk-remove-some-cards-from-a-collection
   (mt/with-temp [:model/Collection  collection {}
@@ -3209,7 +3581,12 @@
                  (mt/user-http-request :rasta :delete 403 (format "card/%d/public_link" (u/the-id card)))))))
       (testing "Endpoint should 404 if Card doesn't exist"
         (is (= "Not found."
-               (mt/user-http-request :crowberto :delete 404 (format "card/%d/public_link" Integer/MAX_VALUE))))))))
+               (mt/user-http-request :crowberto :delete 404 (format "card/%d/public_link" Integer/MAX_VALUE)))))
+      (testing "GHY-4650: Endpoint should 404 if Card is archived, as for dashboards"
+        (mt/with-temp [:model/Card card (assoc (shared-card) :archived true)]
+          (is (= "Not found."
+                 (mt/user-http-request :crowberto :delete 404 (format "card/%d/public_link" (u/the-id card)))))
+          (is (some? (t2/select-one-fn :public_uuid :model/Card :id (u/the-id card)))))))))
 
 (deftest share-card-audit-log-test
   (testing "POST /api/card/:id/public_link creates audit log entry"
@@ -3266,11 +3643,17 @@
 
 (deftest test-that-we-can-fetch-a-list-of-embeddable-cards
   (testing "GET /api/card/embeddable"
-    (mt/with-temporary-setting-values [enable-embedding-static true]
+    (mt/with-temporary-setting-values [enable-embedding-modular true]
       (mt/with-temp [:model/Card _ {:enable_embedding true}]
         (is (= [{:name true, :id true}]
                (for [card (mt/user-http-request :crowberto :get 200 "card/embeddable")]
-                 (m/map-vals boolean (select-keys card [:name :id])))))))))
+                 (m/map-vals boolean (select-keys card [:name :id])))))))
+    (testing "and that we can still see them once guest embeds are turned off"
+      (mt/with-temporary-setting-values [enable-embedding-modular false]
+        (mt/with-temp [:model/Card _ {:enable_embedding true}]
+          (is (= [{:name true, :id true}]
+                 (for [card (mt/user-http-request :crowberto :get 200 "card/embeddable")]
+                   (m/map-vals boolean (select-keys card [:name :id]))))))))))
 
 (deftest ^:parallel pivot-card-test
   (mt/test-drivers (api.pivots/applicable-drivers)
@@ -3287,6 +3670,24 @@
               (is (= ["AK" "Affiliate" "Doohickey" 0 18 81] (first rows)))
               (is (= ["MS" "Organic" "Gizmo" 0 16 42] (nth rows 445)))
               (is (= [nil nil nil 7 18760 69540] (last rows))))))))))
+
+(deftest ^:parallel pivot-card-parameters-test
+  (testing "POST /api/card/pivot/:card-id/query"
+    (testing "should respect `:parameters`"
+      ;; the sibling assertion for the non-pivot route lives in `run-query-with-parameters-test`; the
+      ;; template tag is `:required`, so a dropped `:parameters` cannot even produce a result
+      (with-temp-native-card-with-params [{db-id :id} {card-id :id}]
+        ;; the card's `{{category}}` tag is `:required`, so the query can only run if the value in the
+        ;; request body reaches the query processor — were `:parameters` dropped, this 500s
+        (is (=? {:database_id db-id
+                 :status      "completed"
+                 :row_count   1}
+                (mt/user-http-request
+                 :rasta :post 202 (format "card/pivot/%d/query" card-id)
+                 {:parameters [{:id     "_CATEGORY_ID_"
+                                :type   :number
+                                :target [:variable [:template-tag :category]]
+                                :value  2}]})))))))
 
 (deftest ^:parallel model-card-test
   (testing "Setting a question to a dataset makes it viz type table"
@@ -3911,47 +4312,53 @@
                  :values_source_config {:values ["BBQ" "Bakery" "Bar"]}}]
                (:parameters card)))))))
 
-(deftest pivot-from-model-test
+(deftest ^:mb/driver-tests pivot-from-model-test
   (testing "Pivot options should match fields through models (#35319)"
-    (mt/dataset test-data
-      (testing "visualization_settings references field by id"
-        (mt/with-temp [:model/Card model {:dataset_query (mt/mbql-query orders)
-                                          :type :model}
-                       :model/Card card {:dataset_query
-                                         (mt/mbql-query nil
-                                           {:source-table (str "card__" (u/the-id model))
-                                            :breakout [[:field "USER_ID" {:base-type :type/Integer}]]
-                                            :aggregation [[:sum [:field "TOTAL" {:base-type :type/Float}]]]})
-                                         ;; The FE sometimes used a field id instead of field by name - we need
-                                         ;; to handle this
-                                         :visualization_settings {:pivot_table.column_split {:rows    ["USER_ID"],
-                                                                                             :columns [],
-                                                                                             :values  ["sum"]},
-                                                                  :table.cell_column "sum"}}]
-          (with-cards-in-readable-collection! [model card]
-            (is (=?
-                 {:data {:cols [{:name "USER_ID"} {:name "pivot-grouping"} {:name "sum"}]}}
-                 (mt/user-http-request :rasta :post 202 (format "card/pivot/%d/query" (u/the-id card)))))))))))
+    (mt/test-drivers #{:h2 :postgres}
+      (let [user-id (mt/format-name "user_id")
+            total   (mt/format-name "total")]
+        (mt/dataset test-data
+          (testing "visualization_settings references field by id"
+            (mt/with-temp [:model/Card model {:dataset_query (mt/mbql-query orders)
+                                              :type :model}
+                           :model/Card card {:dataset_query
+                                             (mt/mbql-query nil
+                                               {:source-table (str "card__" (u/the-id model))
+                                                :breakout [[:field user-id {:base-type :type/Integer}]]
+                                                :aggregation [[:sum [:field total {:base-type :type/Float}]]]})
+                                             ;; The FE sometimes used a field id instead of field by name - we need
+                                             ;; to handle this
+                                             :visualization_settings {:pivot_table.column_split {:rows    [user-id],
+                                                                                                 :columns [],
+                                                                                                 :values  ["sum"]},
+                                                                      :table.cell_column "sum"}}]
+              (with-cards-in-readable-collection! [model card]
+                (is (=?
+                     {:data {:cols [{:name user-id} {:name "pivot-grouping"} {:name "sum"}]}}
+                     (mt/user-http-request :rasta :post 202 (format "card/pivot/%d/query" (u/the-id card)))))))))))))
 
-(deftest pivot-from-model-test-2
+(deftest ^:mb/driver-tests pivot-from-model-test-2
   (testing "Pivot options should match fields through models (#35319)"
-    (mt/dataset test-data
-      (testing "visualization_settings references field by name"
-        (mt/with-temp [:model/Card model {:dataset_query (mt/mbql-query orders)
-                                          :type :model}
-                       :model/Card card {:dataset_query
-                                         (mt/mbql-query nil
-                                           {:source-table (str "card__" (u/the-id model))
-                                            :breakout [[:field "USER_ID" {:base-type :type/Integer}]]
-                                            :aggregation [[:sum [:field "TOTAL" {:base-type :type/Float}]]]})
-                                         :visualization_settings {:pivot_table.column_split {:rows    ["USER_ID"],
-                                                                                             :columns [],
-                                                                                             :values  ["sum"]},
-                                                                  :table.cell_column "sum"}}]
-          (with-cards-in-readable-collection! [model card]
-            (is (=?
-                 {:data {:cols [{:name "USER_ID"} {:name "pivot-grouping"} {:name "sum"}]}}
-                 (mt/user-http-request :rasta :post 202 (format "card/pivot/%d/query" (u/the-id card)))))))))))
+    (mt/test-drivers #{:h2 :postgres}
+      (let [user-id (mt/format-name "user_id")
+            total   (mt/format-name "total")]
+        (mt/dataset test-data
+          (testing "visualization_settings references field by name"
+            (mt/with-temp [:model/Card model {:dataset_query (mt/mbql-query orders)
+                                              :type :model}
+                           :model/Card card {:dataset_query
+                                             (mt/mbql-query nil
+                                               {:source-table (str "card__" (u/the-id model))
+                                                :breakout [[:field user-id {:base-type :type/Integer}]]
+                                                :aggregation [[:sum [:field total {:base-type :type/Float}]]]})
+                                             :visualization_settings {:pivot_table.column_split {:rows    [user-id],
+                                                                                                 :columns [],
+                                                                                                 :values  ["sum"]},
+                                                                      :table.cell_column "sum"}}]
+              (with-cards-in-readable-collection! [model card]
+                (is (=?
+                     {:data {:cols [{:name user-id} {:name "pivot-grouping"} {:name "sum"}]}}
+                     (mt/user-http-request :rasta :post 202 (format "card/pivot/%d/query" (u/the-id card)))))))))))))
 
 (defn run-based-on-upload-test!
   "Runs tests for based-on-upload `request` is a function that takes a card and returns a map which may have {:based_on_upload <table-id>}]
@@ -3960,8 +4367,8 @@
   [request]
   (mt/test-drivers (mt/normal-drivers-with-feature :uploads)
     (mt/with-discard-model-updates! [:model/Database] ; to restore any existing metabase_database.uploads_enabled=true
-      (mt/with-temp [:model/Database   {db-id :id}         {:engine driver/*driver*}
-                     :model/Database   {other-db-id :id}   {:engine driver/*driver* :uploads_enabled true}
+      (mt/with-temp [:model/Database   {db-id :id}         {:engine driver/*driver* :dbms_version (:dbms_version (mt/db))}
+                     :model/Database   {other-db-id :id}   {:engine driver/*driver* :dbms_version (:dbms_version (mt/db)) :uploads_enabled true}
                      :model/Table      {table-id :id}      {:db_id db-id, :is_upload true}
                      :model/Collection {collection-id :id} {}]
         (let [card-defaults {:collection_id collection-id
@@ -4065,7 +4472,7 @@
                                :name                   "Bad Card"
                                :display                "table"
                                :visualization_settings {}}]
-        (is (=? {:message #"Invalid Field Filter: Field \d+ \"VENUES\"\.\"NAME\" belongs to Database \d+ \"test-data \(h2\)\", but the query is against Database \d+ \"daily-bird-counts \(h2\)\""}
+        (is (=? #"Invalid Field Filter: Field \d+ \"VENUES\"\.\"NAME\" belongs to Database \d+ \"test-data \(h2\)\", but the query is against Database \d+ \"daily-bird-counts \(h2\)\".*"
                 (mt/user-http-request :crowberto :post 400 "card" card-data)))))))
 
 (deftest ^:parallel format-export-middleware-test
@@ -4289,43 +4696,58 @@
                                        (apply original-can-read? args)))]
           (is (map? (mt/user-http-request :crowberto :get 200 (format "card/%d/query_metadata" (:id card))))))))))
 
-(deftest pivot-tables-with-model-sources-show-row-totals
+(deftest ^:mb/driver-tests pivot-tables-with-model-sources-show-row-totals
   (testing "Pivot Tables with a model source will return row totals (#46575)"
-    (mt/with-temp [:model/Card {model-id :id} {:type :model
-                                               :dataset_query
-                                               (mt/mbql-query orders
-                                                 {:joins
-                                                  [{:fields       :all
-                                                    :strategy     :left-join
-                                                    :alias        "People - User"
-                                                    :condition
-                                                    [:=
-                                                     [:field (mt/id :orders :user_id) {:base-type :type/Integer}]
-                                                     [:field (mt/id :people :id) {:base-type :type/BigInteger :join-alias "People - User"}]]
-                                                    :source-table (mt/id :people)}]})}
-                   :model/Card {pivot-id :id} {:display :pivot
-                                               :dataset_query
-                                               (mt/mbql-query nil
-                                                 {:aggregation  [[:sum [:field "TOTAL" {:base-type :type/Float}]]]
-                                                  :breakout
-                                                  [[:field "CREATED_AT" {:base-type :type/DateTime, :temporal-unit :month}]
-                                                   [:field "NAME" {:base-type :type/Text}]
-                                                   [:field (mt/id :products :category) {:base-type    :type/Text
-                                                                                        :source-field (mt/id :orders :product_id)}]]
-                                                  :source-table (format "card__%s" model-id)})
-                                               :visualization_settings
-                                               {:pivot_table.column_split
-                                                {:rows    ["NAME" "CREATED_AT"]
-                                                 :columns ["CATEGORY"]
-                                                 :values  ["sum"]}}}]
-      ;; pivot row totals have a pivot-grouping of 1 (the second-last column in these results)
-      ;; before fixing issue #46575, these rows would not be returned given the model + card setup
-      (is (= [nil "Abbey Satterfield" "Doohickey" 1 347.91]
-             (let [result (mt/user-http-request :rasta :post 202 (format "card/pivot/%d/query" pivot-id))
-                   totals (filter (fn [row]
-                                    (< 0 (second (reverse row))))
-                                  (get-in result [:data :rows]))]
-               (first totals)))))))
+    (mt/test-drivers #{:h2 :postgres}
+      (let [name-col       (mt/format-name "name")
+            created-at-col (mt/format-name "created_at")
+            category-col   (mt/format-name "category")
+            total-col      (mt/format-name "total")]
+        (mt/with-temp [:model/Card {model-id :id} {:type :model
+                                                   :dataset_query
+                                                   (mt/mbql-query orders
+                                                     {:joins
+                                                      [{:fields       :all
+                                                        :strategy     :left-join
+                                                        :alias        "People - User"
+                                                        :condition
+                                                        [:=
+                                                         [:field (mt/id :orders :user_id) {:base-type :type/Integer}]
+                                                         [:field (mt/id :people :id) {:base-type :type/BigInteger :join-alias "People - User"}]]
+                                                        :source-table (mt/id :people)}]})}
+                       :model/Card {pivot-id :id} {:display :pivot
+                                                   :dataset_query
+                                                   (mt/mbql-query nil
+                                                     {:aggregation  [[:sum [:field total-col {:base-type :type/Float}]]]
+                                                      :breakout
+                                                      [[:field created-at-col {:base-type :type/DateTime, :temporal-unit :month}]
+                                                       [:field name-col {:base-type :type/Text}]
+                                                       [:field (mt/id :products :category) {:base-type    :type/Text
+                                                                                            :source-field (mt/id :orders :product_id)}]]
+                                                      :source-table (format "card__%s" model-id)})
+                                                   :visualization_settings
+                                                   {:pivot_table.column_split
+                                                    {:rows    [name-col created-at-col]
+                                                     :columns [category-col]
+                                                     :values  ["sum"]}}}]
+          ;; pivot row totals have a pivot-grouping of 1 (the second-last column in these results)
+          ;; before fixing issue #46575, these rows would not be returned given the model + card setup.
+          ;;
+          ;; This particular query's primary sub-query aggregates to >10k rows on the joined model. The
+          ;; multi-query path bumps `:max-results` to `pivot-limit` per sub-query and clears the cap; the
+          ;; native `GROUPING SETS` path doesn't bump, so it hits the default aggregated cap and drops rows.
+          ;; Raise the setting so both paths have room, keeping the parity check meaningful.
+          (mt/with-temporary-setting-values [aggregated-query-row-limit 200000]
+            (let [result (mt/user-http-request :rasta :post 202 (format "card/pivot/%d/query" pivot-id))
+                  totals (filter (fn [row]
+                                   (< 0 (second (reverse row))))
+                                 (get-in result [:data :rows]))
+                  ;; Postgres SUM(float) returns a slightly noisy double; round the aggregated value so the
+                  ;; assertion is driver-agnostic.
+                  row    (update (vec (first totals)) 4
+                                 #(when % (double (/ (Math/round (* 100.0 (double %))) 100.0))))]
+              (is (= [nil "Abbey Satterfield" "Doohickey" 1 347.91]
+                     row)))))))))
 
 (deftest dashboard-internal-card-creation
   (mt/with-temp [:model/Collection {coll-id :id} {}
@@ -4406,6 +4828,38 @@
       (is (mt/user-http-request :crowberto :put 400 (str "card/" card-id) {:collection_id other-coll-id})))
     (testing "We can't set the `type`"
       (is (mt/user-http-request :crowberto :put 400 (str "card/" card-id) {:type "model"})))))
+
+(deftest full-card-put-on-dashboard-internal-card-used-on-other-dashboards-test
+  ;; #82237
+  (mt/with-temp [:model/Collection    {coll-id :id}       {}
+                 :model/Dashboard     {home-dash-id :id}  {:collection_id coll-id}
+                 :model/Dashboard     {other-dash-id :id} {}
+                 :model/Card          {card-id :id}       {:dashboard_id  home-dash-id
+                                                           :dataset_query (mt/mbql-query venues)}
+                 :model/DashboardCard _                   {:card_id card-id :dashboard_id other-dash-id}]
+    (let [card (t2/select-one :model/Card :id card-id)]
+      (testing "the whole writable card, current dashboard_id included, is accepted the way the FE sends it"
+        (is (=? {:name "edited" :dashboard_id home-dash-id}
+                (mt/user-http-request :crowberto :put 200 (str "card/" card-id)
+                                      {:name                   "edited"
+                                       :cache_ttl              nil
+                                       :type                   "question"
+                                       :dataset_query          (:dataset_query card)
+                                       :display                "table"
+                                       :description            nil
+                                       :visualization_settings {}
+                                       :parameters             []
+                                       :parameter_mappings     []
+                                       :archived               false
+                                       :enable_embedding       false
+                                       :embedding_params       nil
+                                       :collection_id          coll-id
+                                       :dashboard_id           home-dash-id
+                                       :collection_position    nil
+                                       :collection_preview     true
+                                       :result_metadata        (:result_metadata card)}))))
+      (testing "the other dashboard still has its dashcard"
+        (is (t2/exists? :model/DashboardCard :card_id card-id :dashboard_id other-dash-id))))))
 
 (deftest dashboard-questions-get-autoplaced-on-unarchive-or-placement
   (mt/with-temp [:model/Collection {coll-id :id} {}
@@ -5067,7 +5521,6 @@
             :model "root"
             :strategy "ttl"
             :config {:multiplier 99999, :min_duration_ms 1}}
-
            :model/Card
            model
            {:type :model
@@ -5128,11 +5581,11 @@
                   :dataset_query))))))
 
 ;;; +--------------------------------------------------------------------------------------------------+
-;;; |       result_metadata persistence with parameters                                     |
+;;; |       result_metadata persistence with parameters (QUE2-502)                                     |
 ;;; |       See also: metabase.dashboards-rest.api-test (dashboard endpoint tests for MBQL cards)      |
 ;;; +--------------------------------------------------------------------------------------------------+
 
-(deftest parameterized-native-card-does-not-persist-result-metadata-test ;
+(deftest parameterized-native-card-does-not-persist-result-metadata-test ; QUE2-502
   (testing "POST /api/card/:id/query — native card with non-default parameter values should not update result_metadata"
     (let [query (mt/native-query
                  {:query         "SELECT COUNT(*) AS cnt FROM ORDERS WHERE PRODUCT_ID = {{product_id}}"
@@ -5159,7 +5612,7 @@
                  (t2/select-one-fn :result_metadata :model/Card :id card-id))
               "result_metadata should not change when native card is run with non-default parameter values"))))))
 
-(deftest native-card-with-default-parameters-persists-result-metadata-test ;
+(deftest native-card-with-default-parameters-persists-result-metadata-test ; QUE2-502
   (testing "POST /api/card/:id/query — native card with default parameter values SHOULD update result_metadata"
     (let [query (mt/native-query
                  {:query         "SELECT COUNT(*) AS cnt FROM ORDERS WHERE PRODUCT_ID = {{product_id}}"
@@ -5221,7 +5674,10 @@
                 resp (mt/user-http-request :rasta :post 202 (format "card/%d/query" (:id card)))]
             (is (= 3 (count (get-in resp [:data :rows]))))))))))
 
-(deftest ^:parallel reduced-fields-propagate-to-downstream-card-test
+;; Not `^:parallel`: running alongside other tests, something commits the transaction holding this test's
+;; rollback-only savepoint, which discards both `with-temp` Cards. The downstream query then reports its source Card
+;; as missing. Only MySQL shows it, and only under load -- the test passes on its own.
+(deftest ^:synchronized reduced-fields-propagate-to-downstream-card-test
   (testing "A card with reduced :fields only exposes those columns to a card sourced from it (#30610)"
     (let [mp         (mt/metadata-provider)
           venues-id  (lib.metadata/field mp (mt/id :venues :id))
@@ -5434,124 +5890,30 @@
               (data-perms/set-database-permission! (perms-group/all-users) (mt/id) :perms/create-queries :no)
               (is (= [[9]] (mt/rows (mt/user-http-request :rasta :post 202 (format "card/%d/query" (u/the-id outer)))))))))))))
 
-(deftest parameter-values-source-card-permissions-test
-  (testing "a Card's parameters may only draw their values from a Card the user can read"
-    (mt/with-non-admin-groups-no-root-collection-perms
-      (mt/with-temp [:model/Collection {coll-id :id}     {}
-                     :model/Collection {secret-coll :id} {}
-                     :model/Card       {secret-card :id} {:collection_id secret-coll}
-                     :model/Card       {mine :id}        {:collection_id coll-id}]
-        (perms/grant-collection-readwrite-permissions! (perms-group/all-users) coll-id)
-        (perms/revoke-collection-permissions! (perms-group/all-users) secret-coll)
-        (let [param {:id                   "pid"
-                     :name                 "p"
-                     :slug                 "p"
-                     :type                 "string/="
-                     :values_source_type   "card"
-                     :values_source_config {:card_id     secret-card
-                                            :value_field [:field (mt/id :venues :name) nil]}}]
-          (testing "POST /api/card"
-            (is (= "You don't have permissions to do that."
-                   (mt/user-http-request :rasta :post 403 "card"
-                                         {:name                   "mine"
-                                          :collection_id          coll-id
-                                          :display                "table"
-                                          :visualization_settings {}
-                                          :dataset_query          (mt/mbql-query venues)
-                                          :parameters             [param]}))))
-          (testing "PUT /api/card/:id"
-            (is (= "You don't have permissions to do that."
-                   (mt/user-http-request :rasta :put 403 (str "card/" mine) {:parameters [param]})))
-            (is (empty? (t2/select :model/ParameterCard
-                                   :parameterized_object_type "card"
-                                   :parameterized_object_id   mine)))))))))
-
-(deftest parameter-target-field-permissions-test
-  (testing "a Card's parameter target may only name Fields the user could query"
-    (mt/with-non-admin-groups-no-root-collection-perms
-      (mt/with-temp [:model/Collection {coll-id :id} {}
-                     :model/Card       {card-id :id} {:collection_id coll-id
-                                                      :dataset_query (mt/mbql-query venues)}]
-        (perms/grant-collection-readwrite-permissions! (perms-group/all-users) coll-id)
-        (mt/with-no-data-perms-for-all-users!
-          ;; VENUES is queryable, CATEGORIES is not
-          (data-perms/set-table-permission! (perms-group/all-users) (mt/id :venues) :perms/view-data :unrestricted)
-          (data-perms/set-table-permission! (perms-group/all-users) (mt/id :venues) :perms/create-queries :query-builder)
-          (let [parameter (fn [field-id]
-                            {:id                "pid"
-                             :name              "p"
-                             :slug              "p"
-                             :type              "string/="
-                             :values_query_type "list"
-                             :target            ["dimension" ["field" field-id nil]]})]
-            (testing "POST /api/card"
-              (is (= "You must have data permissions to add a parameter referencing this Field."
-                     (mt/user-http-request :rasta :post 403 "card"
-                                           {:name                   "mine"
-                                            :collection_id          coll-id
-                                            :display                "table"
-                                            :visualization_settings {}
-                                            :dataset_query          (mt/mbql-query venues)
-                                            :parameters             [(parameter (mt/id :categories :name))]})))
-              (testing "a Field the user can query is accepted"
-                (is (some? (mt/user-http-request :rasta :post 200 "card"
-                                                 {:name                   "mine"
-                                                  :collection_id          coll-id
-                                                  :display                "table"
-                                                  :visualization_settings {}
-                                                  :dataset_query          (mt/mbql-query venues)
-                                                  :parameters             [(parameter (mt/id :venues :name))]})))))
-            (testing "PUT /api/card/:id"
-              (is (= "You must have data permissions to add a parameter referencing this Field."
-                     (mt/user-http-request :rasta :put 403 (str "card/" card-id)
-                                           {:parameters [(parameter (mt/id :categories :name))]})))
-              (is (empty? (t2/select-one-fn :parameters :model/Card :id card-id))))))))))
-
-(deftest copy-checks-collection-write-permissions-test
-  (testing "POST /api/card/:id/copy needs permission to write the Collection the copy lands in"
-    (mt/with-non-admin-groups-no-root-collection-perms
-      (mt/with-temp [:model/Collection {readonly :id} {}
-                     :model/Card       {card-id :id}  {:collection_id readonly
-                                                       :dataset_query (mt/mbql-query venues)}]
-        (perms/grant-collection-read-permissions! (perms-group/all-users) readonly)
-        (is (= "You don't have permissions to do that."
-               (mt/user-http-request :rasta :post 403 (format "card/%d/copy" card-id))))
-        (is (= 1 (t2/count :model/Card :collection_id readonly)))))))
-
-(deftest saving-a-card-checks-the-query-it-expands-to-test
-  (testing "POST /api/card a join brought in under a source Card is checked like any other table"
-    (mt/with-non-admin-groups-no-root-collection-perms
-      (mt/with-temp-copy-of-db
-        (mt/with-no-data-perms-for-all-users!
-          (data-perms/set-database-permission! (perms-group/all-users) (mt/id) :perms/view-data :unrestricted)
-          (data-perms/set-database-permission! (perms-group/all-users) (mt/id) :perms/create-queries :query-builder)
-          (data-perms/set-table-permission! (perms-group/all-users) (mt/id :venues) :perms/create-queries :no)
-          (mt/with-temp [:model/Collection collection]
-            (perms/grant-collection-readwrite-permissions! (perms-group/all-users) collection)
-            (mt/with-temp [:model/Card {source-id :id} {:collection_id (u/the-id collection)
-                                                        :dataset_query (mt/mbql-query checkins {:limit 5})}]
-              (let [joining (fn [source]
-                              {:name                   "join"
-                               :type                   "question"
-                               :display                "table"
-                               :visualization_settings {}
-                               :collection_id          (u/the-id collection)
-                               :dataset_query          (mt/mbql-query nil
-                                                         {:source-table source
-                                                          :joins        [{:source-table (mt/id :venues)
-                                                                          :alias        "J"
-                                                                          :strategy     :left-join
-                                                                          :condition    [:= [:field (mt/id :checkins :venue_id) nil]
-                                                                                         [:field (mt/id :venues :id) {:join-alias "J"}]]
-                                                                          :fields       :all}]})})]
-                (testing "rejected when the restricted table is the query's own source"
-                  (is (re-find #"you do not have permissions to run its query"
-                               (:cause (mt/user-http-request :rasta :post 403 "card" (joining (mt/id :checkins)))))))
-                (testing "and rejected just the same when a source Card stands in front of it"
-                  (is (re-find #"you do not have permissions to run its query"
-                               (:cause (mt/user-http-request :rasta :post 403 "card" (joining (str "card__" source-id)))))))
-                (testing "a Card that joins nothing restricted still saves"
-                  (mt/with-model-cleanup [:model/Card]
-                    (is (pos-int? (:id (mt/user-http-request :rasta :post 200 "card"
-                                                             (-> (joining (str "card__" source-id))
-                                                                 (assoc-in [:dataset_query :query :joins] []))))))))))))))))
+(deftest sql-change-preserves-metadata-when-required-param-has-no-default-test
+  (testing "editing a native card with a required-no-default parameter preserves existing result_metadata on save (#83734)"
+    (let [mp                    (mt/metadata-provider)
+          state-tag             {:id           "_STATE_"
+                                 :name         "state"
+                                 :display-name "State"
+                                 :type         :text
+                                 :required     true}
+          query-with-default    (-> (lib/native-query mp "SELECT ID, NAME, EMAIL FROM PEOPLE WHERE STATE = {{state}}")
+                                    (lib/with-template-tags {"state" (assoc state-tag :default "CA")}))
+          query-without-default (-> (lib/native-query
+                                     mp
+                                     "SELECT ID, NAME, EMAIL FROM PEOPLE WHERE STATE = {{state}}\n-- edited")
+                                    (lib/with-template-tags {"state" state-tag}))]
+      (mt/with-temp [:model/Card {card-id :id} {:dataset_query query-with-default}]
+        ;; First, run the card with the default value so result_metadata gets populated server-side.
+        (mt/user-http-request :rasta :post 202 (format "card/%d/query" card-id))
+        (let [metadata-before (t2/select-one-fn :result_metadata :model/Card card-id)]
+          (is (seq metadata-before)
+              "baseline: a run with the default value should populate result_metadata")
+          ;; Now edit the SQL and remove the default — the recompute at save time can't run the query
+          (mt/user-http-request :crowberto :put 200 (format "card/%d" card-id)
+                                {:dataset_query query-without-default})
+          (let [metadata-after (t2/select-one-fn :result_metadata :model/Card card-id)]
+            (is (= (map :name metadata-before)
+                   (map :name metadata-after))
+                "result_metadata should be preserved across SQL edits when the recompute cannot run")))))))

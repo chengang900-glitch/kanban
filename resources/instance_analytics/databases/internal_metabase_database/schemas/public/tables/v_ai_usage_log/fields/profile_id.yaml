@@ -1,6 +1,6 @@
 name: profile_id
 display_name: Profile ID
-description: AI机器人 profile that issued the call (e.g. internal, slackbot).
+description: Metabot profile that issued the call (e.g. internal, slackbot).
 created_at: '2026-04-24T19:39:29.861736Z'
 visibility_type: normal
 table_id: [Internal Metabase Database, public, v_ai_usage_log]
@@ -10,7 +10,6 @@ effective_type: type/Text
 semantic_type: type/Category
 dimensions: []
 position: 5
-custom_position: 0
 database_position: 5
 has_field_values: auto-list
 serdes/meta:

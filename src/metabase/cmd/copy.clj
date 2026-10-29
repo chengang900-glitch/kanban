@@ -65,11 +65,11 @@
     :model/Field
     :model/FieldValues
     :model/FieldUserSettings
+    :model/TableUserSettings
     :model/Segment
     :model/ModerationReview
     :model/Revision
     :model/ViewLog
-    :model/Session
     :model/Collection
     :model/CollectionPermissionGraphRevision
     :model/Dashboard
@@ -100,7 +100,6 @@
     :model/ParameterCard
     :model/Action
     :model/ImplicitAction
-    :model/HTTPAction
     :model/QueryAction
     :model/DashboardTab
     :model/ModelIndex
@@ -143,6 +142,16 @@
     :model/OsiAiContext
     ;; 61+, by table name: migrations create and seed it on every edition, but its model is EE-only
     :metabot_permissions
+    ;; 62+
+    :model/Exploration
+    :model/ExplorationThread
+    :model/ExplorationBlock
+    :model/ExplorationPage
+    :model/ExplorationThreadTimeline
+    :model/ExplorationQuery
+    :model/ExplorationBookmark
+    ;; 63+
+    :model/McpFeedback
     ;; Not in dependency order, and cannot be: `transform.target_table_id` and `metabase_table.transform_id`
     ;; point at each other. Order does not matter -- `copy!` defers or disables FK checks for the whole load.
     :model/Transform
@@ -150,11 +159,11 @@
     :model/TransformTransformTag
     :model/TransformJob
     :model/TransformJobTransformTag
-    ;; Serialization never exports run history; a whole-instance move keeps it.
-    ;; A run still in flight at dump time arrives marked running, and the transform timeout job reaps it.
     :model/TransformJobRun
     :model/TransformRun
-    :model/TransformRunCancelation]
+    :model/TransformRunCancelation
+    :model/TransformDagRun
+    :model/McpGroupPermission]
    (when config/ee-available?
      [:model/MetabotGroupLimit
       :model/MetabotInstanceLimit
@@ -162,9 +171,9 @@
       :model/Tenant
       :model/ConnectionImpersonation
       :model/CustomVizPlugin
-      :model/Workspace
-      :model/WorkspaceDatabase
-      :model/TableRemapping])))
+      :model/ContentDiagnosticsFinding
+      :model/TransformTest
+      :model/TransformTestRun])))
 
 (defn- objects->columns+values
   "Given a sequence of objects/rows fetched from the H2 DB, return a the `columns` that should be used in the `INSERT`
@@ -191,9 +200,10 @@
     (let [{:keys [cols vals]} (objects->columns+values target-db-type chunkk)]
       (jdbc/insert-multi! target-db-conn-spec table-name cols vals {:transaction? false}))
     (catch SQLException e
-      (log/errorf "Error inserting chunk: %s" (ex-message e))
+      (log/error (with-out-str (jdbc/print-sql-exception-chain e)))
       (throw e))))
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:dynamic *copy-h2-database-details*
   "Whether [[copy-data!]] (and thus [[metabase.cmd.load-from-h2/load-from-h2!]]) should copy connection details for H2
   Databases from the source application database. Normally disabled for security reasons. This is only here so we can
@@ -247,6 +257,10 @@
     :model/DataPermissions
     ;; unique_perms_helper is a computed/generated column
     (map #(dissoc % :unique_perms_helper))
+
+    :model/LoginHistory
+    ;; Sessions are no longer copied, and a session deleted while dumping could leave a dangling reference (UXW-5258).
+    (map #(dissoc % :session_id))
 
     ;; else
     identity))
@@ -397,10 +411,9 @@
 (def ^:private entities-without-autoinc-ids
   "Entities that do NOT use an auto incrementing ID column."
   #{:model/Setting
-    :model/Session
     :model/ImplicitAction
-    :model/HTTPAction
     :model/FieldUserSettings
+    :model/TableUserSettings
     :model/QueryAction
     :model/MetabotConversation
     :model/ModelIndexValue
@@ -431,7 +444,6 @@
 ;; Update the sequence nextvals.
 (defmethod update-sequence-values! :postgres
   [_db-type data-source]
-  #_{:clj-kondo/ignore [:discouraged-var]}
   (jdbc/with-db-transaction [target-db-conn {:datasource data-source}]
     (step (trs "Setting Postgres sequence ids to proper values...")
       (doseq [model entities
@@ -449,7 +461,6 @@
 
 (defmethod update-sequence-values! :h2
   [_db-type data-source]
-  #_{:clj-kondo/ignore [:discouraged-var]}
   (jdbc/with-db-transaction [target-db-conn {:datasource data-source}]
     (step (trs "Setting H2 sequence ids to proper values...")
       (doseq [e     entities
@@ -487,6 +498,8 @@
   (doseq [ns-symb (cond->> (vals models.resolution/model->namespace)
                     (not config/ee-available?)
                     (remove #(str/starts-with? (str %) "metabase-enterprise")))]
+    ;; Copying the application database requires every registered model namespace.
+    #_{:clj-kondo/ignore [:metabase/modules]}
     (classloader/require ns-symb))
   ;; make sure the source database is up-do-date. Skip the encryption check: the source may legitimately be unencrypted
   ;; while MB_ENCRYPTION_SECRET_KEY is set for the target (enabling encryption while migrating off H2); rows are copied
@@ -507,7 +520,6 @@
   (step (trs "Clearing default entries created by Liquibase migrations...")
     (clear-existing-rows! target-db-type target-data-source))
   ;; create a transaction and load the data.
-  #_{:clj-kondo/ignore [:discouraged-var]}
   (jdbc/with-db-transaction [target-conn-spec {:datasource target-data-source}]
     ;; transaction should be set as rollback-only until it completes. Only then should we disable rollback-only so the
     ;; transaction will commit (i.e., only commit if the whole thing succeeds)

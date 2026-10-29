@@ -2,6 +2,7 @@
   (:require
    [clojure.string :as str]
    [java-time.api :as t]
+   [metabase.config.core :as config]
    [metabase.settings.core :as setting :refer [defsetting]]
    [metabase.startup.core :as startup]
    [metabase.util.http :as u.http]
@@ -316,7 +317,7 @@
   :visibility :internal
   :audit      :getter)
 
-(defsetting http-channel-host-strategy
+(defsetting http-channel-allowed-networks
   (deferred-tru (str "Controls which types of hosts are allowed as HTTP channel destinations.\n"
                      "Options:\n"
                      "- external-only (default - only external hosts)\n"
@@ -326,18 +327,19 @@
   :visibility :internal
   :default    :external-only
   :export?    false
+  :deprecated-name :http-channel-host-strategy
   :setter     :none
   :doc        (str "Set this when a notification webhook must reach a host on your private network "
                    "(`allow-private`) or on this machine (`allow-all`). Default is `external-only`")
   :getter     (fn []
-                (let [[env-var-name raw-value] (setting/env-var-source :http-channel-host-strategy)]
+                (let [[env-var-name raw-value] (setting/env-var-source :http-channel-allowed-networks)]
                   (or (u.http/env-network-policy env-var-name raw-value)
                       :external-only))))
 
 ;; Reading it throws when the environment names a policy that does not exist: a typo stops the boot rather than
 ;; surfacing at the first webhook.
-(defmethod startup/def-startup-validation! ::http-channel-host-strategy [_]
-  (http-channel-host-strategy))
+(defmethod startup/def-startup-validation! ::http-channel-allowed-networks [_]
+  (http-channel-allowed-networks))
 
 (defsetting slack-configured?
   "Is Slack integration configured?"
@@ -346,3 +348,46 @@
   :getter     (fn [] (boolean (slack-app-token)))
   :export?    false
   :setter     :none)
+
+;;; Retry settings for delivering notifications via channels. The retry machinery itself lives in
+;;; [[metabase.util.retry]]; the settings live here so `util` stays settings-free.
+;;;
+;;; TODO (Chris 2026-07-30) -- rename these to `channel-retry-*`: the bare `retry-` names read as global retry
+;;; policy, but they only configure channel delivery. Needs a deprecation alias for the existing names, since
+;;; `MB_RETRY_MAX_RETRIES` and friends are user-facing.
+
+(defsetting retry-max-retries
+  (deferred-tru "The maximum number of retries for an event.")
+  :type :integer
+  :default (if config/is-dev?
+             0
+             6))
+
+(defsetting retry-initial-interval
+  (deferred-tru "The initial retry delay in milliseconds.")
+  :type :integer
+  :default 500)
+
+(defsetting retry-multiplier
+  (deferred-tru "The delay multiplier between attempts.")
+  :type :double
+  :default 2.0)
+
+(defsetting retry-jitter-factor
+  (deferred-tru "The jitter factor of the retry delay.")
+  :type :double
+  :default 0.1)
+
+(defsetting retry-max-interval-millis
+  (deferred-tru "The maximum delay between attempts.")
+  :type :integer
+  :default 30000)
+
+(defn retry-configuration
+  "Returns a map with the default retry configuration, suitable for [[metabase.util.retry/with-retry]]."
+  []
+  {:max-retries             (retry-max-retries)
+   :initial-interval-millis (retry-initial-interval)
+   :multiplier              (retry-multiplier)
+   :jitter-factor           (retry-jitter-factor)
+   :max-interval-millis     (retry-max-interval-millis)})

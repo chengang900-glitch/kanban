@@ -4,12 +4,16 @@
       <tr>
         <td>
           <div class="container" style="background-color: white; max-width: 555px; border-radius: 24px; margin: 0 auto; padding: 40px; border: 1px solid rgba(7, 23, 34, 0.14)">
+            <div style="text-align: center; margin-bottom: 32px;">
+              {{#if context.application_logo_url}}<img style="max-height: 45px; max-width: 100%;" src="{{context.application_logo_url}}" alt="{{context.application_name}} logo"/>{{else}}<span style="font-size: 24px; font-weight: 700;">{{context.application_name}}</span>{{/if}}
+            </div>
+
             <h1 style="text-align: center; font-size: 27px; line-height: 36px; font-weight: 400; margin: 0 0 8px 0; color: #2F3C45;">
-              最近一天内失败的转换任务
+              Transform jobs that failed in the last day
             </h1>
 
             <div style="text-align: center; margin-bottom: 32px; font-size: 15px; line-height: 165%; color: #656F76;">
-              过去 24 小时内，{{payload.event_info.job_count}} 个任务共失败 {{payload.event_info.failure_count}} 次。
+              {{payload.event_info.job_count}} job(s) failed {{payload.event_info.failure_count}} time(s) in the last 24 hours.
             </div>
 
             {{!-- One block per failing job --}}
@@ -19,11 +23,11 @@
                 {{this.job_name}}
               </a>
               <div style="line-height: 20px; color: #656F76; font-weight: 400; margin-top: 8px;">
-                失败 {{this.failure_count}} 次。
+                Failed {{this.failure_count}} time(s).
               </div>
               {{#if this.latest_error}}
               <div style="line-height: 20px; color: #2F3C45; font-weight: 400; margin-top: 8px;">
-                最新错误：
+                Latest error:
                 <div style="padding-left: 1em; margin-top: 4px;">
                   {{this.latest_error}}
                 </div>
@@ -31,7 +35,7 @@
               {{/if}}
               <div style="margin-top: 16px;">
                 <a href="{{this.job_href}}" style="display: inline-block; background-color: {{../context.application_color}}; color: #ffffff !important; font-weight: 700; font-size: 14px; border-radius: 8px; padding: 12px 16px; text-decoration: none;">
-                  查看任务
+                  View job
                 </a>
               </div>
             </div>
@@ -39,10 +43,25 @@
 
             <hr style="margin-top: 32px; margin-bottom: 32px;">
             <div style="font-size: 12px; line-height: 16px; width: max-content; margin: 0 auto; color: #656F76; text-align: center;">
-              发送自 <a href="{{context.site_url}}" style="color: {{context.application_color}}">{{context.site_url}}</a>。
+              Sent from <a href="{{context.site_url}}" style="color: {{context.application_color}}">{{context.site_url}}</a>.
             </div>
           </div>
 
+          <div style="margin-top: 40px;">
+            <div style="text-align: center; color: #92999E; font-size: 13px;">
+              Metabase, Inc.
+            </div>
+
+            <div style="text-align: center; color: #92999E; font-size: 13px;">
+              9740 Campo Rd., Suite 1029, Spring Valley, CA 91977
+            </div>
+
+            <div style="text-align: center; margin-top: 8px;">
+              <a href="https://www.metabase.com" style="color: #656F76 !important; font-size: 13px;">
+                www.metabase.com
+              </a>
+            </div>
+          </div>
         </td>
       </tr>
     </table>

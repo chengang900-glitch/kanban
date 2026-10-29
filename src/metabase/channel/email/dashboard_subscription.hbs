@@ -29,7 +29,7 @@
                 <td>&#8202;</td>
                 <td>
                   <div class="sender" style="color: {{payload.style.color_text_light}}; font-size: 12px">
-                    发送人：{{creator.common_name}}
+                    Sent by {{creator.common_name}}
                   </div>
                 </td>
               </tr>
@@ -49,7 +49,7 @@
             {{#unless payload.dashboard_subscription.disable_links}}
               <hr>
               <div class="footer" style="font-size: 11px; width: max-content; margin: 0 auto">
-                发送自 <a href="{{context.site_url}}" style="color: {{context.application_color}}">{{context.site_url}}</a>。
+                Sent from <a href="{{context.site_url}}" style="color: {{context.application_color}}">{{context.site_url}}</a>.
                 {{#if computed.management_url}}
                   <a href="{{computed.management_url}}" style="color: {{context.application_color}}">{{computed.management_text}}</a>
                 {{/if}}

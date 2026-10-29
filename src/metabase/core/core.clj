@@ -20,14 +20,18 @@
    [metabase.initialization-status.core :as init-status]
    [metabase.llm.startup :as llm.startup]
    [metabase.logger.core :as logger]
+   [metabase.mcp.http-handler :as mcp.http-handler]
+   [metabase.metrics.core :as metrics]
    [metabase.notification.core :as notification]
-   [metabase.permissions.core :as perms]
+   [metabase.oauth-server.api :as oauth-server.api]
    [metabase.plugins.core :as plugins]
    [metabase.premium-features.core :refer [defenterprise]]
    [metabase.sample-data.core :as sample-data]
+   [metabase.search.embeddings.startup :as embeddings.startup]
    [metabase.server.core :as server]
    [metabase.settings.core :as setting]
    [metabase.setup.core :as setup]
+   [metabase.sso.auth-wrapper :as auth-wrapper]
    [metabase.startup.core :as startup]
    [metabase.system.core :as system]
    [metabase.task.core :as task]
@@ -104,6 +108,7 @@
   []
   (log/info "Metabase Shutting Down ...")
   (queue/stop-listeners!)
+  (startup/run-shutdown-logic!)
   (task/stop-scheduler!)
   (server/stop-web-server!)
   (tracing/shutdown!)
@@ -189,6 +194,7 @@
   (tracing/init!)
   ;; load any plugins as needed
   (plugins/load-plugins!)
+  (embeddings.startup/ensure-in-process-provider!)
   (init-status/set-progress! 0.3)
   (setting/validate-settings-formatting!)
   ;; startup database.  validates connection & runs any necessary migrations
@@ -199,8 +205,6 @@
   ;; negatives, but for now there's not much we can do
   (mdb/setup-db! :create-sample-content? (not config/is-test?))
   (mdb/encrypt-plaintext-columns!)
-  ;; In OSS, convert any Data Analysts group with members to a normal visible group
-  (perms/sync-data-analyst-group-for-oss!)
   ;; Disable read-only mode if its on during startup.
   ;; This can happen if a cloud migration process dies during h2 dump.
   (when (cloud-migration/read-only-mode)
@@ -227,6 +231,13 @@
       (setup/clear-token!))
     (init-status/set-progress! 0.7)
     (reconcile-sample-database!)
+    ;; Sample-content metrics are inserted via raw SQL and so never trigger Card after-insert hooks.
+    ;; Not critical to startup: log and carry on if it fails rather than aborting initialization.
+    (when-let [sample-db-id (sample-data/sample-database-id)]
+      (try
+        (metrics/sync-metric-dimensions-for-database! sample-db-id)
+        (catch Throwable e
+          (log/error e "Error syncing metric dimensions for the Sample Database"))))
     (init-status/set-progress! 0.8))
   (ensure-audit-db-installed!)
   (notification/seed-notification!)
@@ -266,8 +277,11 @@
   (log/info "Starting Metabase in STANDALONE mode")
   (try
     ;; launch embedded webserver
-    (let [server-routes (server/make-routes #'api-routes/routes)
-          handler       (server/make-handler server-routes)]
+    (let [server-routes (server/make-routes {:api        #'api-routes/routes
+                                             :auth       #'auth-wrapper/routes
+                                             :oauth      #'oauth-server.api/oauth-routes
+                                             :well-known #'oauth-server.api/well-known-routes})
+          handler       (server/make-handler server-routes #'mcp.http-handler/options)]
       (server/start-web-server! handler))
     ;; run our initialization process
     (init!)
@@ -275,7 +289,7 @@
     (when (config/config-bool :mb-jetty-join)
       (.join (server/instance)))
     (catch Throwable e
-      (log/errorf "Metabase Initialization FAILED: %s" (ex-message e))
+      (log/error e "Metabase Initialization FAILED")
       (System/exit 1))))
 
 (defn- run-cmd [cmd init-fn args]
@@ -289,6 +303,8 @@
     (when (not-empty mb-trace-str)
       (log/warn "WARNING: You have enabled namespace tracing, which could log sensitive information like db passwords.")
       (doseq [namespace (map symbol (str/split mb-trace-str #",\s*"))]
+        ;; tracing namespaces are supplied by the user at runtime
+        #_{:clj-kondo/ignore [:metabase/modules]}
         (try (require namespace)
              (catch Throwable _
                (throw (ex-info "A namespace you specified with MB_NS_TRACE could not be required" {:namespace namespace}))))

@@ -3,7 +3,7 @@ import { screen } from "__support__/ui";
 import { setup } from "./setup";
 
 describe("ExplainerText (OSS)", () => {
-  it("should hide the external help link when `show-metabase-links: true`", () => {
+  it("should render help link when `show-metabase-links: true`", () => {
     setup({ showMetabaseLinks: true });
 
     expect(
@@ -14,7 +14,7 @@ describe("ExplainerText (OSS)", () => {
     expect(screen.queryByText("Learn more.")).not.toBeInTheDocument();
   });
 
-  it("should hide the external help link when `show-metabase-links: false`", () => {
+  it("should render help link when `show-metabase-links: false`", () => {
     setup({ showMetabaseLinks: false });
 
     expect(

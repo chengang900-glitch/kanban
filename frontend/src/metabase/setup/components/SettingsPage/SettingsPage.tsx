@@ -1,8 +1,11 @@
+import { getLocalizationNoticeText } from "metabase/common/components/CommunityLocalizationNotice";
+import { LogoIcon } from "metabase/common/components/LogoIcon";
 import { useSelector } from "metabase/redux";
 import type { SetupStep } from "metabase/redux/store";
 import { getSteps } from "metabase/setup/selectors";
-import { Box, Flex } from "metabase/ui";
+import { Box, Flex, Icon, Text, Tooltip } from "metabase/ui";
 
+import { AIConfigStep } from "../AIConfigStep";
 import { CloudMigrationHelp } from "../CloudMigrationHelp";
 import { CompletedStep } from "../CompletedStep";
 import { DataUsageStep } from "../DataUsageStep";
@@ -11,6 +14,7 @@ import { DatabaseStep } from "../DatabaseStep";
 import { LanguageSelector } from "../LanguageSelector";
 import { LanguageStep } from "../LanguageStep";
 import { LicenseTokenStep } from "../LicenseTokenStep";
+import { SetupHelp } from "../SetupHelp";
 import { UsageQuestionStep } from "../UsageQuestionStep";
 import { UserStep } from "../UserStep";
 import type { NumberedStepProps } from "../types";
@@ -24,6 +28,7 @@ const STEP_COMPONENTS: Partial<
   user_info: UserStep,
   usage_question: UsageQuestionStep,
   db_connection: DatabaseStep,
+  ai_config: AIConfigStep,
   license_token: LicenseTokenStep,
   data_usage: DataUsageStep,
 };
@@ -31,14 +36,36 @@ const STEP_COMPONENTS: Partial<
 export const SettingsPage = (): JSX.Element => {
   const steps = useSelector(getSteps);
   const SELECT_WIDTH = "10rem";
+  const tooltipText = getLocalizationNoticeText({ mentionMetabase: true });
+  const TOOLTIP_WIDTH = 220;
+
+  const label = (
+    <Text size="sm" c="tooltip-text">
+      {tooltipText}
+    </Text>
+  );
 
   return (
     <div data-testid="setup-forms" className={S.Page}>
       <Box component="header" className={S.PageHeader}>
-        <Flex align="center" justify="flex-end">
+        <Flex align="center" justify="space-between">
+          <Box w={SELECT_WIDTH} className={S.Decoy} />
+          <LogoIcon height={51} />
           <Box w={SELECT_WIDTH}>
-            <Flex align="center">
+            <Flex align="center" justify="space-between" gap="sm">
               <LanguageSelector />
+              <div>
+                <Tooltip
+                  label={label}
+                  position="bottom"
+                  withArrow
+                  multiline
+                  w={TOOLTIP_WIDTH}
+                  ta="center"
+                >
+                  <Icon name="info" aria-label={tooltipText} />
+                </Tooltip>
+              </div>
             </Flex>
           </Box>
         </Flex>
@@ -56,6 +83,7 @@ export const SettingsPage = (): JSX.Element => {
         })}
         <CompletedStep />
         <CloudMigrationHelp />
+        <SetupHelp />
         <DatabaseHelp />
       </Box>
     </div>

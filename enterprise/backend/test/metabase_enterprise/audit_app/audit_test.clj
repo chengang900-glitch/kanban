@@ -7,14 +7,14 @@
    [metabase-enterprise.audit-app.audit :as ee-audit]
    [metabase-enterprise.audit-app.settings :as ee.audit.settings]
    [metabase-enterprise.serialization.cmd :as serialization.cmd]
-   [metabase-enterprise.serialization.v2.backfill-ids :as serdes.backfill]
+   [metabase.app-db.core :as mdb]
    [metabase.audit-app.core :as audit]
    [metabase.core.core :as mbc]
    [metabase.lib.core :as lib]
-   [metabase.models.serialization :as serdes]
    [metabase.permissions-rest.data-permissions.graph :as data-perms.graph]
    [metabase.permissions.models.permissions-group :as perms-group]
    [metabase.plugins.core :as plugins]
+   [metabase.queries.card-schema :as card-schema]
    [metabase.sync.core :as sync.core]
    [metabase.sync.sync :as sync]
    [metabase.sync.task.sync-databases :as task.sync-databases]
@@ -68,8 +68,7 @@
       (is (not= 0 (t2/count :model/Card {:where [:= :database_id audit/audit-db-id]}))
           "Cards should be created for Audit DB when the content is there."))
     (testing "Cards in the audit collection have non-empty :result_metadata after installation"
-      (let [audit-cards             (t2/select [:model/Card :id :name :result_metadata :card_schema]
-                                               :database_id audit/audit-db-id)
+      (let [audit-cards             (t2/select (card-schema/selection [:name]) :database_id audit/audit-db-id)
             audit-cards-no-metadata (filter (comp empty? :result_metadata) audit-cards)]
         (is (seq audit-cards))
         (is (empty? audit-cards-no-metadata)
@@ -143,26 +142,6 @@
       (is (= '("metabase.task.update-field-values.trigger.13371337")
              (get-audit-db-trigger-keys))
           "no sync occurred even when called directly for audit db."))))
-
-(deftest no-backfill-occurs-when-loading-analytics-content-test
-  (mt/with-model-cleanup [:model/Collection]
-    (let [c1-instance (t2/insert-returning-instance! :model/Collection
-                                                     {:entity_id nil,
-                                                      :name      "My Duped Collection",
-                                                      :location  "/"})]
-      ;; fill in the entity_id for c1:
-      (serdes.backfill/backfill-ids-for! :model/Collection)
-      ;; insert c2, which will have the same entity id:
-      (let [c2-instance (t2/insert-returning-instance! :model/Collection (dissoc c1-instance :id))]
-        (testing "c1 and c2 hash to the same entity id."
-          (is (= (u/generate-nano-id (serdes/identity-hash c1-instance))
-                 (u/generate-nano-id (serdes/identity-hash c2-instance)))))
-        (testing "A backfill with 'duplicate' rows (with different ids)."
-          (is (thrown? Exception
-                       (serdes.backfill/backfill-ids-for! :model/Collection))))
-        (testing "No exception is thrown when db has 'duplicate' entries."
-          (is (= ::ee-audit/no-op
-                 (ee-audit/ensure-audit-db-installed!))))))))
 
 (deftest checksum-not-recorded-when-load-fails-test
   (mt/test-drivers #{:postgres :h2 :mysql}
@@ -246,6 +225,21 @@
                                                         (throw (Exception. "sync failed")))]
         (is (nil? (#'ee-audit/maybe-sync-audit-db! audit-db false)))
         (is (= 0 (ee.audit.settings/last-analytics-views-checksum)))))))
+
+(deftest install-sync-records-views-checksum-test
+  (testing "the sync after install/update records the views checksum, so the views-stale sync does not repeat it"
+    (with-audit-db-restoration!
+      (let [audit-db (t2/select-one :model/Database :is_audit true)
+            syncs    (atom 0)]
+        (ee.audit.settings/last-analytics-views-checksum! 0)
+        ;; any engine other than the host's takes the ::updated path
+        (t2/update! :model/Database (:id audit-db) {:engine (if (= :postgres (mdb/db-type)) "h2" "postgres")})
+        (mt/with-dynamic-fn-redefs [ee-audit/views-checksum (constantly 12345)
+                                    sync.core/sync-database! (fn [& _] (swap! syncs inc))]
+          (is (= ::ee-audit/updated (#'ee-audit/maybe-install-audit-db!)))
+          (is (= 12345 (ee.audit.settings/last-analytics-views-checksum)))
+          (#'ee-audit/maybe-sync-audit-db! audit-db false)
+          (is (= 1 @syncs)))))))
 
 (deftest adjust-audit-db-to-source-test
   (testing "adjust-audit-db-to-source! correctly handles tables and fields with mixed case"
@@ -352,7 +346,7 @@
           (testing "precondition: an interrupted host-adjust + schema sync duplicates the view row"
             ;; flip the schema to a value the host driver will not report, so the sync diff mismatches
             (t2/update! :model/Table orig-id {:schema (if (nil? (:schema v-content)) "public" nil)})
-            (sync/sync-database! (t2/select-one :model/Database :is_audit true) {:scan :schema})
+            (sync/sync-database! (:id (t2/select-one :model/Database :is_audit true)) {:scan :schema})
             (is (= 2 (t2/count :model/Table :db_id audit/audit-db-id :name (:name v-content)))
                 "stale-schema sync should produce a duplicate pair")
             (is (false? (t2/select-one-fn :active :model/Table :id orig-id))
@@ -390,7 +384,7 @@
                         :dataset_query {:database audit/audit-db-id :type :query :query {:source-table orig-id}}}]
           (testing "precondition: a real Mode A duplicate pair, customer card on the new/active row"
             (t2/update! :model/Table orig-id {:schema (if (nil? (:schema v-content)) "public" nil)})
-            (sync/sync-database! (t2/select-one :model/Database :is_audit true) {:scan :schema})
+            (sync/sync-database! (:id (t2/select-one :model/Database :is_audit true)) {:scan :schema})
             (let [rows   (t2/select [:model/Table :id :active] :db_id audit/audit-db-id
                                     {:where [:= [:lower :name] "v_content"]})
                   new-id (:id (first (filter :active rows)))]
@@ -471,15 +465,15 @@
   (with-audit-db-restoration!
     (let [audit-db (t2/select-one :model/Database :is_audit true)]
       ;; "Boot 1": steady state (checksums current), the engine-changed sync dies mid-flight.
-      (with-redefs [sync.core/sync-database! (fn [& _] (throw (ex-info "killed mid-sync" {})))]
+      (mt/with-dynamic-fn-redefs [sync.core/sync-database! (fn [& _] (throw (ex-info "killed mid-sync" {})))]
         (#'ee-audit/maybe-sync-audit-db! audit-db true))
       ;; "Boot 2": the full, un-stubbed pipeline, spying on audit-DB syncs.
       (let [audit-db-syncs (atom 0)
-            real-sync      sync.core/sync-database!]
-        (with-redefs [sync.core/sync-database! (fn [db & [opts]]
-                                                 (when (:is_audit db)
-                                                   (swap! audit-db-syncs inc))
-                                                 (real-sync db opts))]
+            real-sync      (mt/original-fn #'sync.core/sync-database!)]
+        (mt/with-dynamic-fn-redefs [sync.core/sync-database! (fn [db-id & [opts]]
+                                                               (when (= db-id (:id audit-db))
+                                                                 (swap! audit-db-syncs inc))
+                                                               (real-sync db-id opts))]
           (mbc/ensure-audit-db-installed!))
         (testing "the boot after an interrupted engine-changed sync re-syncs the audit DB"
           (is (pos? @audit-db-syncs)))))))
@@ -498,17 +492,17 @@
       (try
         ;; stale the content checksum so the (stubbed) load runs inside the locked pipeline
         (audit/last-analytics-checksum! 0)
-        (with-redefs [serialization.cmd/v2-load-internal!
-                      (fn [& _]
-                        (t2/insert! :model/User (assoc (mt/with-temp-defaults :model/User) :email email))
-                        (reset! visible
-                                (deref (future
-                                         (binding [t2.connection/*current-connectable* nil]
-                                           (t2/exists? :model/User :email email)))
-                                       5000 ::timeout))
-                        ;; report no errors: content is already loaded from the steady state, so
-                        ;; letting the checksum advance leaves a consistent end state
-                        {:errors [] :seen []})]
+        (mt/with-dynamic-fn-redefs [serialization.cmd/v2-load-internal!
+                                    (fn [& _]
+                                      (t2/insert! :model/User (assoc (mt/with-temp-defaults :model/User) :email email))
+                                      (reset! visible
+                                              (deref (future
+                                                       (binding [t2.connection/*current-connectable* nil]
+                                                         (t2/exists? :model/User :email email)))
+                                                     5000 ::timeout))
+                                      ;; report no errors: content is already loaded from the steady state, so
+                                      ;; letting the checksum advance leaves a consistent end state
+                                      {:errors [] :seen []})]
           (mbc/ensure-audit-db-installed!))
         (testing "work committed inside the audit pipeline is visible mid-pipeline from another connection"
           (is (true? @visible)))
@@ -527,8 +521,8 @@
       (audit/last-analytics-checksum! 0)
       ;; "Boot 1": the serdes load dies partway through.
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"killed mid-load"
-                            (with-redefs [serialization.cmd/v2-load-internal!
-                                          (fn [& _] (throw (ex-info "killed mid-load" {})))]
+                            (mt/with-dynamic-fn-redefs [serialization.cmd/v2-load-internal!
+                                                        (fn [& _] (throw (ex-info "killed mid-load" {})))]
                               (mbc/ensure-audit-db-installed!))))
       (testing "the content checksum does not advance past an incomplete load"
         (is (= 0 (audit/last-analytics-checksum))))

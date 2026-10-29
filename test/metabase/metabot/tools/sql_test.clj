@@ -8,6 +8,8 @@
    [metabase.metabot.tools.shared :as shared]
    [metabase.metabot.tools.sql :as agent-sql]
    [metabase.metabot.tools.sql.create :as create-sql-query-tools]
+   [metabase.metabot.tools.sql.edit :as edit-sql-query-tools]
+   [metabase.metabot.tools.sql.replace :as replace-sql-query-tools]
    [metabase.permissions.core :as perms]
    [metabase.permissions.models.permissions-group :as perms-group]
    [metabase.test :as mt]))
@@ -52,7 +54,7 @@
 (defn- create-sql-query-in-code-editor
   [args]
   (binding [shared/*memory-atom* (atom {:context {:user_is_viewing [{:type    "code_editor"
-                                                                     :buffers [{:id "buf-1"}]}]}})]
+                                                                     :buffers [{:id "buf-1" :source {:language "sql" :database_id nil} :cursor {:line 0 :column 0}}]}]}})]
     (agent-sql/create-sql-query-code-edit-tool (merge {:sql_query "SELECT 1"
                                                        :title     "Results"}
                                                       args))))
@@ -181,42 +183,40 @@
               (is (str/starts-with? instructions "The SQL query has a syntax error"))
               (is (str/starts-with? output "<result>\nSQL query construction failed.\n</result>\n<instructions>\nThe SQL query has a syntax error")))))))))
 
-(deftest edit-sql-query-inline-viz-test
-  (testing "edit_sql_query surfaces results inline in the NLQ profile and navigate otherwise"
+(deftest edit-and-replace-sql-query-viz-part-test
+  (testing "edit_sql_query and replace_sql_query emit a generated_entity card unless a code-editor buffer is open"
     (mt/test-drivers #{:h2}
       (mt/with-current-user (mt/user->id :crowberto)
         (mt/with-temp [:model/Database {:as db} {:engine :h2}]
           (mt/with-db db
             (let [mp       (mt/metadata-provider)
                   query-id "test-inline-q"
-                  query    (-> (lib/native-query mp "SELECT * FROM t") lib/->legacy-MBQL)
-                  run      (fn [{:keys [context profile-id]}]
-                             (let [memory (atom {:state   {:queries {query-id query}}
-                                                 :context context})]
-                               (binding [shared/*memory-atom* memory
-                                         shared/*profile-id* profile-id]
-                                 (agent-sql/edit-sql-query-tool
-                                  {:query_id  query-id
-                                   :checklist "- [x] checked"
-                                   :edits     [{:old_string "SELECT *" :new_string "SELECT id"}]
-                                   :title     "Results"}))))]
-              (testing "NLQ profile -> a single generated_entity (native) part"
-                (let [parts  (:data-parts (run {:profile-id :nlq}))
-                      entity (:data (first parts))]
-                  (is (= 1 (count parts)))
-                  (is (= "generated_entity" (:data-type (first parts))))
-                  (is (= "card" (:type entity)))
-                  (is (= :native (get-in entity [:query :query :type])))))
-              (testing "non-NLQ profile -> a single navigate_to part"
-                (let [parts (:data-parts (run {:profile-id :sql}))]
-                  (is (= 1 (count parts)))
-                  (is (= "navigate_to" (:data-type (first parts))))))
-              (testing "an open code-editor buffer wins regardless of profile"
-                (let [parts (:data-parts (run {:profile-id :nlq
-                                               :context    {:user_is_viewing [{:type    "code_editor"
-                                                                               :buffers [{:id "buf-1"}]}]}}))]
-                  (is (= 1 (count parts)))
-                  (is (= "code_edit" (:data-type (first parts)))))))))))))
+                  query    (-> (lib/native-query mp "SELECT * FROM t") lib/->legacy-MBQL)]
+              (doseq [[tool-name tool args] [["edit_sql_query" agent-sql/edit-sql-query-tool
+                                              {:edits [{:old_string "SELECT *" :new_string "SELECT id"}]}]
+                                             ["replace_sql_query" agent-sql/replace-sql-query-tool
+                                              {:new_query "SELECT id FROM t"}]]
+                      :let [run (fn [context]
+                                  (let [memory (atom {:state   {:queries {query-id query}}
+                                                      :context context})]
+                                    (binding [shared/*memory-atom* memory]
+                                      (tool (assoc args
+                                                   :query_id  query-id
+                                                   :checklist "- [x] checked"
+                                                   :title     "Results")))))]]
+                (testing tool-name
+                  (testing "a single generated_entity part carries a legacy native query when no code-editor buffer is open"
+                    (let [parts  (:data-parts (run {}))
+                          entity (:data (first parts))]
+                      (is (= 1 (count parts)))
+                      (is (= "generated_entity" (:data-type (first parts))))
+                      (is (= "card" (:type entity)))
+                      (is (= :native (get-in entity [:query :query :type])))))
+                  (testing "an open code-editor buffer receives a code_edit part"
+                    (let [parts (:data-parts (run {:user_is_viewing [{:type    "code_editor"
+                                                                      :buffers [{:id "buf-1" :source {:language "sql" :database_id nil} :cursor {:line 0 :column 0}}]}]}))]
+                      (is (= 1 (count parts)))
+                      (is (= "code_edit" (:data-type (first parts)))))))))))))))
 
 (def ^:private no-native-permission-output
   "You do not have permission to write SQL queries against this database. Native query permissions are required.")
@@ -292,3 +292,18 @@
                                 :checklist "- [x] checked"
                                 :new_query "SELECT 2"
                                 :title     "Results"})))))))))))
+
+(deftest edit-and-replace-sql-query-unexpected-error-test
+  (testing "edit_sql_query and replace_sql_query rethrow non-agent errors so they stay tracked as failures"
+    (mt/with-dynamic-fn-redefs [edit-sql-query-tools/edit-sql-query       (fn [_] (throw (ex-info "boom" {})))
+                                replace-sql-query-tools/replace-sql-query (fn [_] (throw (ex-info "boom" {})))]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"boom"
+                            (agent-sql/edit-sql-query-tool {:query_id  "q-1"
+                                                            :checklist "- [x] checked"
+                                                            :edits     [{:old_string "1" :new_string "2"}]
+                                                            :title     "Results"})))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"boom"
+                            (agent-sql/replace-sql-query-tool {:query_id  "q-1"
+                                                               :checklist "- [x] checked"
+                                                               :new_query "SELECT 2"
+                                                               :title     "Results"}))))))

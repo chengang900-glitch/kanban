@@ -5,7 +5,9 @@ import {
   setupActionEndpoints,
   setupCardsEndpoints,
   setupDatabasesEndpoints,
+  setupPrefetchDashcardValuesEndpoint,
 } from "__support__/server-mocks";
+import { createMockDashboardState } from "__support__/state";
 import { createMockEntitiesState } from "__support__/store";
 import {
   getIcon,
@@ -16,7 +18,6 @@ import {
   within,
 } from "__support__/ui";
 import { getActionIsEnabledInDatabase } from "metabase/dashboard/utils";
-import { createMockDashboardState } from "metabase/redux/store/mocks";
 import { checkNotNull } from "metabase/utils/types";
 import type {
   ActionDashboardCard,
@@ -36,7 +37,7 @@ import {
 } from "metabase-types/api/mocks";
 
 import type { ActionProps } from "./Action";
-import Action from "./Action";
+import { Action } from "./Action";
 
 const DASHBOARD_ID = 123;
 const DASHCARD_ID = 456;
@@ -49,6 +50,7 @@ const ACTION = createMockQueryAction({
   name: "My Awesome Action",
   database_id: DATABASE_ID,
   model_id: ACTION_MODEL_ID,
+  can_write: true,
   parameters: [
     createMockActionParameter({
       id: "parameter_1",
@@ -132,7 +134,7 @@ async function setup({
   const card = checkNotNull(dashcard.card);
 
   if (getActionIsEnabledInDatabase(dashcard)) {
-    fetchMock.get(ACTION_EXEC_MOCK_PATH, {});
+    setupPrefetchDashcardValuesEndpoint(DASHBOARD_ID, DASHCARD_ID, {});
     fetchMock.post(ACTION_EXEC_MOCK_PATH, { "rows-updated": 1 });
 
     // for ActionCreator modal (action edit modal)
@@ -191,6 +193,18 @@ describe("Actions > ActionViz > Action", () => {
       expect(screen.getByRole("button")).toBeDisabled();
       expect(
         screen.getByLabelText(/actions are not enabled/i),
+      ).toBeInTheDocument();
+    });
+
+    it("should render a disabled state for a button with an archived action", async () => {
+      await setup({
+        dashcard: createMockActionDashboardCard({
+          action: { ...ACTION, archived: true },
+        }),
+      });
+      expect(screen.getByRole("button")).toBeDisabled();
+      expect(
+        screen.getByLabelText(/this action is archived/i),
       ).toBeInTheDocument();
     });
 
@@ -315,28 +329,12 @@ describe("Actions > ActionViz > Action", () => {
       });
     });
 
-    it("should NOT allow to edit underlying action if a user does not has edit permissions for this model", async () => {
+    it("should NOT allow to edit underlying action if a user can't write it", async () => {
       await setup({
         dashcard: createMockActionDashboardCard({
-          card: {
-            ...CARD,
-            can_write: false,
-          },
+          action: { ...ACTION, can_write: false },
         }),
       });
-
-      await userEvent.click(screen.getByText("Click me"));
-
-      expect(queryIcon("pencil")).not.toBeInTheDocument();
-    });
-
-    it("should NOT allow to edit underlying action if a user does not has edit permissions for this database", async () => {
-      const readOnlyDB: Database = {
-        ...DATABASE,
-        native_permissions: "none",
-      };
-
-      await setup({ database: readOnlyDB });
 
       await userEvent.click(screen.getByText("Click me"));
 
@@ -470,7 +468,7 @@ describe("Actions > ActionViz > Action", () => {
 
       await userEvent.type(screen.getByLabelText("Parameter 2"), "5");
       await waitFor(() =>
-        expect(screen.getByLabelText("Parameter 2")).toHaveValue(5),
+        expect(screen.getByLabelText("Parameter 2")).toHaveValue("5"),
       );
 
       await userEvent.click(screen.getByRole("button", { name: ACTION.name }));

@@ -58,16 +58,16 @@ describe("getIsWhiteLabeling (OSS)", () => {
 });
 
 describe("getApplicationName (OSS)", () => {
-  it("should return Dashboard when application-name is unchanged", () => {
+  it("should return Metabase when application-name is unchanged", () => {
     const { getState } = setup();
 
-    expect(getApplicationName(getState())).toBe("Dashboard");
+    expect(getApplicationName(getState())).toBe("Metabase");
   });
 
-  it("should return Dashboard when application-name is changed", () => {
+  it("should return Metabase when application-name is changed", () => {
     const { getState } = setup({ applicationName: "something else" });
 
-    expect(getApplicationName(getState())).toBe("Dashboard");
+    expect(getApplicationName(getState())).toBe("Metabase");
   });
 });
 
@@ -80,15 +80,15 @@ describe("getCanWhitelabel (OSS)", () => {
 });
 
 describe("getShowMetabaseLinks (OSS)", () => {
-  it("should return false when show-metabase-links is true", () => {
+  it("should return true when show-metabase-links is true", () => {
     const { getState } = setup({ showMetabaseLinks: true });
 
-    expect(getShowMetabaseLinks(getState())).toBe(false);
+    expect(getShowMetabaseLinks(getState())).toBe(true);
   });
 
-  it("should return false when show-metabase-links is false", () => {
+  it("should return true when show-metabase-links is false", () => {
     const { getState } = setup({ showMetabaseLinks: false });
 
-    expect(getShowMetabaseLinks(getState())).toBe(false);
+    expect(getShowMetabaseLinks(getState())).toBe(true);
   });
 });

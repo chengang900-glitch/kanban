@@ -1,10 +1,13 @@
-import { Route } from "react-router";
-
-import { renderWithProviders, screen } from "__support__/ui";
 import {
+  createMockAdminAppState,
+  createMockAdminState,
   createMockSettingsState,
   createMockState,
-} from "metabase/redux/store/mocks";
+} from "__support__/state";
+import { renderWithProviders, screen, within } from "__support__/ui";
+import { UpsellTenants } from "metabase/admin/upsells/UpsellTenants";
+import { createTenantsRouteGuard } from "metabase/admin/utils";
+import { Route } from "metabase/router";
 import type { EmbeddingHomepageStatus } from "metabase-types/api";
 import {
   createMockTokenFeatures,
@@ -42,6 +45,7 @@ const setup = async (inputSetupOpts?: Partial<SetupOpts>) => {
     settings: createMockSettingsState({
       "active-users-count": setupOpts.activeUsersCount,
       "embedding-homepage":
+        // Unjustified type cast. FIXME
         setupOpts.embeddingHomepage as EmbeddingHomepageStatus,
       "setup-embedding-autoenabled": setupOpts.setupEmbeddingAutoenabled,
       "use-tenants": setupOpts.useTenants,
@@ -53,8 +57,49 @@ const setup = async (inputSetupOpts?: Partial<SetupOpts>) => {
   });
 
   renderWithProviders(
-    <Route path="/" component={() => <AdminPeopleApp>empty</AdminPeopleApp>} />,
+    <Route path="/" element={<AdminPeopleApp />}>
+      <Route index element={<>empty</>} />
+    </Route>,
     {
+      storeInitialState: state,
+      withRouter: true,
+    },
+  );
+};
+
+const setupTenantRoute = async (initialRoute: string) => {
+  const state = createMockState({
+    admin: createMockAdminState({
+      app: createMockAdminAppState({
+        paths: [
+          { key: "people", getName: () => "People", path: "/admin/people" },
+        ],
+      }),
+    }),
+    currentUser: createMockUser({
+      is_superuser: true,
+    }),
+    settings: createMockSettingsState({
+      "setup-embedding-autoenabled": true,
+      "use-tenants": false,
+      "token-features": createMockTokenFeatures({
+        tenants: false,
+      }),
+    }),
+  });
+
+  const TenantsRouteGuard = createTenantsRouteGuard();
+
+  renderWithProviders(
+    <Route path="/admin/people" element={<AdminPeopleApp />}>
+      <Route path="tenants" element={<TenantsRouteGuard />}>
+        <Route path="groups" element={<UpsellTenants />} />
+        <Route path="people" element={<UpsellTenants />} />
+        <Route index element={<UpsellTenants />} />
+      </Route>
+    </Route>,
+    {
+      initialRoute,
       storeInitialState: state,
       withRouter: true,
     },
@@ -81,25 +126,51 @@ describe("AdminPeopleApp", () => {
       await assertNavLink("Tenant users", "/admin/people/tenants/people");
     });
 
-    it("should hide tenant upsell links for embedding setup instances", async () => {
+    it("should render a tenant upsell link for embedding setup instances without tenants", async () => {
       await setup({ setupEmbeddingAutoenabled: true });
 
-      expect(screen.queryByText("Tenants")).not.toBeInTheDocument();
+      const tenantsLink = await assertNavLink(
+        "Tenants",
+        "/admin/people/tenants",
+      );
+
+      expect(within(tenantsLink).getByTestId("upsell-gem")).toBeInTheDocument();
     });
 
-    it("should hide tenant upsell links for the legacy embedding signal", async () => {
+    it("should render tenant upsell links when only the legacy embedding homepage signal is present", async () => {
       await setup({ embeddingHomepage: "visible" });
 
-      expect(screen.queryByText("Tenants")).not.toBeInTheDocument();
+      const tenantsLink = await assertNavLink(
+        "Tenants",
+        "/admin/people/tenants",
+      );
+
+      expect(within(tenantsLink).getByTestId("upsell-gem")).toBeInTheDocument();
+    });
+  });
+
+  describe("tenant upsell routes", () => {
+    it("should render the tenant upsell on /admin/people/tenants", async () => {
+      await setupTenantRoute("/admin/people/tenants");
+
+      expect(
+        await screen.findByText("Use a multi-tenant user strategy"),
+      ).toBeInTheDocument();
     });
   });
 
   describe("nudge to pro", () => {
     const nudgeText = /tired of manually managing people/i;
 
-    it("should stay hidden when user is eligible for the upgrade prompt", () => {
+    it("should be visible when user is admin, has 50 active users, and SSO is not available", () => {
       setup();
-      expect(screen.queryByText(nudgeText)).not.toBeInTheDocument();
+      expect(screen.getByText(nudgeText)).toBeInTheDocument();
+      const link = screen.getByRole("link", { name: /try metabase pro/i });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute(
+        "href",
+        expect.stringMatching(/^https:\/\/www.metabase.com\/upgrade/),
+      );
     });
 
     it("should not be visible with less than 50 users", () => {
@@ -127,5 +198,6 @@ async function assertNavLink(linkText: string, linkHref: string) {
   expect(link).toBeInTheDocument();
   expect(link).toHaveAttribute("href", linkHref);
 
+  // Unjustified type cast. FIXME
   return link as HTMLElement;
 }

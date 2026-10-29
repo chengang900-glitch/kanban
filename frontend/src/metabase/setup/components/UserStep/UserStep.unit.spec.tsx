@@ -1,11 +1,11 @@
 import { mockSettings } from "__support__/settings";
-import { renderWithProviders, screen } from "__support__/ui";
-import type { SetupStep, UserInfo } from "metabase/redux/store";
 import {
   createMockSetupState,
   createMockState,
   createMockUserInfo,
-} from "metabase/redux/store/mocks";
+} from "__support__/state";
+import { renderWithProviders, screen } from "__support__/ui";
+import type { SetupStep, UserInfo } from "metabase/redux/store";
 
 import { UserStep } from "./UserStep";
 
@@ -38,17 +38,14 @@ describe("UserStep", () => {
     expect(screen.getByText("What should we call you?")).toBeInTheDocument();
   });
 
-  it("should show and autofocus last name before first name", () => {
+  it("should autofocus the last name input field", () => {
     setup({ step: "user_info" });
 
-    const lastName = screen.getByLabelText("Last name");
-    const firstName = screen.getByLabelText("First name");
-
-    expect(lastName).toHaveFocus();
-    expect(
-      lastName.compareDocumentPosition(firstName) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(screen.getByLabelText("Last name")).toHaveFocus();
+    expect(screen.getAllByRole("textbox").slice(0, 2)).toEqual([
+      screen.getByLabelText("Last name"),
+      screen.getByLabelText("First name"),
+    ]);
   });
 
   it("should autofocus the password input field for hosted instances", () => {

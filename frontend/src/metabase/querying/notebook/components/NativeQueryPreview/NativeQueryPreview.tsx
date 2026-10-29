@@ -4,11 +4,17 @@ import { useGetNativeDatasetQuery } from "metabase/api";
 import { getErrorMessage } from "metabase/api/utils";
 import { CodeEditor } from "metabase/common/components/CodeEditor";
 import { CopyButton } from "metabase/common/components/CopyButton";
+import { ExternalLink } from "metabase/common/components/ExternalLink";
 import { formatNativeQuery } from "metabase/databases/utils/engine";
-import { Box, Flex, Icon, Loader, Stack } from "metabase/ui";
+import { useSelector } from "metabase/redux";
+import { getLearnUrl } from "metabase/selectors/settings";
+import { getShowMetabaseLinks } from "metabase/selectors/whitelabel";
+import { Box, Button, Flex, Icon, Loader, Stack } from "metabase/ui";
 import * as Lib from "metabase-lib";
-import type { UiParameter } from "metabase-lib/v1/parameters/types";
-import type { NativeDatasetResponse } from "metabase-types/api";
+import type {
+  NativeDatasetResponse,
+  NormalizedQueryParameter,
+} from "metabase-types/api";
 
 import { language } from "../../../components/CodeMirrorEditor/language";
 
@@ -19,12 +25,17 @@ export function NativeQueryPreview({
   parameters = [],
 }: {
   query: Lib.Query;
-  parameters?: UiParameter[];
+  parameters?: NormalizedQueryParameter[];
 }) {
   const { data, error, isFetching } = useGetNativeDatasetQuery({
     ...Lib.toJsQuery(query),
     parameters,
   });
+
+  const showMetabaseLinks = useSelector(getShowMetabaseLinks);
+  const learnUrl = getLearnUrl(
+    "grow-your-data-skills/learn-sql/debugging-sql/sql-syntax",
+  );
 
   const engine = Lib.engine(query);
   const formattedQuery = getFormattedQuery(data, engine);
@@ -50,6 +61,14 @@ export function NativeQueryPreview({
             engine={engine}
             enableCopy={formattedQuery !== undefined}
           />
+        </Flex>
+      )}
+
+      {formattedError && showMetabaseLinks && (
+        <Flex justify="end" mt="xl">
+          <Button component={ExternalLink} href={learnUrl} variant="subtle">
+            {t`Learn how to debug SQL errors`}
+          </Button>
         </Flex>
       )}
     </Stack>

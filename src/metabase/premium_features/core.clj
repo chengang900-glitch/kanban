@@ -37,6 +37,7 @@
   quotas
   TokenStatus
   clear-cache!
+  clear-local-cache!
   token-check-url
   transform-metered-as
   transform-stats]
@@ -59,6 +60,7 @@
   enable-custom-viz?
   enable-data-complexity-score?
   enable-dashboard-subscription-filters?
+  enable-data-apps?
   enable-database-auth-providers?
   enable-database-routing?
   enable-library?
@@ -80,6 +82,7 @@
   enable-scim?
   enable-semantic-search?
   enable-serialization?
+  enable-session-management?
   enable-session-timeout-config?
   enable-snippet-collections?
   enable-sso-google?
@@ -90,8 +93,8 @@
   enable-support-users?
   enable-basic-transforms?
   enable-python-transforms?
+  enable-transform-testing?
   enable-upload-management?
-  enable-workspaces?
   enable-whitelabeling?
   enable-writable-connection?
   has-attached-dwh?

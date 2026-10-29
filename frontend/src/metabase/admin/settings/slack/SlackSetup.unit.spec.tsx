@@ -8,8 +8,9 @@ import {
   setupSlackManifestEndpoint,
   setupSlackSettingsEndpoint,
 } from "__support__/server-mocks";
+import { createMockSettingsState } from "__support__/state";
 import { renderWithProviders, screen, waitFor } from "__support__/ui";
-import { createMockSettingsState } from "metabase/redux/store/mocks";
+import metabotSlackbotIcon from "assets/img/metabot-slackbot.png";
 import { createMockSettings } from "metabase-types/api/mocks";
 
 import { SlackSetup } from "./SlackSetup";
@@ -135,9 +136,9 @@ describe("SlackSetup", () => {
     ).toBeInTheDocument();
   });
 
-  it("should hide docs link when slack app is not working", async () => {
+  it("should show docs link when slack app is not working", async () => {
     await setup({ configured: true, isValid: false });
-    expect(screen.queryByText("See our docs")).not.toBeInTheDocument();
+    expect(screen.getByText("See our docs")).toBeInTheDocument();
   });
 
   it("should disable submit button when token is empty", async () => {
@@ -151,10 +152,8 @@ describe("SlackSetup", () => {
     const downloadLink = screen.getByRole("link", {
       name: "Download App Icon",
     });
-    expect(downloadLink).toHaveAttribute(
-      "href",
-      "/app/assets/img/metabot-slackbot.png",
-    );
+    expect(downloadLink).toHaveAttribute("href", metabotSlackbotIcon);
+    expect(downloadLink).toHaveAttribute("download", "metabot-slack-icon.png");
   });
 
   it("should show link to Slack app settings", async () => {

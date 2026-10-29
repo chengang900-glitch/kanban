@@ -1,10 +1,11 @@
 import {
   setupDatabasesEndpoints,
+  setupEnginesEndpoint,
   setupListTransformsEndpoint,
   setupUserAttributesEndpoint,
 } from "__support__/server-mocks";
+import { createMockSettingsState } from "__support__/state";
 import { renderWithProviders, screen } from "__support__/ui";
-import { createMockSettingsState } from "metabase/redux/store/mocks";
 import type { Database } from "metabase-types/api";
 import {
   createMockDatabase,
@@ -28,24 +29,23 @@ const setup = ({
   setupUserAttributesEndpoint(["cool_guy", "boss_gal"]);
   setupDatabasesEndpoints([database]);
   setupListTransformsEndpoint([]);
+  setupEnginesEndpoint(
+    createMockEngines({
+      "bigquery-cloud-sdk": createMockEngine({
+        "driver-name": "Big Query",
+        "extra-info": {
+          "db-routing-info": {
+            text: "custom db routing info.",
+          },
+        },
+      }),
+    }),
+  );
 
   renderWithProviders(<DatabaseRoutingSection database={database} />, {
     storeInitialState: {
       currentUser: createMockUser({ is_superuser: isAdmin }),
-      settings: createMockSettingsState(
-        createMockSettings({
-          engines: createMockEngines({
-            "bigquery-cloud-sdk": createMockEngine({
-              "driver-name": "Big Query",
-              "extra-info": {
-                "db-routing-info": {
-                  text: "custom db routing info.",
-                },
-              },
-            }),
-          }),
-        }),
-      ),
+      settings: createMockSettingsState(createMockSettings()),
     },
   });
 };
@@ -69,7 +69,7 @@ describe("DatabaseRoutingSection", () => {
     expect(screen.getByLabelText("Enable database routing")).toBeEnabled();
   });
 
-  it("should render DatabaseRoutingSection with custom db_routing_info", () => {
+  it("should render DatabaseRoutingSection with custom db_routing_info", async () => {
     setup({
       database: createMockDatabase({
         engine: "bigquery-cloud-sdk",
@@ -78,7 +78,9 @@ describe("DatabaseRoutingSection", () => {
     });
 
     expect(screen.getByText("Database routing")).toBeInTheDocument();
-    expect(screen.getByText("custom db routing info.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("custom db routing info."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Enable database routing")).toBeInTheDocument();
     expect(screen.getByLabelText("Enable database routing")).toBeEnabled();
   });
@@ -129,7 +131,7 @@ describe("DatabaseRoutingSection", () => {
     expect(
       await screen.findByTestId("db-routing-user-attribute"),
     ).toBeDisabled();
-    expect(screen.queryByText("Add")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Add/ })).not.toBeInTheDocument();
   });
 
   it("should let an admin change routing settings", async () => {
@@ -145,7 +147,7 @@ describe("DatabaseRoutingSection", () => {
     expect(
       await screen.findByTestId("db-routing-user-attribute"),
     ).toBeEnabled();
-    expect(screen.getByText("Add")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Add/ })).toBeInTheDocument();
   });
 
   it("should show a warning when writable connection is enabled", () => {

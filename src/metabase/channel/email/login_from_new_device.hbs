@@ -4,12 +4,16 @@
       <tr>
         <td>
           <div class="container" style="background-color: white; max-width: 555px; border-radius: 24px; margin: 0 auto; padding: 40px; border: 1px solid rgba(7, 23, 34, 0.14)">
+            <div style="text-align: center; margin-bottom: 32px;">
+              {{#if context.application_logo_url}}<img style="max-height: 45px; max-width: 100%;" src="{{context.application_logo_url}}" alt="{{context.application_name}} logo"/>{{else}}<span style="font-size: 24px; font-weight: 700;">{{context.application_name}}</span>{{/if}}
+            </div>
+
             <h1 style="text-align: center; font-size: 27px; line-height: 36px; font-weight: 400; margin: 0 0 24px 0; color: #2F3C45;">
-              检测到你的数据看板账号有一次新设备登录
+              We've noticed a new login on your {{context.application_name}} account.
             </h1>
 
             <p style="text-align: center; font-size: 15px; line-height: 165%; color: #2F3C45; margin: 0 0 16px 0;">
-              你好，{{first-name}}。你的数据看板账号刚刚从一台新设备登录。
+              Hi, {{first-name}}. We noticed a login on your {{context.application_name}} account from a new device.
             </p>
 
             <div style="background-color: #FAFAFB; border-radius: 12px; padding: 24px; margin: 24px auto 24px auto; text-align: center;">
@@ -22,15 +26,30 @@
             </div>
 
             <p style="text-align: center; font-size: 15px; line-height: 165%; color: #2F3C45; margin: 0;">
-              如果是你本人登录，可以忽略此邮件；如果不是，请立即修改密码并联系系统管理员。
+              If this was you, you can safely disregard this email. If this wasn't you, you should change your password immediately.
             </p>
 
             <hr style="margin-top: 32px; margin-bottom: 32px;">
             <div style="font-size: 12px; line-height: 16px; width: max-content; margin: 0 auto; color: #656F76; text-align: center;">
-              发送自 <a href="{{context.site_url}}" style="color: {{context.application_color}}">{{context.site_url}}</a>。
+              Sent from <a href="{{context.site_url}}" style="color: {{context.application_color}}">{{context.site_url}}</a>.
             </div>
           </div>
 
+          <div style="margin-top: 40px;">
+            <div style="text-align: center; color: #92999E; font-size: 13px;">
+              Metabase, Inc.
+            </div>
+
+            <div style="text-align: center; color: #92999E; font-size: 13px;">
+              9740 Campo Rd., Suite 1029, Spring Valley, CA 91977
+            </div>
+
+            <div style="text-align: center; margin-top: 8px;">
+              <a href="https://www.metabase.com" style="color: #656F76 !important; font-size: 13px;">
+                www.metabase.com
+              </a>
+            </div>
+          </div>
         </td>
       </tr>
     </table>

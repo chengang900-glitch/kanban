@@ -10,10 +10,13 @@
    [malli.core :as mc]
    [medley.core :as m]
    [metabase.api.common :as api]
+   [metabase.app-db.core :as app-db]
    [metabase.app-db.setting :as mdb.setting]
    [metabase.config.core :as config]
    [metabase.events.core :as events]
    [metabase.models.serialization :as serdes]
+   [metabase.premium-features.defenterprise :refer [defenterprise]]
+   [metabase.settings.db :as settings.db]
    [metabase.settings.models.setting.cache :as setting.cache]
    [metabase.util :as u]
    [metabase.util.date-2 :as u.date]
@@ -22,6 +25,7 @@
    [metabase.util.json :as json]
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
+   [metabase.util.time :as u.time]
    [methodical.core :as methodical]
    [toucan2.core :as t2])
   (:import
@@ -33,6 +37,7 @@
    (java.util.concurrent TimeUnit)
    (java.util.concurrent.locks ReentrantLock)))
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:dynamic *database*
   "The database upon which we are operating, from which [[*database-local-values*]] are taken.
   This is used to do a just-in-time check whether a given setting is enabled for the given database, so that we can
@@ -42,6 +47,7 @@
   You may need to manually bind it in other places where you want to use Database-local values."
   nil)
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:dynamic *database-local-values*
   "Database-local Settings values (as a map of Setting name -> already-deserialized value). This comes from the value of
   `Database.settings` in the application DB. When bound, any Setting that *can* be Database-local will have a value
@@ -51,6 +57,7 @@
   You may need to manually bind it in other places where you want to use Database-local values."
   nil)
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:dynamic *user-local-values*
   "User-local Settings values (as a delay to a atom containing a map of Setting name -> already-deserialized value). This
   comes from the value of `User.settings` in the application DB. When bound, any Setting that *can* be User-local will
@@ -70,8 +77,10 @@
     "metabot-enabled"
     "ldap-sync-admin-group"
     "user-recent-views"
-    "most-recently-viewed-dashboard"})
+    "most-recently-viewed-dashboard"
+    "llm-max-tokens"})
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:dynamic *allow-retired-setting-names*
   "A dynamic val that controls whether it's allowed to use retired settings.
   Primarily used in test to disable retired setting check."
@@ -86,16 +95,12 @@
 
 (methodical/defmethod t2/primary-keys :model/Setting [_model] [:key])
 
-(defmethod serdes/hash-fields :model/Setting
-  [_setting]
-  [:key])
-
 (declare export?)
 
 (defmethod serdes/extract-all "Setting" [_model _opts]
-  (for [{:keys [key value]} (admin-writable-site-wide-settings
-                             :getter (partial get-value-of-type :string))
-        :when (export? key)]
+  (for [{:keys [key value is_env_setting]} (admin-writable-site-wide-settings
+                                            :getter (partial get-value-of-type :string))
+        :when (and (export? key) (not is_env_setting))]
     {:serdes/meta [{:model "Setting" :id (name key)}]
      :key key
      :value value}))
@@ -104,7 +109,7 @@
   (get-value-of-type :string (keyword id)))
 
 (defmethod serdes/load-one! "Setting" [{:keys [key value]} _]
-  (set-value-of-type! :string key value))
+  (set-value-of-type! :string key (some-> value str)))
 
 (def ^:private Type
   [:fn
@@ -391,13 +396,27 @@
     (and (allows-user-local-values? setting)
          @@*user-local-values*)))
 
+(def unreadable-user-settings-key
+  "Metadata key flagging the map inside [[*user-local-values*]] as a stand-in for a `User.settings` column that did not
+  read back as a map -- see [[metabase.users.models.user/settings-map]]."
+  ::unreadable-user-settings)
+
+(defn- warn-discarding-unreadable-settings!
+  [user-local-values]
+  (when (core/get (meta @user-local-values) unreadable-user-settings-key)
+    (log/warnf "Discarding unreadable settings for user %s: the `settings` column did not read back as a map and is being overwritten."
+               api/*current-user-id*)
+    (swap! user-local-values vary-meta dissoc unreadable-user-settings-key)))
+
 (defn- set-user-local-value! [setting-definition-or-name value]
   (let [{setting-name :name} (resolve-setting setting-definition-or-name)]
+    (warn-discarding-unreadable-settings! @*user-local-values*)
     ;; Update the atom in *user-local-values* with the new value before writing to the DB. This ensures that
     ;; subsequent setting updates within the same API request will not overwrite this value.
     (swap! @*user-local-values* u/assoc-dissoc setting-name value)
-    (t2/update! 'User api/*current-user-id* {:settings (json/encode @@*user-local-values*)})))
+    (settings.db/update-user-settings! api/*current-user-id* (json/encode @@*user-local-values*))))
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:dynamic *enforce-setting-access-checks*
   "A dynamic var that controls whether we should enforce checks on setting access. Defaults to false; should be
   set to true when settings are being written directly via /api/setting endpoints."
@@ -407,16 +426,12 @@
   [feature]
   ((requiring-resolve 'metabase.premium-features.core/has-feature?) feature))
 
-(defn has-advanced-setting-access?
+(defenterprise has-advanced-setting-access?
   "If `advanced-permissions` is enabled, check if current user has permissions to edit `setting`.
   Return `false` for all non-admins when `advanced-permissions` is disabled. Return `true` for all admins."
+  metabase-enterprise.advanced-permissions.common
   []
-  (or api/*is-superuser?*
-      (when (and config/ee-available?
-                 (has-feature? :advanced-permissions))
-        ((requiring-resolve 'metabase-enterprise.advanced-permissions.common/current-user-has-application-permissions?)
-         :setting))
-      false))
+  (boolean api/*is-superuser?*))
 
 (defn- current-user-can-access-setting?
   "This checks whether the current user should have the ability to read or write the provided setting.
@@ -429,9 +444,7 @@
       (nil? api/*current-user-id*)
       api/*is-superuser?*
       (and
-       ;; Non-admin setting managers can only access settings whose visibility is delegable to them per the
-       ;; visibility policy table in the [[defsetting]] docstring. :admin and :admin-write-authed-read settings are
-       ;; writable only by admins, and :internal settings are not writable via the API at all.
+       ;; Non-admin setting managers can only access settings that are not marked as admin-only
        (not api/*is-superuser?*)
        (has-advanced-setting-access?)
        (contains? #{:public :authenticated :settings-manager} (:visibility setting)))
@@ -524,6 +537,7 @@
         (log/warnf "Deprecated %s is set; rename it to %s."
                    legacy-env primary-env)))))
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:private ^:dynamic *disable-init* false)
 
 (declare get)
@@ -539,28 +553,21 @@
   (binding [*disable-init* true]
     (get setting-definition-or-name)))
 
-(def ^:private db-is-set-up-var (atom nil))
-
-(defn- db-is-set-up? []
-  ;; this should never be hit. it is just overly cautious against a NPE here. But no way this cannot resolve
-  (let [f (or @db-is-set-up-var
-              (reset! db-is-set-up-var (requiring-resolve 'metabase.app-db.core/db-is-set-up?)))]
-    (if f (f) false)))
-
 (defn- db-or-cache-value*
   "Look up a single setting key in the DB or cache. Returns the raw (possibly empty) string, or nil."
   ^String [setting-name-str]
   (if config/*disable-setting-cache*
-    (t2/select-one-fn :value :model/Setting :key setting-name-str)
+    (settings.db/setting-value setting-name-str)
     (do
       ;; gotcha - returns immediately if another process is restoring it, i.e. before it's been populated
       (setting.cache/restore-cache-if-needed!)
       (let [cache (setting.cache/cache)]
         (if (nil? cache)
           ;; nil if we returned early above, and the cache is still being restored - in that case hit the db
-          (t2/select-one-fn :value :model/Setting :key setting-name-str)
+          (settings.db/setting-value setting-name-str)
           (core/get cache setting-name-str))))))
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:dynamic *deprecated-db-key-warned*
   "Set of deprecated DB keys that have already triggered a warning. Dynamic so tests can rebind it."
   (atom #{}))
@@ -571,7 +578,7 @@
   ^String [setting-definition-or-name]
   (let [setting (resolve-setting setting-definition-or-name)]
     ;; cannot use db (and cache populated from db) if db is not set up
-    (when (and (db-is-set-up?) (allows-site-wide-values? setting))
+    (when (and (app-db/db-is-set-up?) (allows-site-wide-values? setting))
       (or (not-empty (db-or-cache-value* (setting-name setting)))
           (when-let [deprecated-name (:deprecated-name setting)]
             (when-let [v (not-empty (db-or-cache-value* (setting-name deprecated-name)))]
@@ -595,7 +602,7 @@
 (defn- init! [setting-definition-or-name]
   (let [{:keys [init] :as setting} (resolve-setting setting-definition-or-name)]
     (when init
-      (when (not (db-is-set-up?))
+      (when (not (app-db/db-is-set-up?))
         (throw (ex-info "Cannot initialize setting before the db is set up" {:setting setting})))
       ;; We do not need to interact with the restore-cache-lock as it is OK to race with it.
       (if-not (.tryLock init-lock 30 TimeUnit/SECONDS)
@@ -810,14 +817,12 @@
   (assert (not= setting-name setting.cache/settings-last-updated-key)
           (tru "You cannot update `settings-last-updated` yourself! This is done automatically."))
   ;; Toucan 2 version of `update!` will do transforms and stuff like that
-  (t2/update! :model/Setting :key setting-name {:value new-value}))
+  (settings.db/update-setting-value! setting-name new-value))
 
 (defn- set-new-setting!
   "Insert a new row for a Setting. Used internally by [[set-value-of-type!]] for `:string` below; do not use directly."
   [setting-name new-value]
-  (try (first (t2/insert-returning-instances! :model/Setting
-                                              :key   setting-name
-                                              :value new-value))
+  (try (settings.db/insert-setting! setting-name new-value)
        ;; if for some reason inserting the new value fails it almost certainly means the cache is out of date
        ;; and there's actually a row in the DB that's not in the cache for some reason. Go ahead and update the
        ;; existing value and log a warning
@@ -826,9 +831,14 @@
                     (ex-message e))
          (update-setting! setting-name new-value))))
 
-(defn- obfuscated-value? [v]
+(defn obfuscated-value?
+  "Whether `v` looks like a value already obfuscated by [[obfuscate-value]], i.e. the client echoed back a masked
+  value rather than entering a new one.
+
+  `(?s)` so the trailing `.` can also match newlines, e.g. JSON file contents that end with a newline."
+  [v]
   (when (seq v)
-    (boolean (re-matches #"^\*{10}.{2}$" v))))
+    (boolean (re-matches #"(?s)^\*{10}.{2}$" v))))
 
 (defn obfuscate-value
   "Obfuscate the value of sensitive Setting. We'll still show the last 2 characters so admins can still check that the
@@ -882,11 +892,11 @@
             (cond
               (nil? new-value)
               (do
-                (t2/delete! (t2/table-name :model/Setting) :key setting-name)
+                (settings.db/delete-setting! setting-name)
                 ;; also clear the deprecated-name key so that fallback doesn't resurface an old value
                 (when-let [deprecated-name (:deprecated-name setting)]
                   (let [deprecated-key (core/name deprecated-name)]
-                    (t2/delete! (t2/table-name :model/Setting) :key deprecated-key)
+                    (settings.db/delete-setting! deprecated-key)
                     (setting.cache/update-cache! deprecated-key nil))))
 
               ;; if there's a value in the cache then the row already exists in the DB; update that
@@ -961,8 +971,13 @@
 (defmethod set-value-of-type! :timestamp
   [_setting-type setting-definition-or-name new-value]
   (set-value-of-type!
-   :string setting-definition-or-name
-   (some-> new-value u.date/format)))
+   :string
+   setting-definition-or-name
+   (when (some? new-value) ; nils are written through directly
+     ;; But if there is a value, then it must be one we can coerce to a timestamp.
+     (if-let [timestamp (u.time/coerce-to-timestamp new-value)]
+       (u.date/format timestamp)
+       (throw (ex-info "Malformed value for :timestamp setting" {:value new-value}))))))
 
 (defn- serialize-csv [value]
   (cond
@@ -976,8 +991,11 @@
               (str writer))]
       (first (str/split-lines s)))
 
+    (nil? value)
+    nil
+
     :else
-    value))
+    (str value)))
 
 (defmethod set-value-of-type! :csv
   [_setting-type setting-definition-or-name new-value]
@@ -1027,11 +1045,20 @@
    (let [{:keys [setter enabled? feature] :as setting} (resolve-setting setting-definition-or-name)
          s-name (setting-name setting)]
      (when (and feature (not (has-feature? feature)))
-       (throw (ex-info (tru "Setting {0} is not enabled because feature {1} is not available" s-name feature) setting)))
+       (throw (ex-info (tru "Setting {0} is not enabled because feature {1} is not available" s-name feature)
+                       {:status-code   402
+                        :status        "error-premium-feature-not-available"
+                        :setting       s-name
+                        :feature       feature
+                        :response/keys #{:status}})))
      (when (and enabled? (not (enabled?)))
-       (throw (ex-info (tru "Setting {0} is not enabled" s-name) setting)))
+       (throw (ex-info (tru "Setting {0} is not enabled" s-name)
+                       {:status-code 400
+                        :setting     s-name})))
      (when-not (current-user-can-access-setting? setting)
-       (throw (ex-info (tru "You do not have access to the setting {0}" s-name) setting)))
+       (throw (ex-info (tru "You do not have access to the setting {0}" s-name)
+                       {:status-code 400
+                        :setting     s-name})))
      (when-not bypass-read-only?
        (when (= setter :none)
          (throw (UnsupportedOperationException. (tru "You cannot set {0}; it is a read-only setting." s-name))))))))

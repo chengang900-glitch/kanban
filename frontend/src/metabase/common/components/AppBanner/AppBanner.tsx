@@ -1,31 +1,33 @@
-import { useSetting } from "metabase/common/hooks";
-import { DevModeBanner } from "metabase/nav/components/DevModeBanner";
-import { ReadOnlyBanner } from "metabase/nav/components/ReadOnlyBanner";
+import { getUserIsAdmin } from "metabase/current-user";
+import { PLUGIN_SECURITY_CENTER } from "metabase/plugins";
 import { useSelector } from "metabase/redux";
-import { getUserIsAdmin } from "metabase/selectors/user";
+import { useSetting } from "metabase/settings";
+
+import { DevModeBanner } from "./DevModeBanner";
+import { PaymentBanner } from "./PaymentBanner/PaymentBanner";
+import { ReadOnlyBanner } from "./ReadOnlyBanner";
 
 export const AppBanner = () => {
   const isAdmin = useSelector(getUserIsAdmin);
+  const isHosted = useSetting("is-hosted?");
+  const tokenStatus = useSetting("token-status");
   const migrateReadOnly = useSetting("read-only-mode");
   const isDevMode = useSetting("development-mode?");
-
-  // Most banners are only visible to admins, but DevModeBanner gets shown to all users
-  if (!isAdmin) {
-    return migrateReadOnly ? (
-      <ReadOnlyBanner />
-    ) : isDevMode ? (
-      <DevModeBanner />
-    ) : null;
-  }
 
   if (migrateReadOnly) {
     return <ReadOnlyBanner />;
   }
-
-  if (isDevMode) {
-    return <DevModeBanner />;
+  if (
+    isAdmin &&
+    !isHosted &&
+    tokenStatus &&
+    ["past-due", "unpaid", "invalid"].includes(tokenStatus.status ?? "")
+  ) {
+    return <PaymentBanner tokenStatus={tokenStatus} />;
   }
-
-  // Do not render to admins if the specific conditions haven't been met
-  return null;
+  if (isAdmin && PLUGIN_SECURITY_CENTER.isEnabled) {
+    const { SecurityCenterBanner } = PLUGIN_SECURITY_CENTER;
+    return <SecurityCenterBanner />;
+  }
+  return isDevMode ? <DevModeBanner /> : null;
 };

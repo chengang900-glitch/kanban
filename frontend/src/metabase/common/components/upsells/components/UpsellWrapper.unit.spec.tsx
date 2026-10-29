@@ -3,30 +3,19 @@ import { createMockUser } from "metabase-types/api/mocks";
 
 import { UpsellWrapper } from "./UpsellWrapper";
 
-const Component = () => <div>Hello, beautiful</div>;
-
-describe("Upsells > UpsellWrapper", () => {
-  it("should not show a component for admins", () => {
-    const WrappedComponent = UpsellWrapper(Component);
-
-    renderWithProviders(<WrappedComponent />, {
-      storeInitialState: {
-        currentUser: createMockUser({ is_superuser: true }),
-      },
-    });
-
-    expect(screen.queryByText("Hello, beautiful")).not.toBeInTheDocument();
-  });
-
-  it("should not show component for non-=admins", () => {
-    const WrappedComponent = UpsellWrapper(Component);
-
-    renderWithProviders(<WrappedComponent />, {
-      storeInitialState: {
-        currentUser: createMockUser({ is_superuser: false }),
-      },
-    });
-
-    expect(screen.queryByText("Hello, beautiful")).not.toBeInTheDocument();
-  });
+describe("UpsellWrapper", () => {
+  it.each([true, false])(
+    "does not mount commercial content for admin=%s",
+    (isAdmin) => {
+      const content = jest.fn(() => <div>Commercial content</div>);
+      const Wrapped = UpsellWrapper(content);
+      renderWithProviders(<Wrapped />, {
+        storeInitialState: {
+          currentUser: createMockUser({ is_superuser: isAdmin }),
+        },
+      });
+      expect(content).not.toHaveBeenCalled();
+      expect(screen.queryByText("Commercial content")).not.toBeInTheDocument();
+    },
+  );
 });

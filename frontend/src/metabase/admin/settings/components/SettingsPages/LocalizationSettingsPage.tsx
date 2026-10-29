@@ -1,20 +1,20 @@
 import { t } from "ttag";
 import _ from "underscore";
 
-import {
-  SettingsPageWrapper,
-  SettingsSection,
-} from "metabase/admin/components/SettingsSection";
-import { useSetting } from "metabase/common/hooks";
 import { useSelector } from "metabase/redux";
 import { getApplicationName } from "metabase/selectors/whitelabel";
+import { useListTimezonesQuery, useSetting } from "metabase/settings";
+import {
+  AdminSettingInput,
+  SettingsPageWrapper,
+  SettingsSection,
+} from "metabase/settings-components";
 
-import { AdminSettingInput } from "../widgets/AdminSettingInput";
 import { FormattingWidget } from "../widgets/FormattingWidget";
 
 export function LocalizationSettingsPage() {
   const availableLocales = useSetting("available-locales");
-  const availableTimezones = useSetting("available-timezones");
+  const { data: availableTimezones } = useListTimezonesQuery();
   const applicationName = useSelector(getApplicationName);
 
   return (

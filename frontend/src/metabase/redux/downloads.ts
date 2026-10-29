@@ -9,15 +9,13 @@ import { t } from "ttag";
 import _ from "underscore";
 
 import { datasetApi } from "metabase/api/dataset";
-import { exportFormatPng } from "metabase/common/types/export";
-import { waitUntilNextFramePainted } from "metabase/common/utils/wait-until-next-frame-paints";
 import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
 import type { DownloadsState, State } from "metabase/redux/store";
 import { createAsyncThunk } from "metabase/redux/utils";
-import { getTokenFeature } from "metabase/selectors/settings";
+import { getTokenFeature } from "metabase/settings";
 import * as Urls from "metabase/urls";
 import { getBasename } from "metabase/utils/basename";
-import { openSaveDialog } from "metabase/utils/dom";
+import { openSaveDialog, waitUntilNextFramePainted } from "metabase/utils/dom";
 import { isWithinIframe } from "metabase/utils/iframe";
 import { isJWT } from "metabase/utils/jwt";
 import { checkNotNull } from "metabase/utils/types";
@@ -28,7 +26,7 @@ import {
   DASHBOARD_PDF_EXPORT_ROOT_ID,
   saveDashboardPdf,
 } from "metabase/visualizations/lib/save-dashboard-pdf";
-import { getCardKey } from "metabase/visualizations/lib/utils";
+import { getCardKey } from "metabase/viz-core";
 import type Question from "metabase-lib/v1/Question";
 import type {
   DashCardId,
@@ -37,6 +35,7 @@ import type {
   Dataset,
   VisualizationSettings,
 } from "metabase-types/api";
+import { exportFormatPng } from "metabase-types/api";
 import type { EntityToken, EntityUuid } from "metabase-types/api/entity";
 
 import { trackDownloadResults, trackExportDashboardToPDF } from "./analytics";
@@ -189,9 +188,14 @@ export const downloadToImage = createAsyncThunk(
 
 export const downloadDashboardToPdf = createAsyncThunk(
   "metabase/downloads/downloadDashboardToPdf",
-  async ({ dashboard, id }: { dashboard: Dashboard; id: number }) => {
+  async (
+    { dashboard, id }: { dashboard: Dashboard; id: number },
+    { getState },
+  ) => {
+    const isWhitelabeled = getTokenFeature(getState(), "whitelabel");
+    const includeBranding = !isWhitelabeled;
     const cardNodeSelector = `#${DASHBOARD_PDF_EXPORT_ROOT_ID}`;
-    const fileName = getDashboardPdfFileName(dashboard);
+    const fileName = getDashboardPdfFileName(dashboard, includeBranding);
 
     // Long-running main thread blocking operation incoming; wait until the loader is painted.
     await waitUntilNextFramePainted();
@@ -201,7 +205,7 @@ export const downloadDashboardToPdf = createAsyncThunk(
       selector: cardNodeSelector,
       parametersNodeSelector: `#${DASHBOARD_HEADER_PARAMETERS_PDF_EXPORT_NODE_ID}`,
       dashboardName: dashboard.name,
-      includeBranding: false,
+      includeBranding,
     });
 
     trackExportDashboardToPDF({
@@ -358,6 +362,7 @@ const convertSearchParamsToObject = (params: URLSearchParams) => {
   const object: Record<string, string | string[]> = {};
   for (const [key, value] of params.entries()) {
     if (object[key]) {
+      // Unjustified type cast. FIXME
       object[key] = ([] as string[]).concat(object[key], value);
     } else {
       object[key] = value;
@@ -602,8 +607,17 @@ export const getChartFileName = (question: Question, branded: boolean) => {
   return branded ? `Metabase-${fileName}` : fileName;
 };
 
-export const getDashboardPdfFileName = (dashboard: Dashboard) =>
-  `${dashboard.name}.pdf`;
+export const getDashboardPdfFileName = (
+  dashboard: Dashboard,
+  branded: boolean,
+) => {
+  const originalFileName = `${dashboard.name}.pdf`;
+  const fileName = branded
+    ? // eslint-disable-next-line metabase/no-literal-metabase-strings -- Used explicitly in non-whitelabeled instances
+      `Metabase - ${originalFileName}`
+    : originalFileName;
+  return fileName;
+};
 
 export const getDownloads = (state: State) => state.downloads.datasetRequests;
 export const hasActiveDownloads = (state: State) =>

@@ -6,9 +6,8 @@ import { DashboardSelector } from "metabase/common/components/DashboardSelector/
 import { Link } from "metabase/common/components/Link";
 import CS from "metabase/css/core/index.css";
 import { useDispatch } from "metabase/redux";
-import { updateSettings } from "metabase/redux/settings";
 import { addUndo, dismissUndo } from "metabase/redux/undo";
-import { refreshCurrentUser } from "metabase/redux/user";
+import { useUpdateSettingsMutation } from "metabase/settings";
 import { Box, Button, Flex, Modal, Text } from "metabase/ui";
 import type { DashboardId } from "metabase-types/api";
 
@@ -27,15 +26,14 @@ export const CustomHomePageModal = ({
 }: CustomHomePageModalProps) => {
   const [dashboardId, setDashboardId] = useState<DashboardId>();
   const dispatch = useDispatch();
+  const [updateSettings] = useUpdateSettingsMutation();
 
   const handleSave = async () => {
-    await dispatch(
-      updateSettings({
-        [CUSTOM_HOMEPAGE_DASHBOARD_SETTING_KEY]: dashboardId,
-        [CUSTOM_HOMEPAGE_SETTING_KEY]: true,
-        [CUSTOM_HOMEPAGE_REDIRECT_TOAST_KEY]: true,
-      }),
-    );
+    await updateSettings({
+      [CUSTOM_HOMEPAGE_DASHBOARD_SETTING_KEY]: dashboardId,
+      [CUSTOM_HOMEPAGE_SETTING_KEY]: true,
+      [CUSTOM_HOMEPAGE_REDIRECT_TOAST_KEY]: true,
+    }).unwrap();
 
     const id = Date.now();
     await dispatch(
@@ -44,12 +42,12 @@ export const CustomHomePageModal = ({
           <Box ml="0.5rem" mr="2.5rem">
             <Text
               span
-              c="text-primary-inverse"
+              c="inherit"
               fw={700}
             >{t`This dashboard has been set as your homepage.`}</Text>
             <Text
               span
-              c="text-primary-inverse"
+              c="inherit"
             >{t`You can change this in Admin > Settings > General.`}</Text>
           </Box>
         ),
@@ -61,7 +59,6 @@ export const CustomHomePageModal = ({
         canDismiss: false,
       }),
     );
-    await dispatch(refreshCurrentUser());
     trackCustomHomepageDashboardEnabled("homepage");
   };
 
@@ -93,7 +90,7 @@ export const CustomHomePageModal = ({
           {t`If anyone lacks permission to see the dashboard you pick, they'll be redirected to the default homepage.`}
         </Text>
         <Text mt="sm">{jt`You can always change the homepage in ${<Link key="link" className={CS.link} to="/admin/settings/general" style={{ textDecoration: "underline" }}>{t`admin settings`}</Link>} under General.`}</Text>
-        <Box mt="lg">
+        <Box mt="xl">
           <DashboardSelector
             value={dashboardId}
             fullWidth={false}
@@ -102,8 +99,8 @@ export const CustomHomePageModal = ({
         </Box>
       </Box>
 
-      <Flex mt="lg" justify="flex-end" gap="0.5rem">
-        <Button variant="subtle" onClick={handleClose}>
+      <Flex mt="xl" justify="flex-end" gap="0.5rem">
+        <Button variant="subtle" color="neutral" onClick={handleClose}>
           {t`Cancel`}
         </Button>
         <Button variant="filled" disabled={!dashboardId} onClick={handleSave}>

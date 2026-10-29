@@ -8,14 +8,14 @@ describe("UserAvatar", () => {
     test("render user with name", async () => {
       const revisionUser = createMockUser({
         first_name: "Testy",
-        last_name: "Alpha",
-        common_name: "AlphaTesty",
+        last_name: "Tableton",
+        common_name: "Testy Tableton",
         email: "user@metabase.test",
       });
 
       render(<UserAvatar user={revisionUser} />);
 
-      expect(await screen.findByText("AT")).toBeInTheDocument();
+      expect(await screen.findByText("TT")).toBeInTheDocument();
     });
 
     test("render user without name", async () => {
@@ -36,13 +36,13 @@ describe("UserAvatar", () => {
     test("render user with name", async () => {
       const revisionUser = createMockUser({
         first_name: "Testy",
-        last_name: "Alpha",
-        common_name: "AlphaTesty",
+        last_name: "Tableton",
+        common_name: "Testy Tableton",
       });
 
       render(<UserAvatar user={revisionUser} />);
 
-      expect(await screen.findByText("AT")).toBeInTheDocument();
+      expect(await screen.findByText("TT")).toBeInTheDocument();
     });
 
     test("render user without name", async () => {

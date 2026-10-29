@@ -1,11 +1,13 @@
+import cx from "classnames";
 import type { MouseEvent } from "react";
 
-import { useSetting } from "metabase/common/hooks";
+import { Link } from "metabase/common/components/Link";
 import { useIsAtHomepageDashboard } from "metabase/common/hooks/use-is-at-homepage-dashboard";
+import { useSetting } from "metabase/settings";
 import { Text } from "metabase/ui";
 import { getDisplaySiteName } from "metabase/utils/branding";
 
-import { LogoLink } from "./AppBarLogo.styled";
+import S from "./AppBar.module.css";
 
 export interface AppBarLogoProps {
   isSmallAppBar?: boolean;
@@ -39,10 +41,13 @@ export function AppBarLogo({
   };
 
   return (
-    <LogoLink
+    <Link
       to="/"
-      isSmallAppBar={Boolean(isSmallAppBar)}
-      isGitSyncVisible={Boolean(isGitSyncVisible)}
+      style={{ maxWidth: isSmallAppBar ? "8rem" : "14rem" }}
+      className={cx(S.logoLink, {
+        [S.logoLinkSpaced]: !isSmallAppBar && !isGitSyncVisible,
+        [S.logoLinkSpacedGitSync]: !isSmallAppBar && isGitSyncVisible,
+      })}
       onClick={handleClick}
       disabled={!isNavBarEnabled}
       data-testid="main-logo-link"
@@ -50,6 +55,6 @@ export function AppBarLogo({
       <Text data-testid="main-logo" title={siteName} fz="lg" fw={700} truncate>
         {siteName}
       </Text>
-    </LogoLink>
+    </Link>
   );
 }

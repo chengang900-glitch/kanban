@@ -12,7 +12,7 @@ function setup(opts: SetupOpts) {
 }
 
 describe("DashCardParameterMapper > DisabledNativeCardHelpText (EE with token)", () => {
-  it("should hide the parameter help link when `show-metabase-links: true`", () => {
+  it("should show a parameter help link when `show-metabase-links: true`", () => {
     setup({ showMetabaseLinks: true });
 
     expect(
@@ -20,7 +20,7 @@ describe("DashCardParameterMapper > DisabledNativeCardHelpText (EE with token)",
         "A text variable in this card can only be connected to a text filter with Is operator.",
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Learn how")).not.toBeInTheDocument();
+    expect(screen.getByText("Learn how")).toBeInTheDocument();
   });
 
   it("should not show a parameter help link when `show-metabase-links: false`", () => {
@@ -34,7 +34,7 @@ describe("DashCardParameterMapper > DisabledNativeCardHelpText (EE with token)",
     expect(screen.queryByText("Learn how")).not.toBeInTheDocument();
   });
 
-  it("should hide the model help link when `show-metabase-links: true`", () => {
+  it("should show a model help link when `show-metabase-links: true`", () => {
     setup({ cardType: "model", showMetabaseLinks: true });
 
     expect(screen.getByText(/Models are data sources/)).toBeInTheDocument();

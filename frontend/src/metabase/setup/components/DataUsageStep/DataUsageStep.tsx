@@ -4,30 +4,24 @@ import { t } from "ttag";
 
 import { ActionButton } from "metabase/common/components/ActionButton";
 import { useDispatch } from "metabase/redux";
+import { Box, Flex, Switch } from "metabase/ui";
 
-import { goToNextStep, updateTracking } from "../../actions";
+import { goToNextStep } from "../../actions";
 import { useStep } from "../../useStep";
 import { ActiveStep } from "../ActiveStep";
 import { InactiveStep } from "../InactiveStep";
 import type { NumberedStepProps } from "../types";
-
-import {
-  StepError,
-  StepToggle,
-  StepToggleContainer,
-  StepToggleLabel,
-} from "./DataUsageStep.styled";
 
 export const DataUsageStep = ({
   stepLabel,
 }: NumberedStepProps): JSX.Element => {
   const { isStepActive, isStepCompleted } = useStep("data_usage");
   const [errorMessage, setErrorMessage] = useState<string>();
+  const isTrackingAllowed = false;
   const dispatch = useDispatch();
 
   const handleStepSubmit = async () => {
     try {
-      await dispatch(updateTracking(false)).unwrap();
       await dispatch(goToNextStep()).unwrap();
     } catch (error) {
       setErrorMessage(getSubmitError(error));
@@ -38,7 +32,7 @@ export const DataUsageStep = ({
   if (!isStepActive) {
     return (
       <InactiveStep
-        title={getStepTitle(false, isStepCompleted)}
+        title={getStepTitle(isTrackingAllowed, isStepCompleted)}
         label={stepLabel}
         isStepCompleted={isStepCompleted}
       />
@@ -46,17 +40,28 @@ export const DataUsageStep = ({
   }
 
   return (
-    <ActiveStep title={getStepTitle(false, isStepCompleted)} label={stepLabel}>
-      <StepToggleContainer>
-        <StepToggle
-          value={false}
+    <ActiveStep
+      title={getStepTitle(isTrackingAllowed, isStepCompleted)}
+      label={stepLabel}
+    >
+      <Flex
+        align="center"
+        mr="xxl"
+        mb="lg"
+        p="lg"
+        bd="2px solid var(--mb-color-border-neutral)"
+        bdrs="sm"
+      >
+        <Switch
+          flex="0 0 auto"
+          checked={isTrackingAllowed}
           disabled
           aria-labelledby="anonymous-usage-events-label"
         />
-        <StepToggleLabel id="anonymous-usage-events-label">
-          {t`Allow Dashboard to anonymously collect usage events`}
-        </StepToggleLabel>
-      </StepToggleContainer>
+        <Box id="anonymous-usage-events-label" c="text-secondary" ml="sm">
+          {t`Allow Metabase to anonymously collect usage events`}
+        </Box>
+      </Flex>
       <ActionButton
         normalText={t`Finish`}
         activeText={t`Finishing…`}
@@ -66,7 +71,11 @@ export const DataUsageStep = ({
         type="button"
         actionFn={handleStepSubmit}
       />
-      {errorMessage && <StepError>{errorMessage}</StepError>}
+      {errorMessage && (
+        <Box c="feedback-negative" mt="sm">
+          {errorMessage}
+        </Box>
+      )}
     </ActiveStep>
   );
 };

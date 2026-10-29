@@ -67,10 +67,10 @@ describe("getIsWhiteLabeling (EE with token)", () => {
 });
 
 describe("getApplicationName (EE with token)", () => {
-  it("should return Dashboard when application-name is unchanged", () => {
+  it("should return Metabase when application-name is unchanged", () => {
     const { getState } = setup();
 
-    expect(getApplicationName(getState())).toBe("Dashboard");
+    expect(getApplicationName(getState())).toBe("Metabase");
   });
 
   it("should return the application when application-name is changed", () => {

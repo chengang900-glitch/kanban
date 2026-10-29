@@ -10,7 +10,7 @@ function setup(opts: SetupOpts) {
 }
 
 describe("FormCerator > Description (EE without token)", () => {
-  it("should hide the external help link when `show-metabase-links: true`", () => {
+  it("should show a help link when `show-metabase-links: true`", () => {
     setup({ showMetabaseLinks: true });
 
     expect(
@@ -21,7 +21,7 @@ describe("FormCerator > Description (EE without token)", () => {
     expect(screen.queryByText("Learn more")).not.toBeInTheDocument();
   });
 
-  it("should hide the external help link when `show-metabase-links: false`", () => {
+  it("should show a help link when `show-metabase-links: false`", () => {
     setup({ showMetabaseLinks: false });
 
     expect(

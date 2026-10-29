@@ -8,8 +8,8 @@
    [clojure.string :as str]
    [java-time.api :as t]
    [medley.core :as m]
-   [metabase.app-db.core :as app-db]
    [metabase.appearance.core :as appearance]
+   [metabase.channel.db :as channel.db]
    [metabase.channel.email :as email]
    [metabase.channel.email.logo :as email.logo]
    [metabase.channel.render.core :as channel.render]
@@ -24,20 +24,23 @@
    [metabase.util :as u]
    [metabase.util.date-2 :as u.date]
    [metabase.util.encryption :as encryption]
-   [metabase.util.i18n :as i18n :refer [tru]]
+   [metabase.util.i18n :as i18n :refer [trs tru]]
    [metabase.util.json :as json]
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
-   [toucan2.core :as t2]))
+   [metabase.util.malli.schema :as ms]))
 
 (set! *warn-on-reflection* true)
 
 (defn app-name-trs
-  "Return the user configured application name, or the localized product name
-  if a name isn't configured."
+  "Return a configured application/site name, falling back to the localized product name."
   []
-  (or (appearance/application-name)
-      "数据看板"))
+  (let [application-name (appearance/application-name)
+        site-name (appearance/site-name)]
+    (cond
+      (and (not (str/blank? application-name)) (not= application-name "Metabase")) application-name
+      (and (not (str/blank? site-name)) (not= site-name "Metabase")) site-name
+      :else (trs "Metabase"))))
 
 (defn- logo-bundle
   "Get the logo bundle for the current application logo."
@@ -45,10 +48,15 @@
   (email.logo/logo-bundle (appearance/application-logo-url)))
 
 (defn logo-url
-  "Return the URL for a custom application logo.
+  "Return the URL for the application logo. If the logo is the default, return a URL to the Metabase logo.
    For data URIs, returns the cid: reference (requires logo-attachment to be included in email)."
   []
   (:image-src (logo-bundle)))
+
+(defn- logo-attachment
+  "Return the logo attachment map for embedding in emails, or nil if not needed."
+  []
+  (:attachment (logo-bundle)))
 
 (defn button-style
   "Return a CSS style string for a button with the given color."
@@ -79,10 +87,26 @@
    :colorTextDark      channel.render/color-text-dark
    :siteUrl            (system/site-url)})
 
+(defn- make-message-attachment
+  "Convert a content-id/url pair to an email attachment map."
+  [[content-id url]]
+  {:type         :inline
+   :content-id   content-id
+   :content-type "image/png"
+   :content      url})
+
 (defn- send-email-with-logo!
-  "Send an email without adding a branding logo attachment."
-  [email-args]
-  (email/send-message! email-args))
+  "Send an email, including the logo as an attachment if it's a data URI.
+   Takes the same args as email/send-message! but handles logo attachments automatically."
+  [{:keys [message] :as email-args}]
+  (if-let [attachment (logo-attachment)]
+    (email/send-message!
+     (assoc email-args
+            :message-type :attachments
+            :message      (vec (cons {:type    "text/html; charset=utf-8"
+                                      :content message}
+                                     [(make-message-attachment (first attachment))]))))
+    (email/send-message! email-args)))
 
 ;;; ### Public Interface
 
@@ -93,7 +117,7 @@
   [email]
   {:pre [(u/email? email)]}
   (send-email-with-logo!
-   {:subject      "[数据看板] 已启用双重身份验证"
+   {:subject      (trs "[{0}] Two-factor authentication was enabled on your account" (app-name-trs))
     :recipients   [email]
     :message-type :html
     :message      (channel.template/render "mfa_enabled" (assoc (common-context) :logoHeader true))}))
@@ -105,7 +129,7 @@
   [email]
   {:pre [(u/email? email)]}
   (send-email-with-logo!
-   {:subject      "[数据看板] 已关闭双重身份验证"
+   {:subject      (trs "[{0}] Two-factor authentication was disabled on your account" (app-name-trs))
     :recipients   [email]
     :message-type :html
     :message      (channel.template/render "mfa_disabled" (assoc (common-context) :logoHeader true))}))
@@ -115,7 +139,7 @@
   [email]
   {:pre [(u/email? email)]}
   (send-email-with-logo!
-   {:subject      "[数据看板] 已移除双重身份验证"
+   {:subject      (trs "[{0}] Two-factor authentication was removed from your account" (app-name-trs))
     :recipients   [email]
     :message-type :html
     :message      (channel.template/render "mfa_removed_by_admin" (assoc (common-context) :logoHeader true))}))
@@ -128,7 +152,7 @@
   [email code]
   {:pre [(u/email? email) (string? code)]}
   (email/send-message-or-throw!
-   {:subject      "[数据看板] 登录验证码"
+   {:subject      (trs "[{0}] Your sign-in code" (app-name-trs))
     :recipients   [email]
     :message-type :html
     :message      (channel.template/render "mfa_login_code" (assoc (common-context) :logoHeader true :code code))}))
@@ -145,29 +169,21 @@
   []
   (concat (when-let [admin-email (system/admin-email)]
             [admin-email])
-          (t2/select-fn-set :email 'User
-                            :is_superuser true
-                            :is_active    true
-                            :last_login   [:not= nil]
-                            :type         "personal"
-                            {:order-by [[:id :asc]]})))
+          (channel.db/accepted-admin-emails)))
 
 (defn send-user-joined-admin-notification-email!
   "Send an email to the `invitor` (the Admin who invited `new-user`) letting them know `new-user` has joined."
   [new-user & {:keys [google-auth?]}]
   {:pre [(map? new-user)]}
-  (let [recipients   (all-admin-recipients)
-        display-name (or (not-empty (str/join " " (remove str/blank? [(:first_name new-user)
-                                                                      (:last_name new-user)])))
-                         (:email new-user))]
+  (let [recipients (all-admin-recipients)]
     (send-email-with-logo!
-     {:subject      (if google-auth?
-                      (format "%s 创建了数据看板账号" display-name)
-                      (format "%s 已接受数据看板邀请" display-name))
+     {:subject      (str (if google-auth?
+                           (trs "{0} created a {1} account" (:common_name new-user) (app-name-trs))
+                           (trs "{0} accepted their {1} invite" (:common_name new-user) (app-name-trs))))
       :recipients   recipients
       :message-type :html
       :message      (channel.template/render "user_joined_notification"
-                                             {:context           {:application_name     (appearance/application-name)
+                                             {:context           {:application_name     (app-name-trs)
                                                                   :application_color    (channel.render/primary-color)
                                                                   :application_logo_url (logo-url)
                                                                   :site_url             (system/site-url)}
@@ -175,7 +191,7 @@
                                               :joinedUserName    (or (:first_name new-user) (:email new-user))
                                               :joinedViaSSO      google-auth?
                                               :joinedUserEmail   (:email new-user)
-                                              :joinedDate        (t/format "yyyy年M月d日" (t/zoned-date-time))
+                                              :joinedDate        (t/format "EEEE, MMMM d" (t/zoned-date-time)) ; e.g. "Wednesday, July 13".
                                               :adminEmail        (first recipients)
                                               :joinedUserEditUrl (str (system/site-url) "/admin/people")})})))
 
@@ -192,12 +208,12 @@
                               :google           google-sso?
                               :nonGoogleSSO     (and (not google-sso?) (some? sso-source))
                               :passwordResetUrl password-reset-url
-                              :logoHeader       false
+                              :logoHeader       true
                               :isActive         is-active?
                               :adminEmail       (system/admin-email)
                               :adminEmailSet    (boolean (system/admin-email))}))]
-    (email/send-message!
-     {:subject      "[数据看板] 密码重置请求"
+    (send-email-with-logo!
+     {:subject      (trs "[{0}] Password Reset Request" (app-name-trs))
       :recipients   [email]
       :message-type :html
       :message      message-body})))
@@ -205,14 +221,22 @@
 (mu/defn send-login-from-new-device-email!
   "Format and send an email informing the user that this is the first time we've seen a login from this device. Expects
   login history information as returned by [[metabase.login-history.models.login-history/human-friendly-infos]]."
-  [{user-id :user_id, :keys [timestamp], :as login-history} :- [:map [:user_id pos-int?]]]
-  (let [user-info    (or (t2/select-one [:model/User :last_name :first_name :email :locale] :id user-id)
+  [{user-id :user_id, :keys [timestamp], :as login-history} :- [:map {:closed true}
+                                                                [:user_id             pos-int?]
+                                                                [:device_description  {:optional true} [:maybe :string]]
+                                                                [:device_id           {:optional true} [:maybe :string]]
+                                                                [:ip_address          {:optional true} [:maybe :string]]
+                                                                [:location            {:optional true} [:maybe :string]]
+                                                                [:session_id          {:optional true} [:maybe :string]]
+                                                                [:timestamp           {:optional true} [:maybe ms/TemporalInstant]]
+                                                                [:timezone            {:optional true} [:maybe :string]]]]
+  (let [user-info    (or (channel.db/user-contact-info user-id)
                          (throw (ex-info (tru "User {0} does not exist" user-id)
                                          {:user-id user-id, :status-code 404})))
         user-locale  (or (:locale user-info) (i18n/site-locale))
         timestamp    (u.date/format-human-readable timestamp user-locale)
         username     (or (:first_name user-info) (:last_name user-info) (:email user-info))
-        context      {:context    {:application_name     (appearance/application-name)
+        context      {:context    {:application_name     (app-name-trs)
                                    :application_color    (channel.render/primary-color)
                                    :application_logo_url  (logo-url)
                                    :site_url             (system/site-url)}
@@ -224,7 +248,7 @@
         message-body (channel.template/render "login_from_new_device"
                                               context)]
     (send-email-with-logo!
-     {:subject      (format "数据看板新设备登录提醒：%s" username)
+     {:subject      (trs "We''ve Noticed a New {0} Login, {1}" (app-name-trs) username)
       :recipients   [(:email user-info)]
       :message-type :html
       :message      message-body})))
@@ -236,19 +260,7 @@
   [database-id]
   (let [monitoring (perms/application-perms-path :monitoring)
         user-ids-with-monitoring (when (premium-features/enable-advanced-permissions?)
-                                   (->> {:select   [:pgm.user_id]
-                                         :from     [[:permissions_group_membership :pgm]]
-                                         :join     [[:permissions_group :pg] [:= :pgm.group_id :pg.id]]
-                                         :where    [:and
-                                                    [:exists ^:allow-subquery
-                                                     {:select [1]
-                                                      :from [[:permissions :p]]
-                                                      :where [:and
-                                                              [:= :p.group_id :pg.id]
-                                                              [:= :p.object monitoring]]}]]
-                                         :group-by [:pgm.user_id]}
-                                        app-db/query
-                                        (mapv :user_id)))
+                                   (mapv :user_id (channel.db/user-ids-with-permission monitoring)))
         user-ids (filter
                   #(perms/user-has-permission-for-database? % :perms/manage-database :yes database-id)
                   user-ids-with-monitoring)]
@@ -258,9 +270,7 @@
      (concat
       (all-admin-recipients)
       (when (seq user-ids)
-        (t2/select-fn-set :email :model/User {:where [:and
-                                                      [:= :is_active true]
-                                                      [:in :id user-ids]]}))))))
+        (channel.db/active-user-emails user-ids))))))
 
 (defn send-persistent-model-error-email!
   "Format and send an email informing the user about errors in the persistent model refresh task.
@@ -283,11 +293,8 @@
                     :card-name (:name card)
                     :collection-name (:name collection)
                     ;; February 1, 2022, 3:10 PM
-                    :last-run-at (t/format "yyyy-MM-dd HH:mm z" (t/zoned-date-time (:refresh_begin persisted-info) timezone))
-                    :last-run-trigger (case trigger-label
-                                        "Scheduled" "定时"
-                                        "Manual"    "手动"
-                                        trigger-label)
+                    :last-run-at (t/format "MMMM d, yyyy, h:mm a z" (t/zoned-date-time (:refresh_begin persisted-info) timezone))
+                    :last-run-trigger trigger-label
                     :card-url (urls/card-url (:id card))
                     :collection-url (urls/collection-url (:id collection))
                     :caching-log-details-url (urls/tools-caching-details-url (:id persisted-info))})}
@@ -295,7 +302,7 @@
                                               (merge (common-context) context))]
     (when (seq emails)
       (email/send-message!
-       {:subject      (format "[数据看板] %s 的模型缓存刷新失败" (:name database))
+       {:subject      (trs "[{0}] Model cache refresh failed for {1}" (app-name-trs) (:name database))
         :recipients   (vec emails)
         :message-type :html
         :message      message-body}))))
@@ -307,25 +314,34 @@
   (let [context (merge (common-context)
                        {:emailType    "notification"
                         :logoHeader   true
-                        :heading      "感谢使用数据看板。"
-                        :callToAction "这是一封使用情况提醒邮件，无需进行任何操作。"})
-        email-msg {:subject      "[数据看板] 使用情况提醒"
+                        :heading      (trs "We hope you''ve been enjoying Metabase.")
+                        :callToAction (trs "Would you mind taking a quick 5 minute survey to tell us how it’s going?")
+                        :link         "https://metabase.com/feedback/active"})
+        email-msg {:subject      (trs "[{0}] Tell us how things are going." (app-name-trs))
                    :recipients   [email]
                    :message-type :html
                    :message      (channel.template/render "follow_up_email" context)}]
     (send-email-with-logo! email-msg)))
 
 (defn send-creator-sentiment-email!
-  "Format and send a usage reminder email to a creator."
-  [{:keys [email first_name]} _blob]
+  "Format and send an email to a creator with a link to a survey. If a [[blob]] is included, it will be turned into json
+  and then base64 encoded."
+  [{:keys [email first_name]} blob]
   {:pre [(u/email? email)]}
-  (let [context (merge (common-context)
+  (let [encoded-info    (when blob
+                          (-> blob
+                              json/encode
+                              .getBytes
+                              codecs/bytes->b64-str))
+        context (merge (common-context)
                        {:emailType  "notification"
                         :logoHeader true
-                        :first-name first_name}
+                        :first-name first_name
+                        :link       (cond-> "https://metabase.com/feedback/creator"
+                                      encoded-info (str "?context=" encoded-info))}
                        (when-not (premium-features/is-hosted?)
                          {:self-hosted (system/site-url)}))
-        message {:subject      "[数据看板] 使用情况提醒"
+        message {:subject      "Metabase would love your take on something"
                  :recipients   [email]
                  :message-type :html
                  :message      (channel.template/render "creator_sentiment_email" context)}]
@@ -391,27 +407,27 @@
 (defn- username
   [user]
   (or (:common_name user)
-      (->> [(:last_name user) (:first_name user)]
+      (->> [(:first_name user) (:last_name user)]
            (remove nil?)
-           (str/join))))
+           (str/join " "))))
 
 (defn send-you-unsubscribed-notification-card-email!
   "Send an email to `who-unsubscribed` letting them know they've unsubscribed themselves from `notification`"
   [notification unsubscribed-emails]
-  (send-email! unsubscribed-emails "你已取消预警订阅" you-unsubscribed-template notification true))
+  (send-email! unsubscribed-emails "You unsubscribed from an alert" you-unsubscribed-template notification true))
 
 (defn send-you-were-removed-notification-card-email!
   "Send an email to `removed-users` letting them know `admin` has removed them from `notification`"
   [notification removed-emails actor]
-  (send-email! removed-emails "你的预警订阅已被取消" removed-template (assoc notification :actor_name (username actor)) true))
+  (send-email! removed-emails "You’ve been unsubscribed from an alert" removed-template (assoc notification :actor_name (username actor)) true))
 
 (defn send-you-were-added-card-notification-email!
   "Send an email to `added-users` letting them know `admin-adder` has added them to `notification`"
   [notification added-user-emails adder]
-  (let [subject (format "%s 将你添加到预警订阅" (username adder))]
+  (let [subject (format "%s added you to an alert" (username adder))]
     (send-email! added-user-emails subject added-template notification true)))
 
-(def ^:private not-working-subject "一个预警已停止运行")
+(def ^:private not-working-subject "One of your alerts has stopped working")
 
 (defn send-alert-stopped-because-archived-email!
   "Email to notify users when a card associated to their alert has been archived"
@@ -444,7 +460,7 @@
   [{:keys [dashboard-id dashboard-name pulse-creator dashboard-creator affected-users bad-parameters disable_links]}]
   (let [{:keys [siteUrl] :as context} (common-context)]
     (email/send-message!
-     :subject (format "已删除对 %s 的订阅" dashboard-name)
+     :subject (trs "Subscription to {0} removed" dashboard-name)
      :recipients (distinct (map :email [pulse-creator dashboard-creator]))
      :message-type :html
      :message (channel.template/render
@@ -456,7 +472,7 @@
                                                     (cond-> param
                                                       (coll? value)
                                                       (update :value #(i18n/join-strings-with-conjunction
-                                                                       "或"
+                                                                       (tru "or")
                                                                        %))))
                                                   bad-parameters)
                        :affectedUsers            (map
@@ -467,10 +483,10 @@
                                                   (into
                                                    [{:notification-type :email
                                                      :recipient         (:common_name dashboard-creator)
-                                                     :role              "看板创建者"}
+                                                     :role              "Dashboard Creator"}
                                                     {:notification-type :email
                                                      :recipient         (:common_name pulse-creator)
-                                                     :role              "订阅创建者"}]
-                                                   (map #(assoc % :role "订阅者") affected-users)))
+                                                     :role              "Subscription Creator"}]
+                                                   (map #(assoc % :role "Subscriber") affected-users)))
                        :dashboardUrl             (format "%s/dashboard/%s" siteUrl dashboard-id)
                        :disable_links            disable_links})))))

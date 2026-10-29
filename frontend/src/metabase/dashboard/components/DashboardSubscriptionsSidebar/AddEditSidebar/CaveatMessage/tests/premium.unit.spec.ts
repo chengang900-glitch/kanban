@@ -12,7 +12,7 @@ function setup(opts: SetupOpts) {
 }
 
 describe("CaveatMessage (EE with token)", () => {
-  it("should hide the external help link when `show-metabase-links: true`", () => {
+  it("should show a help link when `show-metabase-links: true`", () => {
     setup({ showMetabaseLinks: true });
 
     expect(

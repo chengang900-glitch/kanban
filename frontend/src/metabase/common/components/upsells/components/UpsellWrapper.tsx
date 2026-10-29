@@ -1,10 +1,7 @@
-/**
- * Commercial promotion is disabled in this distribution.
- */
+/** Suppress commercial prompts without mounting their components or running their purchase hooks. */
 export function UpsellWrapper<Props extends object>(
   _Component: React.ComponentType<Props>,
 ) {
-  const WrappedComponent = (_props: Props) => null;
-
-  return WrappedComponent;
+  const HiddenUpsell = (_props: Props) => null;
+  return HiddenUpsell;
 }

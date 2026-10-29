@@ -1,0 +1,136 @@
+{
+  "verified_at": "2026-10-29T11:16:47.372518+08:00",
+  "artifact": {
+    "version": "tag=v0.65.2\nhash=f8047ea\ndate=2026-10-29",
+    "bytes": 715873891,
+    "sha256": "4fb420b5e0e7632ccfbc07e23b367635c97201bae162788d3965ade4c08bc0fe",
+    "zip_entries": 304874,
+    "zip_crc": "pass",
+    "enterprise_backend_present": false,
+    "source_commit": "f8047ea8e04b90c5d3f5ad6eeb8759da08b7c494",
+    "release_path": "/Users/chengang/Documents/UhooAI服务器/metabase-v0.64.2.5/target/releases/v0.65.2-f8047ea8/metabase.jar"
+  },
+  "runtime": {
+    "version": {
+      "date": "2026-10-29",
+      "tag": "v0.65.2",
+      "hash": "f8047ea"
+    },
+    "site_locale": "zh_CN",
+    "anon_tracking_enabled": false,
+    "setup_complete": true,
+    "last_name_and_first_name_preserved": true,
+    "environment": "loopback-only synthetic fresh H2"
+  },
+  "tests": {
+    "frontend_targeted": {
+      "suites": 28,
+      "tests": 120,
+      "failures": 0
+    },
+    "setup_regression": {
+      "suites": 4,
+      "tests": 28,
+      "failures": 0,
+      "note": "includes overlapping UserStep tests"
+    },
+    "backend_setup_default_tracking_and_i18n": {
+      "tests": 19,
+      "assertions": 124,
+      "failures": 0,
+      "environment": "isolated H2; English locale set only by setup API test fixture"
+    },
+    "final_catalog_after_save_prompt_fix": {
+      "tests": 7,
+      "assertions": 35,
+      "failures": 0
+    },
+    "typescript": "pass",
+    "oxlint": "pass",
+    "git_diff_check": "pass"
+  },
+  "catalog": {
+    "total_entries": 10311,
+    "changed_translations": 271,
+    "identifiers_contexts_plural_definitions_placeholders_preserved": true
+  },
+  "browser": [
+    {
+      "check": "setup_guide_hidden",
+      "result": "pass",
+      "screenshot": "output/playwright/ui-20261029/01-name-order.png"
+    },
+    {
+      "check": "last_name_before_first_name",
+      "result": "pass",
+      "screenshot": "output/playwright/ui-20261029/01-name-order.png"
+    },
+    {
+      "check": "first_usage_reason_selected_and_all_disabled",
+      "result": "pass",
+      "screenshot": "output/playwright/ui-20261029/02-usage-locked.png"
+    },
+    {
+      "check": "tracking_description_hidden_and_switch_off_disabled",
+      "result": "pass",
+      "screenshot": "output/playwright/ui-20261029/03-tracking-off.png"
+    },
+    {
+      "check": "newsletter_off_disabled",
+      "result": "pass",
+      "screenshot": "output/playwright/ui-20261029/04-newsletter-off.png"
+    },
+    {
+      "check": "new_menu_chart_name",
+      "result": "pass",
+      "screenshot": "output/playwright/ui-20261029/05-chart-menu.png"
+    },
+    {
+      "check": "save_new_chart_name",
+      "result": "pass",
+      "screenshot": "output/playwright/ui-20261029/06-save-chart.png"
+    },
+    {
+      "check": "saved_chart_query_returns_2000_sample_rows",
+      "result": "pass",
+      "screenshot": "output/playwright/ui-20261029/07-chart-results.png"
+    },
+    {
+      "check": "maps_learn_more_hidden_configuration_retained",
+      "result": "pass",
+      "screenshot": "output/playwright/ui-20261029/08-maps.png"
+    },
+    {
+      "check": "data_permissions_help_retained_no_learn_more",
+      "result": "pass",
+      "screenshot": "output/playwright/ui-20261029/09-data-permissions.png"
+    },
+    {
+      "check": "collection_permissions_help_retained_no_learn_more",
+      "result": "pass",
+      "screenshot": "output/playwright/ui-20261029/10-collection-permissions.png"
+    },
+    {
+      "check": "embedding_useful_links_and_two_cards_hidden",
+      "result": "pass",
+      "screenshot": "output/playwright/ui-20261029/11-embedding-hub.png"
+    },
+    {
+      "check": "embedding_security_no_learn_more",
+      "result": "pass",
+      "screenshot": "output/playwright/ui-20261029/12-embedding-security.png"
+    },
+    {
+      "check": "embedding_permissions_retained",
+      "result": "pass",
+      "screenshot": "output/playwright/ui-20261029/13-embedding-permissions.png"
+    }
+  ],
+  "previous_release_sha256": "26ef58bc04b39c75016d6772327752a3624829007459e6e0426ceb70a0c3b60e",
+  "limits": [
+    "Local synthetic fresh H2 only; no production deployment or data migration.",
+    "No real LLM invocation or production Keycloak login was performed.",
+    "Existing stored anonymous-tracking configuration is not migrated; setup lock only.",
+    "Some upstream embedding onboarding strings remain English; this is not a complete localization of all newly added upstream strings."
+  ]
+}

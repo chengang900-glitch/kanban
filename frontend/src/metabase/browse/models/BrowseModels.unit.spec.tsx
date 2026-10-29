@@ -1,13 +1,13 @@
 import userEvent from "@testing-library/user-event";
-import { Route } from "react-router";
 
 import {
   setupRecentViewsEndpoints,
   setupSearchEndpoints,
   setupSettingsEndpoints,
 } from "__support__/server-mocks";
+import { createMockSetupState } from "__support__/state";
 import { renderWithProviders, screen, within } from "__support__/ui";
-import { createMockSetupState } from "metabase/redux/store/mocks";
+import { Route } from "metabase/router";
 import {
   createMockCollection,
   createMockSearchResult,
@@ -46,10 +46,10 @@ const setup = ({
   setupRecentViewsEndpoints(mockRecentModels);
   return renderWithProviders(
     <>
-      <Route path="/" component={() => <BrowseModels />} />
+      <Route path="/" element={<BrowseModels />} />
       <Route
         path="/model/:slug"
-        component={() => <div data-testid="model-detail-page" />}
+        element={<div data-testid="model-detail-page" />}
       />
     </>,
     {
@@ -322,19 +322,26 @@ describe("BrowseModels", () => {
       ).toBeInTheDocument();
 
       expect(
-        within(emptyState).queryByRole("link", { name: "Read the docs" }),
-      ).not.toBeInTheDocument();
+        await within(emptyState).findByRole("link", { name: "Read the docs" }),
+      ).toHaveAttribute(
+        "href",
+        "https://www.metabase.com/docs/latest/data-modeling/models.html",
+      );
     });
 
-    it("hides the external tutorial video when no models exist", async () => {
+    it("should display embedded YouTube video (that doesn't auto play) when no models exist", async () => {
       setup({ modelCount: 0 });
 
       const emptyState = await screen.findByTestId("empty-state");
-      expect(
-        within(emptyState).queryByTitle(
-          "Use Models in Metabase | Getting started with Metabase",
-        ),
-      ).not.toBeInTheDocument();
+      const youtubeVideo = await within(emptyState).findByTitle(
+        "Use Models in Metabase | Getting started with Metabase",
+      );
+      expect(youtubeVideo).toBeInTheDocument();
+      expect(youtubeVideo).toHaveAttribute("src");
+
+      const src = youtubeVideo.getAttribute("src");
+      expect(src).toContain("youtube.com");
+      expect(src).toContain("autoplay=0");
     });
 
     it("should display a new model button in the header along when in empty state", async () => {
@@ -366,8 +373,11 @@ describe("BrowseModels", () => {
       expect(await within(banner).findByText(description)).toBeInTheDocument();
 
       expect(
-        within(banner).queryByRole("link", { name: "Read the docs" }),
-      ).not.toBeInTheDocument();
+        await within(banner).findByRole("link", { name: "Read the docs" }),
+      ).toHaveAttribute(
+        "href",
+        "https://www.metabase.com/docs/latest/data-modeling/models.html",
+      );
 
       const dismissButton = await within(banner).findByRole("button", {
         name: "Dismiss",
@@ -375,18 +385,30 @@ describe("BrowseModels", () => {
       expect(dismissButton).toBeInTheDocument();
     });
 
-    it("hides the external tutorial video entry in the explanation banner", async () => {
+    it("explanation banner can open an autoplaying embedded YouTube video in a modal", async () => {
       setup({ modelCount: 1 });
 
       const banner = await screen.findByRole("complementary");
+      const videoThumbnail = await within(banner).findByTestId(
+        "browse-models-video-thumbnail",
+      );
       const videoTitle =
         "Use Models in Metabase | Getting started with Metabase";
 
-      expect(
-        within(banner).queryByTestId("browse-models-video-thumbnail"),
-      ).not.toBeInTheDocument();
+      expect(videoThumbnail).toBeInTheDocument();
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(screen.queryByTitle(videoTitle)).not.toBeInTheDocument();
+
+      await userEvent.click(videoThumbnail);
+      const modal = await screen.findByRole("dialog");
+      const youtubeVideo = await within(modal).findByTitle(videoTitle);
+      expect(modal).toBeInTheDocument();
+      expect(youtubeVideo).toBeInTheDocument();
+      expect(youtubeVideo).toHaveAttribute("src");
+
+      const src = youtubeVideo.getAttribute("src");
+      expect(src).toContain("youtube.com");
+      expect(src).toContain("autoplay=1");
     });
 
     it("should display a new model button in the header along when a model explanation banner", async () => {
@@ -469,7 +491,7 @@ describe("BrowseModels", () => {
   });
 
   it("should render links that point directly to /model/{id}-{slug} (metabase#55166)", async () => {
-    const { history } = setup({ modelCount: 25 });
+    const { router } = setup({ modelCount: 25 });
     const recentModelsGrid = await screen.findByRole("grid", {
       name: /Recents/,
     });
@@ -494,6 +516,6 @@ describe("BrowseModels", () => {
     expect(screen.queryByTestId("model-detail-page")).not.toBeInTheDocument();
     await userEvent.click(within(recentModelsGrid).getByText("Model 1"));
     expect(screen.getByTestId("model-detail-page")).toBeInTheDocument();
-    expect(history?.getCurrentLocation().pathname).toBe("/model/1-model-1");
+    expect(router?.location.pathname).toBe("/model/1-model-1");
   });
 });

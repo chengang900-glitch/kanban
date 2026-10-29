@@ -3,11 +3,19 @@ import { render, screen } from "__support__/ui";
 import { LogoBadge } from ".";
 
 describe("LogoBadge", () => {
-  it("does not render a Powered by Metabase footer or outbound link", () => {
+  it("should render Powered by Metabase footer", () => {
     setup();
 
-    expect(screen.queryByText("Powered by")).not.toBeInTheDocument();
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.getByText("Powered by")).toBeInTheDocument();
+  });
+
+  it("should render a link with valid utm parameters", () => {
+    setup();
+
+    expect(screen.getByRole("link")).toHaveProperty(
+      "href",
+      "https://www.metabase.com/?utm_medium=referral&utm_source=product&utm_campaign=powered_by_metabase&utm_content=embedded_banner_localhost",
+    );
   });
 });
 

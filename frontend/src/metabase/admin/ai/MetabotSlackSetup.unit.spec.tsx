@@ -11,8 +11,8 @@ import {
   setupSlackManifestEndpoint,
   setupUpdateSettingEndpoint,
 } from "__support__/server-mocks";
+import { createMockSettingsState } from "__support__/state";
 import { renderWithProviders, screen, waitFor } from "__support__/ui";
-import { createMockSettingsState } from "metabase/redux/store/mocks";
 import type { SlackAppInfo } from "metabase-types/api";
 import {
   createMockSettingDefinition,
@@ -146,7 +146,7 @@ describe("MetabotSlackSetup", () => {
   });
 
   describe("encryption alert", () => {
-    it("shows alert without an external docs link and hides form when encryption is disabled", async () => {
+    it("shows alert with docs link and hides form when encryption is disabled", async () => {
       await setup({ isEncryptionEnabled: false });
 
       expect(
@@ -156,8 +156,11 @@ describe("MetabotSlackSetup", () => {
       ).toBeInTheDocument();
 
       expect(
-        screen.queryByRole("link", { name: "Learn how to enable encryption" }),
-      ).not.toBeInTheDocument();
+        screen.getByRole("link", { name: "Learn how to enable encryption" }),
+      ).toHaveAttribute(
+        "href",
+        expect.stringContaining("encrypting-database-details-at-rest"),
+      );
 
       expect(screen.queryByLabelText("Client ID")).not.toBeInTheDocument();
     });

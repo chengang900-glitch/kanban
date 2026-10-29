@@ -42,12 +42,12 @@ describe("BrowseMetrics (OSS)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("hides the metrics docs link", async () => {
+  it("displays a link to the metrics docs", async () => {
     setup({ metricCount: 0 });
     await screen.findByText(
       "Create Metrics to define the official way to calculate important numbers for your team",
     );
-    expect(screen.queryByText("Read the docs")).not.toBeInTheDocument();
+    expect(screen.getByText("Read the docs")).toBeInTheDocument();
   });
 
   it("displays the Our Analytics collection if it has a metric", async () => {
@@ -76,7 +76,7 @@ describe("BrowseMetrics (OSS)", () => {
   });
 
   it("should render links that point to metric detail page", async () => {
-    const { history } = setup({ metricCount: 5 });
+    const { router } = setup({ metricCount: 5 });
     const table = await screen.findByRole("table", {
       name: /Table of metrics/,
     });
@@ -90,7 +90,7 @@ describe("BrowseMetrics (OSS)", () => {
     expect(screen.queryByTestId("metric-detail-page")).not.toBeInTheDocument();
     await userEvent.click(within(table).getByText("Metric 1"));
     expect(screen.getByTestId("metric-detail-page")).toBeInTheDocument();
-    const location = history?.getCurrentLocation();
+    const location = router?.location;
     expect(location?.pathname).toBe("/metric/1");
   });
 });

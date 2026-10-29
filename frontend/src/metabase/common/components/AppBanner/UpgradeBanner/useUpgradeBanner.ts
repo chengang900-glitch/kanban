@@ -1,7 +1,6 @@
-import { useGetVersionInfoQuery } from "metabase/api";
-import { useSetting } from "metabase/common/hooks";
+import { getUserIsAdmin } from "metabase/current-user";
 import { useSelector } from "metabase/redux";
-import { getUserIsAdmin } from "metabase/selectors/user";
+import { useGetVersionInfoQuery, useSetting } from "metabase/settings";
 import { isWithinIframe } from "metabase/utils/iframe";
 
 import type { UpgradeBannerProps } from "./UpgradeBanner";

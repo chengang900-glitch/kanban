@@ -4,7 +4,6 @@ import { useCallback, useMemo } from "react";
 import { t } from "ttag";
 import _ from "underscore";
 
-import ErrorBoundary from "metabase/ErrorBoundary";
 import type { CollectionTreeItem } from "metabase/common/collections/utils";
 import {
   isExamplesCollection,
@@ -12,20 +11,30 @@ import {
   isRootTrashCollection,
 } from "metabase/common/collections/utils";
 import { CollapseSection } from "metabase/common/components/CollapseSection";
+import ErrorBoundary from "metabase/common/components/ErrorBoundary";
 import { Tree } from "metabase/common/components/tree";
-import { useSetting, useUserSetting } from "metabase/common/hooks";
 import { useIsAtHomepageDashboard } from "metabase/common/hooks/use-is-at-homepage-dashboard";
 import { useShowOtherUsersCollections } from "metabase/common/hooks/use-show-other-users-collections";
-import { useUserMetabotPermissions } from "metabase/metabot/hooks";
-import { resetConversation, setVisible } from "metabase/metabot/state";
-import { NavbarLibrarySection } from "metabase/nav/containers/MainNavbar/NavbarLibrarySection";
-import { PLUGIN_REMOTE_SYNC, PLUGIN_TENANTS } from "metabase/plugins";
-import { useDispatch, useSelector } from "metabase/redux";
 import {
   getIsTenantUser,
   getUser,
   getUserCanWriteToCollections,
-} from "metabase/selectors/user";
+} from "metabase/current-user";
+import { useUserMetabotPermissions } from "metabase/metabot/hooks";
+import { startNewConversation } from "metabase/metabot/state";
+import { NavbarLibrarySection } from "metabase/nav/containers/MainNavbar/NavbarLibrarySection";
+import {
+  PLUGIN_DATA_APPS,
+  PLUGIN_REMOTE_SYNC,
+  PLUGIN_TENANTS,
+} from "metabase/plugins";
+import { useDispatch, useSelector } from "metabase/redux";
+import {
+  getCanAccessOnboardingPage,
+  getIsNewInstance,
+} from "metabase/selectors/onboarding";
+import { getShowMetabaseLinks } from "metabase/selectors/whitelabel";
+import { useSetting, useUserSetting } from "metabase/settings";
 import { ActionIcon, Icon, Tooltip } from "metabase/ui";
 import * as Urls from "metabase/urls";
 import { isSmallScreen } from "metabase/utils/dom";
@@ -39,12 +48,16 @@ import {
   TrashSidebarSection,
 } from "../MainNavbar.styled";
 import { SidebarCollectionLink } from "../SidebarItems";
-import { trackNewCollectionFromNavInitiated } from "../analytics";
+import {
+  trackAddDataModalOpened,
+  trackNewCollectionFromNavInitiated,
+} from "../analytics";
 import type { SelectedItem } from "../types";
 
 import { AddDataModal } from "./AddDataModal";
 import BookmarkList from "./BookmarkList";
 import { BrowseNavSection } from "./BrowseNavSection";
+import { GettingStartedSection } from "./GettingStartedSection";
 
 type Props = {
   isOpen: boolean;
@@ -67,8 +80,8 @@ type Props = {
     oldIndex: number;
   }) => Promise<any>;
 };
-const OTHER_USERS_COLLECTIONS_URL = Urls.otherUsersPersonalCollections();
 const AI_ASK_URL = Urls.newQuestion({ mode: "ask" });
+const OTHER_USERS_COLLECTIONS_URL = Urls.otherUsersPersonalCollections();
 
 export function MainNavbarView({
   bookmarks,
@@ -92,11 +105,12 @@ export function MainNavbarView({
 
   const isAtHomepageDashboard = useIsAtHomepageDashboard();
   const dispatch = useDispatch();
+  const { hasNlqAccess } = useUserMetabotPermissions();
+  const showMetabaseLinks = useSelector(getShowMetabaseLinks);
   const canWriteToCollections = useSelector(getUserCanWriteToCollections);
   const currentUser = useSelector(getUser);
   const useTenants = useSetting("use-tenants");
   const isTenantUser = useSelector(getIsTenantUser);
-  const { hasMetabotAccess, hasNlqAccess } = useUserMetabotPermissions();
 
   const [
     addDataModalOpened,
@@ -128,47 +142,45 @@ export function MainNavbarView({
     [isAtHomepageDashboard, onItemSelect],
   );
 
-  const handleAiAskClick = useCallback(() => {
-    dispatch(resetConversation({ agentId: "ask" }));
-    onItemSelect();
-  }, [dispatch, onItemSelect]);
+  const { regularCollections, trashCollection, examplesCollection } =
+    useMemo(() => {
+      const trashCollection = collections.find(isRootTrashCollection);
+      const examplesCollection = collections.find(isExamplesCollection);
 
-  const handleAiAssistantClick = useCallback(() => {
-    dispatch(setVisible({ agentId: "omnibot", visible: true }));
-    onItemSelect();
-  }, [dispatch, onItemSelect]);
+      const regularCollections = collections.filter((c) => {
+        const isNormalCollection =
+          !isRootTrashCollection(c) && !isExamplesCollection(c);
+        return isNormalCollection && !isLibraryCollection(c);
+      });
 
-  const { regularCollections, trashCollection } = useMemo(() => {
-    const trashCollection = collections.find(isRootTrashCollection);
+      const collectionsByCategory = {
+        trashCollection,
+        examplesCollection,
+      };
 
-    const regularCollections = collections.filter((c) => {
-      const isNormalCollection =
-        !isRootTrashCollection(c) && !isExamplesCollection(c);
-      return isNormalCollection && !isLibraryCollection(c);
-    });
+      return {
+        ...collectionsByCategory,
+        regularCollections:
+          useTenants && isTenantUser
+            ? PLUGIN_TENANTS.getFlattenedCollectionsForNavbar({
+                currentUser,
+                sharedTenantCollections,
+                regularCollections,
+              })
+            : regularCollections,
+      };
+    }, [
+      collections,
+      isTenantUser,
+      useTenants,
+      sharedTenantCollections,
+      currentUser,
+    ]);
 
-    const collectionsByCategory = {
-      trashCollection,
-    };
-
-    return {
-      ...collectionsByCategory,
-      regularCollections:
-        useTenants && isTenantUser
-          ? PLUGIN_TENANTS.getFlattenedCollectionsForNavbar({
-              currentUser,
-              sharedTenantCollections,
-              regularCollections,
-            })
-          : regularCollections,
-    };
-  }, [
-    collections,
-    isTenantUser,
-    useTenants,
-    sharedTenantCollections,
-    currentUser,
-  ]);
+  const isNewInstance = useSelector(getIsNewInstance);
+  const canAccessOnboarding = useSelector(getCanAccessOnboardingPage);
+  const shouldDisplayGettingStarted =
+    isNewInstance && canAccessOnboarding && showMetabaseLinks;
 
   const showOtherUsersCollections = useShowOtherUsersCollections();
 
@@ -193,21 +205,41 @@ export function MainNavbarView({
               <PaddedSidebarLink
                 isSelected={nonEntityItem?.url === AI_ASK_URL}
                 icon="comment"
-                onClick={handleAiAskClick}
                 url={AI_ASK_URL}
+                onClick={() => {
+                  dispatch(startNewConversation({ agentId: "ask" }));
+                  onItemSelect();
+                }}
               >
                 {t`AI问数`}
               </PaddedSidebarLink>
             )}
-            {hasMetabotAccess && (
-              <PaddedSidebarLink
-                icon="metabot"
-                onClick={handleAiAssistantClick}
-              >
-                {t`AI助手`}
-              </PaddedSidebarLink>
-            )}
           </SidebarSection>
+
+          {shouldDisplayGettingStarted && (
+            <SidebarSection>
+              <ErrorBoundary>
+                <GettingStartedSection
+                  nonEntityItem={nonEntityItem}
+                  onAddDataModalOpen={() => {
+                    trackAddDataModalOpened("getting-started");
+                    openAddDataModal();
+                  }}
+                >
+                  {examplesCollection && (
+                    <Tree
+                      data={[examplesCollection]}
+                      selectedId={collectionItem?.id}
+                      onSelect={onItemSelect}
+                      TreeNode={SidebarCollectionLink}
+                      role="tree"
+                      aria-label="examples-collection-tree"
+                    />
+                  )}
+                </GettingStartedSection>
+              </ErrorBoundary>
+            </SidebarSection>
+          )}
 
           {bookmarks.length > 0 && (
             <SidebarSection>
@@ -288,6 +320,7 @@ export function MainNavbarView({
                   <PaddedSidebarLink
                     icon="group"
                     url={OTHER_USERS_COLLECTIONS_URL}
+                    isSelected={collectionItem?.id === "users"}
                   >
                     {t`Other users' personal collections`}
                   </PaddedSidebarLink>
@@ -295,6 +328,10 @@ export function MainNavbarView({
               </CollapseSection>
             </ErrorBoundary>
           </SidebarSection>
+
+          {PLUGIN_DATA_APPS.isEnabled && (
+            <PLUGIN_DATA_APPS.MainNavbarSection onItemSelect={onItemSelect} />
+          )}
 
           <SidebarSection>
             <ErrorBoundary>

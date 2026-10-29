@@ -31,7 +31,7 @@ const routes = routeObjtoArray({
   cloud: { path: "skip", testPattern: /nope/ },
   // `ossRoutes.remoteSync` expects OSS/Starter upsell copy; this suite enables all features (incl. remote_sync), so assert the real settings UI instead.
   remoteSync: { path: "/remote-sync", testPattern: /Set up remote sync/i },
-}).filter(({ path }) => path !== "skip" && path !== "/license");
+}).filter(({ path }) => path !== "skip");
 
 describe("Admin Settings Routing - Enterprise with all features", () => {
   it("renders the settings editor", async () => {
@@ -57,28 +57,21 @@ describe("Admin Settings Routing - Enterprise with all features", () => {
     );
   });
 
-  it("hides the direct license route", async () => {
-    await setup({ isAdmin: true, initialRoute: "/license" });
-    expect(
-      screen.queryByRole("heading", { name: /License/i }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("should hide the cloud upsell without hosting", async () => {
+  it("should show an upsell on the cloud route without hosting", async () => {
     await setup({
       initialRoute: "/cloud",
       features: { hosting: false },
     });
     expect(
-      screen.queryByText("Migrate to Metabase Cloud"),
-    ).not.toBeInTheDocument();
+      await screen.findByText("Migrate to Metabase Cloud"),
+    ).toBeInTheDocument();
   });
 
-  it("hides cloud settings even when hosting is enabled", async () => {
+  it("should show cloud settings on the cloud route without hosting", async () => {
     await setup({
       initialRoute: "/cloud",
       features: { hosting: true },
     });
-    expect(screen.queryByText("Cloud settings")).not.toBeInTheDocument();
+    expect(await screen.findByText("Cloud settings")).toBeInTheDocument();
   });
 });

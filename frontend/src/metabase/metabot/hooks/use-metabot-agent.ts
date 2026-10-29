@@ -1,203 +1,81 @@
-import { isFulfilled } from "@reduxjs/toolkit";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
-import { useMetabotContext } from "metabase/metabot";
-import {
-  type FetchedChatMessage,
-  normalizeFetchedChatMessages,
-} from "metabase/metabot/utils/normalize-fetched-chat-messages";
 import { useDispatch, useSelector } from "metabase/redux";
-import type { MetabotConversationDetail } from "metabase-types/api";
 
-import { trackMetabotRequestSent } from "../analytics";
-import type { MetabotProfileId } from "../constants";
 import {
   type MetabotAgentId,
-  type MetabotPromptSubmissionResult,
-  type MetabotUserChatMessage,
-  cancelInflightAgentRequests,
-  getActiveToolCalls,
-  getConversationId,
-  getDebugMode,
-  getIsLongMetabotConversation,
-  getIsProcessing,
-  getMessages,
-  getMetabotId,
-  getMetabotReactionsState,
-  getMetabotRequestId,
+  getMetabotConversationId,
   getMetabotVisible,
-  resetConversation as resetConversationAction,
-  retryPrompt,
-  setConversationSnapshot,
-  setProfileOverride as setProfileOverrideAction,
+  loadConversation as loadConversationAction,
   setVisible as setVisibleAction,
-  submitInput as submitInputAction,
+  startNewConversation as startNewConversationAction,
 } from "../state";
+
+import {
+  type SubmitInputOptions,
+  useMetabotConversation,
+} from "./use-metabot-conversation";
+
+type AgentSubmitInputOptions = SubmitInputOptions & {
+  preventOpenSidebar?: boolean;
+};
 
 export const useMetabotAgent = (agentId: MetabotAgentId = "omnibot") => {
   const dispatch = useDispatch();
-  const { prompt, setPrompt, promptInputRef, getChatContext } =
-    useMetabotContext();
-
-  const metabotRequestId = useSelector((state) =>
-    getMetabotRequestId(state, agentId),
+  const conversationId = useSelector((state) =>
+    getMetabotConversationId(state, agentId),
   );
+  const conversation = useMetabotConversation(conversationId);
   const visible = useSelector((state) => getMetabotVisible(state, agentId));
-  const isDoingScience = useSelector((state) =>
-    getIsProcessing(state, agentId),
-  );
 
   const setVisible = useCallback(
     (visible: boolean) => dispatch(setVisibleAction({ agentId, visible })),
     [dispatch, agentId],
   );
 
-  const prepareRetryIfUnsuccesful = useCallback(
-    (result: MetabotPromptSubmissionResult) => {
-      if (!result.success && result.shouldRetry) {
-        promptInputRef?.current?.focus();
-        setPrompt(result.prompt);
-      }
-    },
-    [promptInputRef, setPrompt],
-  );
-
-  const setProfileOverride = useCallback(
-    (profile: MetabotProfileId | undefined) => {
-      dispatch(setProfileOverrideAction({ agentId, profile }));
-    },
-    [dispatch, agentId],
+  const withSidebarReveal = useCallback(
+    (options?: AgentSubmitInputOptions): SubmitInputOptions => ({
+      ...options,
+      onBeforeSubmit: () => {
+        if (!visible && !options?.preventOpenSidebar) {
+          setVisible(true);
+        }
+      },
+    }),
+    [setVisible, visible],
   );
 
   const submitInput = useCallback(
-    async (
-      prompt: string | Omit<MetabotUserChatMessage, "id" | "role">,
-      options?: {
-        profile?: MetabotProfileId | undefined;
-        preventOpenSidebar?: boolean;
-        focusInput?: boolean;
-      },
-    ) => {
-      setPrompt("");
-
-      if (!visible && !options?.preventOpenSidebar) {
-        setVisible(true);
-      }
-
-      if (options?.focusInput) {
-        promptInputRef?.current?.focus();
-      }
-
-      const action = await dispatch(
-        submitInputAction({
-          ...(typeof prompt === "string"
-            ? { type: "text", message: prompt }
-            : prompt),
-          context: await getChatContext(),
-          agentId,
-          metabot_id: metabotRequestId,
-          profile: options?.profile,
-        }),
-      );
-
-      trackMetabotRequestSent();
-
-      if (isFulfilled(action)) {
-        prepareRetryIfUnsuccesful(action.payload);
-      }
-
-      return action;
-    },
-    [
-      dispatch,
-      getChatContext,
-      metabotRequestId,
-      prepareRetryIfUnsuccesful,
-      setVisible,
-      visible,
-      agentId,
-      promptInputRef,
-      setPrompt,
-    ],
+    (
+      prompt: Parameters<typeof conversation.submitInput>[0],
+      options?: AgentSubmitInputOptions,
+    ) => conversation.submitInput(prompt, withSidebarReveal(options)),
+    [conversation, withSidebarReveal],
   );
 
-  const retryMessage = useCallback(
-    async (messageId: string) => {
-      const context = await getChatContext();
-      const action = await dispatch(
-        retryPrompt({
-          messageId,
-          context,
-          metabot_id: metabotRequestId,
-          agentId,
-        }),
-      );
-      if (isFulfilled(action)) {
-        prepareRetryIfUnsuccesful(action.payload);
-      }
-    },
-    [
-      dispatch,
-      getChatContext,
-      metabotRequestId,
-      prepareRetryIfUnsuccesful,
-      agentId,
-    ],
-  );
-
-  const cancelRequest = useCallback(() => {
-    dispatch(cancelInflightAgentRequests(agentId));
-  }, [dispatch, agentId]);
-
-  const resetConversation = useCallback(() => {
-    dispatch(resetConversationAction({ agentId }));
-  }, [agentId, dispatch]);
-
-  const restoreConversation = useCallback(
-    (conversation: MetabotConversationDetail) => {
-      if (isDoingScience) {
-        return false;
-      }
-
-      dispatch(
-        setConversationSnapshot({
-          agentId,
-          conversationId: conversation.conversation_id,
-          messages: normalizeFetchedChatMessages(
-            conversation.chat_messages as FetchedChatMessage[],
-          ),
-          history: conversation.history,
-          state: conversation.state,
-          suggestedTransforms: [],
-          activeToolCalls: [],
-        }),
-      );
-      return true;
-    },
-    [agentId, dispatch, isDoingScience],
+  const conversationContinueResponse = conversation.continueResponse;
+  const continueResponse = useMemo(
+    () =>
+      conversationContinueResponse &&
+      ((options?: AgentSubmitInputOptions) =>
+        conversationContinueResponse(withSidebarReveal(options))),
+    [conversationContinueResponse, withSidebarReveal],
   );
 
   return {
-    prompt,
-    setPrompt,
-    promptInputRef,
+    ...conversation,
+    submitInput,
+    continueResponse,
     visible,
     setVisible,
-    setProfileOverride,
-    resetConversation,
-    restoreConversation,
-    submitInput,
-    retryMessage,
-    cancelRequest,
-    conversationId: useSelector((state) => getConversationId(state, agentId)),
-    metabotId: useSelector(getMetabotId),
-    messages: useSelector((state) => getMessages(state, agentId)),
-    isDoingScience,
-    isLongConversation: useSelector((state) =>
-      getIsLongMetabotConversation(state, agentId),
+    createNewConversation: useCallback(
+      () => dispatch(startNewConversationAction({ agentId })),
+      [agentId, dispatch],
     ),
-    activeToolCalls: useSelector((state) => getActiveToolCalls(state, agentId)),
-    debugMode: useSelector(getDebugMode),
-    reactions: useSelector(getMetabotReactionsState),
+    loadConversation: useCallback(
+      (conversationId: string) =>
+        dispatch(loadConversationAction({ agentId, conversationId })),
+      [agentId, dispatch],
+    ),
   };
 };

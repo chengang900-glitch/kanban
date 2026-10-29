@@ -1,5 +1,5 @@
 name: v_metabot_conversations
-display_name: AI机器人会话视图
+display_name: V Metabot Conversations
 created_at: '2026-04-24T19:39:27.35056Z'
 db_id: Internal Metabase Database
 schema: public

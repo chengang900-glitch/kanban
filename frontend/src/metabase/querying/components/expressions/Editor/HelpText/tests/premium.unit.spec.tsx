@@ -13,7 +13,7 @@ async function setup(opts: SetupOpts) {
 
 describe("ExpressionEditorHelpText (EE with token)", () => {
   describe("Metabase links", () => {
-    it("should hide the external help link when `show-metabase-links: true`", async () => {
+    it("should show a help link when `show-metabase-links: true`", async () => {
       await setup({
         enclosingFunction: { name: "concat" },
         showMetabaseLinks: true,

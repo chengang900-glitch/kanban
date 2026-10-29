@@ -1,8 +1,9 @@
 import { useMemo } from "react";
-import { Link } from "react-router";
 import { P, match } from "ts-pattern";
 import { c, t } from "ttag";
 
+import { Link } from "metabase/common/components/Link";
+import { UpsellGem } from "metabase/common/components/upsells/components/UpsellGem";
 import { useDocsUrl, useHasEmailSetup } from "metabase/common/hooks";
 import {
   Anchor,
@@ -13,6 +14,7 @@ import {
   Icon,
   Stack,
   Text,
+  Tooltip,
 } from "metabase/ui";
 
 import { useSdkIframeEmbedSetupContext } from "../../../context";
@@ -25,9 +27,8 @@ export const BehaviorCard = () => {
   const hasEmailSetup = useHasEmailSetup();
 
   const behaviorDocsParams = getBehaviorDocsUrlParams(settings);
-  const { url: behaviorDocsUrl, showMetabaseLinks } = useDocsUrl(
-    behaviorDocsParams?.page ?? "",
-  );
+  // eslint-disable-next-line metabase/no-unconditional-metabase-links-render -- Only admins can see the EmbedJS Wizard
+  const { url: behaviorDocsUrl } = useDocsUrl(behaviorDocsParams?.page ?? "");
 
   const behaviorSection = useMemo(() => {
     return match(settings)
@@ -60,7 +61,7 @@ export const BehaviorCard = () => {
       .with(
         { componentName: "metabase-question", questionId: P.nonNullable },
         (settings) => (
-          <Stack gap="md">
+          <Stack gap="lg">
             <WithNotAvailableForOssOrGuestEmbedsGuard>
               {({ disabled }) => (
                 <Checkbox
@@ -105,7 +106,7 @@ export const BehaviorCard = () => {
             <WithNotAvailableForOssOrGuestEmbedsGuard>
               {({ disabled: disabledInGuestEmbedding }) => {
                 return (
-                  <Flex align="center" gap="xs">
+                  <Flex align="center" gap="xxs">
                     <Checkbox
                       disabled={!hasEmailSetup || disabledInGuestEmbedding}
                       label={t`Allow alerts`}
@@ -151,7 +152,7 @@ export const BehaviorCard = () => {
       .with(
         { componentName: "metabase-dashboard", dashboardId: P.nonNullable },
         (settings) => (
-          <Stack gap="md">
+          <Stack gap="lg">
             <WithNotAvailableForOssOrGuestEmbedsGuard>
               {({ disabled }) => (
                 <Checkbox
@@ -181,7 +182,7 @@ export const BehaviorCard = () => {
             <WithNotAvailableForOssOrGuestEmbedsGuard>
               {({ disabled: disabledInGuestEmbedding }) => {
                 return (
-                  <Flex align="center" gap="xs">
+                  <Flex align="center" gap="xxs">
                     <Checkbox
                       disabled={!hasEmailSetup || disabledInGuestEmbedding}
                       label={t`Allow subscriptions`}
@@ -247,14 +248,22 @@ export const BehaviorCard = () => {
   }
 
   return (
-    <Card p="md">
-      <Flex align="center" justify="space-between" gap="xs" mb="md">
-        <Flex align="center" gap="xs">
+    <Card p="lg">
+      <Flex align="center" justify="space-between" gap="xxs" mb="lg">
+        <Flex align="center" gap="xxs">
           <Text size="lg" fw="bold">
             {t`Behavior`}
           </Text>
+          {!isSimpleEmbedFeatureAvailable && (
+            // eslint-disable-next-line metabase/no-literal-metabase-strings -- Only admins can see the EmbedJS Wizard
+            <Tooltip label={t`Available on Metabase Pro plans`}>
+              <Flex align="center">
+                <UpsellGem />
+              </Flex>
+            </Tooltip>
+          )}
         </Flex>
-        {showMetabaseLinks && !!behaviorDocsParams?.page && (
+        {!!behaviorDocsParams?.page && (
           <Anchor
             data-testid="behavior-docs-link"
             href={behaviorDocsUrl}

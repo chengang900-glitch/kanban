@@ -12,13 +12,13 @@ function setup(opts: SetupOpts) {
 }
 
 describe("PreviewQueryModal (EE with token)", () => {
-  it("should hide the external help link when `show-metabase-links: true", async () => {
+  it("should render help link when `show-metabase-links: true", async () => {
     setup({ showMetabaseLinks: true });
 
     expect(await screen.findByText("Query preview")).toBeInTheDocument();
     expect(
-      screen.queryByText("Learn how to debug SQL errors"),
-    ).not.toBeInTheDocument();
+      await screen.findByText("Learn how to debug SQL errors"),
+    ).toBeInTheDocument();
   });
 
   it("should not render help link when `show-metabase-links: false", async () => {

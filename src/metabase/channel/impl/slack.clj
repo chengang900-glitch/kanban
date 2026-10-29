@@ -5,6 +5,7 @@
    [metabase.channel.core :as channel]
    [metabase.channel.impl.util :as impl.util]
    [metabase.channel.render.core :as channel.render]
+   [metabase.channel.render.markdown :as markdown]
    [metabase.channel.shared :as channel.shared]
    [metabase.channel.slack :as slack]
    [metabase.channel.urls :as urls]
@@ -13,14 +14,7 @@
    [metabase.system.core :as system]
    [metabase.util.i18n :refer [tru]]
    [metabase.util.log :as log]
-   [metabase.util.malli :as mu]
-   [metabase.util.markdown :as markdown]))
-
-(def SlackDetails
-  "Schema for the connection `:details` of a `:channel/slack` channel. The frontend only sends these to
-  `POST /api/channel/test`, to check that the globally configured Slack integration can post to `:channel`."
-  [:map {:closed true}
-   [:channel :string]])
+   [metabase.util.malli :as mu]))
 
 (defn- notification-recipient->channel
   "Returns the Slack channel target for a raw-value notification recipient.
@@ -83,7 +77,7 @@
 
 (defn- text->markdown-section
   [text]
-  (let [mrkdwn (markdown/process-markdown text :slack)]
+  (let [mrkdwn (markdown/process-markdown text :slack (system/site-url))]
     (when (not (str/blank? mrkdwn))
       {:type "section"
        :text {:type "mrkdwn"
@@ -168,8 +162,7 @@
       (slack/upload-file-to-channel! (:bytes pdf) (:filename pdf) channel (:comment pdf))
       (catch Throwable e
         (log/errorf "Error sharing dashboard subscription PDF to Slack; posting summary without the PDF: %s" (ex-message e))
-        ;; A DM already delivers the caption as the message that opens the conversation, so don't re-post it.
-        (when (and (:comment pdf) (not (::slack/caption-already-posted? (ex-data e))))
+        (when (:comment pdf)
           (slack/post-chat-message! {:channel channel :text (:comment pdf)}))))))
 
 ;; ------------------------------------------------------------------------------------------------;;

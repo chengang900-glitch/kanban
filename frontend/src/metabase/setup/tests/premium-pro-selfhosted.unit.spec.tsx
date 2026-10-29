@@ -27,7 +27,7 @@ describe("setup (EE build, `embedding` feature but no `hosting` to simulate pro 
     await setupPremium();
     await skipWelcomeScreen();
     expectSectionToHaveLabel("What should we call you?", "1");
-    expectSectionToHaveLabel("What will you use Dashboard for?", "2");
+    expectSectionToHaveLabel("What will you use Metabase for?", "2");
     expectSectionToHaveLabel("Add your data", "3");
     // no "Activate your commercial license" as this has token-features
     expectSectionToHaveLabel("Usage data preferences", "4");
@@ -60,7 +60,7 @@ describe("setup (EE build, `embedding` feature but no `hosting` to simulate pro 
 
     await userEvent.click(screen.getByText("Finish"));
 
-    expect(await screen.findByText("进入数据看板")).toBeInTheDocument();
+    expect(await screen.findByText("Take me to Metabase")).toBeInTheDocument();
 
     expect(await getLastSettingsPutPayload()).toEqual({
       "embedding-homepage": "visible",

@@ -9,12 +9,12 @@
    [metabase.driver.sql.normalize]
    [metabase.driver.sql.parameters.substitute :as sql.params.substitute]
    [metabase.driver.sql.parameters.substitution]
+   [metabase.driver.sql.pivot]
    [metabase.driver.sql.query-processor :as sql.qp]
    [metabase.driver.sql.util :as sql.u]
    [metabase.driver.util :as driver.u]
    [metabase.lib.core :as lib]
    [metabase.lib.schema :as lib.schema]
-   [metabase.lib.schema.metadata :as lib.schema.metadata]
    [metabase.lib.util :as lib.util]
    [metabase.query-processor.error-type :as qp.error-type]
    [metabase.query-processor.parameters.values :as params.values]
@@ -26,7 +26,8 @@
    [potemkin :as p]))
 
 (comment metabase.driver.sql.parameters.substitution/keep-me
-         metabase.driver.sql.normalize/keep-me) ; this is so `cljr-clean-ns` and the linter don't remove the `:require`
+         metabase.driver.sql.normalize/keep-me ; this is so `cljr-clean-ns` and the linter don't remove the `:require`
+         metabase.driver.sql.pivot/keep-me)    ; loading `sql.pivot` registers the `[:sql :pivot]` GROUPING SETS emitter
 
 (driver/register! :sql, :abstract? true)
 
@@ -80,19 +81,23 @@
   [driver native-form]
   (sql.u/format-sql-and-fix-params driver native-form))
 
-(mu/defmethod driver/substitute-native-parameters-in-stage-method :sql :- ::lib.schema/stage.native
-  [_driver                                  :- :keyword
-   metadata-providerable                    :- ::lib.schema.metadata/metadata-providerable
-   {native-query :native, :as native-stage} :- ::lib.schema/stage.native]
-  (let [params-map            (params.values/stage->params-map metadata-providerable native-stage)
-        referenced-card-ids   (params.values/referenced-card-ids params-map)
-        parsed-query          (lib/parse-parameters native-query)
-        [native-query params] (sql.params.substitute/substitute metadata-providerable parsed-query params-map)]
-    (cond-> (assoc native-stage
-                   :native native-query
-                   :params params)
-      (seq referenced-card-ids)
-      (update :query-permissions/referenced-card-ids set/union referenced-card-ids))))
+(mu/defmethod driver/substitute-native-parameters-in-stage-method :sql :- ::lib.schema/query
+  [_driver      :- :keyword
+   query        :- ::lib.schema/query
+   stage-number :- :int]
+  (lib/update-query-stage
+   query
+   stage-number
+   (fn [{native-query :native, :as native-stage}]
+     (let [params-map            (params.values/stage->params-map query native-stage)
+           referenced-card-ids   (params.values/referenced-card-ids params-map)
+           parsed-query          (lib/parse-parameters native-query)
+           [native-query params] (sql.params.substitute/substitute query parsed-query params-map)]
+       (cond-> (assoc native-stage
+                      :native native-query
+                      :params params)
+         (seq referenced-card-ids)
+         (update :query-permissions/referenced-card-ids set/union referenced-card-ids))))))
 
 (defmulti json-field-length
   "Return a HoneySQL expression that calculates the number of characters in a JSON field for a given driver.
@@ -118,6 +123,7 @@
   driver/dispatch-on-initialized-driver
   :hierarchy #'driver/hierarchy)
 
+;; default impl of the deprecated multimethod itself, kept until the method is removed
 #_{:clj-kondo/ignore [:deprecated-var]}
 (defmethod set-role-statement :default
   [_driver _role]
@@ -314,16 +320,12 @@
 ;;; |                                              Dependencies                                                      |
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
-(mu/defmethod driver/native-query-table-refs :sql :- ::driver/native-query-table-refs
-  [driver :- :keyword
-   query  :- :metabase.lib.schema/native-only-query]
-  (into #{} (sql-tools/referenced-tables-raw driver (driver-api/raw-native-query query))))
-
 (mu/defmethod driver/native-query-deps :sql :- ::driver/native-query-deps
   [driver :- :keyword
    query  :- :metabase.lib.schema/native-only-query]
   (into (driver-api/native-query-table-references query)
-        (sql-tools/referenced-tables driver query)))
+        (cond-> (sql-tools/referenced-tables driver query)
+          (seq (lib/all-template-tags query)) (->> (remove :unresolved-table)))))
 
 (mu/defmethod driver/native-result-metadata :sql
   [driver       :- :keyword
@@ -337,7 +339,7 @@
 
 (defn validate-impersonated-query*
   "Validates a native query by parsing it and ensuring that it is a single statement.
-   Reads [[metabase.driver.settings/*impersonation-allow-write?*]] to decide what to require: when truthy (bound by
+   Reads `:impersonation/allow-write?` on the query to decide what to require: when truthy (set by
    [[metabase.query-processor.writeback/execute-write-query!]] for custom write actions) require a single
    write statement (insert, update, delete); otherwise require a single select statement.
 

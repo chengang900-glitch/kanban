@@ -3,18 +3,18 @@ import { useMemo } from "react";
 import { match } from "ts-pattern";
 import { t } from "ttag";
 
-import { SettingHeader } from "metabase/admin/settings/components/SettingHeader";
-import {
-  useDeleteSuggestedMetabotPromptMutation,
-  useGetSuggestedMetabotPromptsQuery,
-  useRegenerateSuggestedMetabotPromptsMutation,
-} from "metabase/api";
 import { ForwardRefLink } from "metabase/common/components/Link";
 import { PaginationControls } from "metabase/common/components/PaginationControls";
 import { Table } from "metabase/common/components/Table";
 import { useToast } from "metabase/common/hooks";
 import { usePagination } from "metabase/common/hooks/use-pagination";
+import {
+  useDeleteSuggestedMetabotPromptMutation,
+  useGetSuggestedMetabotPromptsQuery,
+  useRegenerateSuggestedMetabotPromptsMutation,
+} from "metabase/metabot";
 import { FIXED_METABOT_IDS } from "metabase/metabot/constants";
+import { SettingHeader } from "metabase/settings-components";
 import {
   ActionIcon,
   Box,
@@ -84,7 +84,7 @@ export const MetabotPromptSuggestionPane = ({
       .with({ status: "generated" }, () => undefined)
       .with({ status: "no-library-content" }, () => {
         sendToast({
-          message: t`Add a dashboard, question, model, or metric to this Metabot's collection to generate prompts.`,
+          message: t`Add some models or metrics to this Metabot's collection to generate prompts.`,
           icon: "info",
         });
       })
@@ -116,11 +116,11 @@ export const MetabotPromptSuggestionPane = ({
         title={t`Prompt suggestions`}
         description={
           metabot.collection_id
-            ? t`When users open a new Metabot chat, we’ll show them a few suggested prompts based on dashboards, questions, models, and metrics in the collection you chose.`
-            : t`When users open a new Metabot chat, we’ll show them a few suggested prompts based on dashboards, questions, models, and metrics in your instance.`
+            ? t`When users open a new Metabot chat, we’ll show them a few suggested prompts based on popular models and metrics in the collection you chose.`
+            : t`When users open a new Metabot chat, we’ll show them a few suggested prompts based on popular models and metrics in your instance.`
         }
       />
-      <Flex gap="md" align="center">
+      <Flex gap="lg" align="center">
         <Button
           disabled={isRegenerating}
           leftSection={isRegenerating && <Loader size="xs" />}
@@ -144,8 +144,8 @@ export const MetabotPromptSuggestionPane = ({
             </>
           }
           columns={[
-            { name: t`Prompt`, key: "prompt", sortable: false },
-            { name: t`Source`, key: "model", sortable: false },
+            { name: "Prompt", key: "prompt", sortable: false },
+            { name: "Model or metric", key: "model", sortable: false },
             { name: "", key: "trash", sortable: false },
           ]}
           rows={rows}
@@ -155,6 +155,7 @@ export const MetabotPromptSuggestionPane = ({
             ) : (
               <SuggestedPromptRow
                 key={row.id}
+                // Unjustified type cast. FIXME
                 row={row as SuggestedMetabotPrompt}
                 onDelete={() => handleDeletePrompt(row.id)}
                 metabotId={metabot.id}
@@ -163,11 +164,11 @@ export const MetabotPromptSuggestionPane = ({
           }
           emptyBody={
             error ? (
-              <Center my="lg" fw="bold" c="feedback-negative">
+              <Center my="xl" fw="bold" c="feedback-negative">
                 {t`Something went wrong.`}
               </Center>
             ) : data?.total === 0 ? (
-              <Center my="lg" fw="bold" c="text-disabled">
+              <Center my="xl" fw="bold" c="text-disabled">
                 {t`No prompts found.`}
               </Center>
             ) : null

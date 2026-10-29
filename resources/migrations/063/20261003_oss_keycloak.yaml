@@ -1,0 +1,138 @@
+# Independent AGPL OSS Keycloak extension; upstream changesets remain untouched.
+databaseChangeLog:
+  - changeSet:
+      id: v63.2026-10-03T00:00:01
+      author: customization
+      comment: Persist explicit OSS Keycloak bindings, login transactions and session revocation
+      changes:
+        - createTable:
+            tableName: oss_keycloak_binding
+            columns:
+              - column:
+                  name: id
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+              - column:
+                  name: auth_identity_id
+                  type: int
+                  constraints:
+                    nullable: false
+        - createTable:
+            tableName: oss_keycloak_session
+            columns:
+              - column:
+                  name: session_id
+                  type: varchar(12)
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+              - column:
+                  name: binding_id
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: issuer_hash
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sid
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: expires_at
+                  type: ${timestamp_type}
+                  constraints:
+                    nullable: false
+        - createTable:
+            tableName: oss_keycloak_login
+            columns:
+              - column:
+                  name: id
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+              - column:
+                  name: expires_at
+                  type: ${timestamp_type}
+                  constraints:
+                    nullable: false
+        - createTable:
+            tableName: oss_keycloak_logout
+            columns:
+              - column:
+                  name: id
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+              - column:
+                  name: expires_at
+                  type: ${timestamp_type}
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: oss_keycloak_binding
+            columnNames: auth_identity_id
+            constraintName: uq_oss_keycloak_binding_identity
+        - addForeignKeyConstraint:
+            baseTableName: oss_keycloak_binding
+            baseColumnNames: auth_identity_id
+            referencedTableName: auth_identity
+            referencedColumnNames: id
+            constraintName: fk_oss_keycloak_binding_identity
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            baseTableName: oss_keycloak_session
+            baseColumnNames: binding_id
+            referencedTableName: oss_keycloak_binding
+            referencedColumnNames: id
+            constraintName: fk_oss_keycloak_session_binding
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            baseTableName: oss_keycloak_session
+            baseColumnNames: session_id
+            referencedTableName: core_session
+            referencedColumnNames: id
+            constraintName: fk_oss_keycloak_session_session
+            onDelete: CASCADE
+        - createIndex:
+            tableName: oss_keycloak_session
+            indexName: idx_oss_keycloak_session_sid
+            columns:
+              - column:
+                  name: issuer_hash
+              - column:
+                  name: sid
+        - createIndex:
+            tableName: oss_keycloak_session
+            indexName: idx_oss_keycloak_session_expiry
+            columns:
+              - column:
+                  name: expires_at
+        - createIndex:
+            tableName: oss_keycloak_login
+            indexName: idx_oss_keycloak_login_expiry
+            columns:
+              - column:
+                  name: expires_at
+        - createIndex:
+            tableName: oss_keycloak_logout
+            indexName: idx_oss_keycloak_logout_expiry
+            columns:
+              - column:
+                  name: expires_at
+      rollback:
+        - dropTable:
+            tableName: oss_keycloak_logout
+        - dropTable:
+            tableName: oss_keycloak_login
+        - dropTable:
+            tableName: oss_keycloak_session
+        - dropTable:
+            tableName: oss_keycloak_binding

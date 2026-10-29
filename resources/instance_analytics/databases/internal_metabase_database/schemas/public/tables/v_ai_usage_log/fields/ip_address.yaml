@@ -1,6 +1,6 @@
 name: ip_address
 display_name: IP Address
-description: IP address of the originating AI机器人 conversation, when one exists.
+description: IP address of the originating Metabot conversation, when one exists.
 created_at: '2026-04-24T19:39:29.861736Z'
 visibility_type: normal
 table_id: [Internal Metabase Database, public, v_ai_usage_log]
@@ -9,7 +9,6 @@ base_type: type/Text
 effective_type: type/Text
 dimensions: []
 position: 14
-custom_position: 0
 database_position: 14
 has_field_values: auto-list
 serdes/meta:

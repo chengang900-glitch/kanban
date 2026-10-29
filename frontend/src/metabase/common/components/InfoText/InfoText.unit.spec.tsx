@@ -1,5 +1,3 @@
-import dayjs from "dayjs";
-
 import {
   setupCollectionByIdEndpoint,
   setupDatabaseEndpoints,
@@ -8,6 +6,7 @@ import {
   setupUsersEndpoints,
 } from "__support__/server-mocks";
 import { renderWithProviders, screen, waitFor } from "__support__/ui";
+import { dayjs } from "metabase/dayjs";
 import type { SearchModel, SearchResult } from "metabase-types/api";
 import {
   createMockCollection,
@@ -134,6 +133,13 @@ describe("InfoText", () => {
       expect(screen.getByTestId("revision-history-text")).toHaveTextContent(
         `Updated ${LAST_EDITED_DURATION}`,
       );
+    });
+
+    it("shows Data app for data apps", async () => {
+      await setup({
+        model: "data-app",
+      });
+      expect(screen.getByText("Data app")).toBeInTheDocument();
     });
 
     it("shows segment's table name", async () => {

@@ -19,25 +19,21 @@ const utmTags = {
 };
 
 export const EmbedCodeCard = ({ snippet, onCopy }: EmbedCodeCardProps) => {
-  const { url: docsUrl, showMetabaseLinks } = useDocsUrl(
-    "embedding/modular-embedding",
-    {
-      anchor: "add-the-embedding-script-to-your-app",
-      utm: utmTags,
-    },
-  );
+  // eslint-disable-next-line metabase/no-unconditional-metabase-links-render -- Only for admins
+  const { url: docsUrl } = useDocsUrl("embedding/modular-embedding", {
+    anchor: "add-the-embedding-script-to-your-app",
+    utm: utmTags,
+  });
 
-  const docsLink = showMetabaseLinks ? (
+  const docsLink = (
     <Anchor key="docs" href={docsUrl} target="_blank">
       {t`docs`}
     </Anchor>
-  ) : (
-    t`documentation`
   );
 
   return (
-    <Card p="md">
-      <Stack gap="xs" mb="md">
+    <Card p="lg">
+      <Stack gap="xxs" mb="lg">
         <Text size="lg" fw="bold">
           {t`Embed code`}
         </Text>
@@ -47,10 +43,10 @@ export const EmbedCodeCard = ({ snippet, onCopy }: EmbedCodeCardProps) => {
         </Text>
       </Stack>
 
-      <Divider mb="md" />
+      <Divider mb="lg" />
 
       <Stack gap="sm">
-        <div onCopy={onCopy}>
+        <div onCopy={onCopy} data-testid="embed-code-snippet">
           <CodeEditor
             language="html"
             value={snippet}

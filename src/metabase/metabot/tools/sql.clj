@@ -13,7 +13,6 @@
    [metabase.metabot.tools.sql.replace :as replace-sql-query-tools]
    [metabase.metabot.tools.util :as metabot.tools.u]
    [metabase.util :as u]
-   [metabase.util.log :as log]
    [metabase.util.malli :as mu]))
 
 (set! *warn-on-reflection* true)
@@ -97,25 +96,19 @@
           {:keys [query-id query]} action-result]
       (if valid?
         (let [structured  (assoc action-result :result-type :query)
-              instr       (instructions/query-created-instructions-for query-id)
-              results-url (streaming/query->question-url query)]
+              instr       (instructions/query-created-instructions-for query-id)]
           {:output (format-query-output structured instr {:preamble? true})
            :structured-output structured
            :instructions instr
-           :data-parts [(streaming/viz-part {:inline?   (shared/inline-viz-capable?)
-                                             :entity-id (str (random-uuid))
+           :data-parts [(streaming/viz-part {:entity-id (str (random-uuid))
                                              :query-id  query-id
-                                             :query     (links/->legacy-mbql query)
-                                             :title     title
-                                             :link      results-url})]})
+                                             :query     (links/->frontend-query query)
+                                             :title     title})]})
         (let [instr (instructions/sql-validation-error-instructions dialect error-message)]
           {:output (format-validation-error-output instr)
            :instructions instr})))
     (catch Exception e
-      (log/errorf "Error creating SQL query: %s" (ex-message e))
-      (if (:agent-error? (ex-data e))
-        (metabot.tools.u/handle-agent-error e)
-        {:output (str "Failed to create SQL query: " (or (ex-message e) "Unknown error"))}))))
+      (metabot.tools.u/handle-agent-error e))))
 
 (mu/defn ^{:tool-name    "create_sql_query"
            :scope        scope/agent-sql-create
@@ -132,10 +125,10 @@
                {:database-id database_id
                 :sql sql_query})
               {:keys [valid? dialect error-message]} validation-result
-              {:keys [query-id query-content]} action-result]
+              {:keys [query-content]} action-result]
           (if valid?
             (let [structured (assoc action-result :result-type :query)
-                  instr      (instructions/query-created-instructions-for query-id)]
+                  instr      instructions/query-loaded-in-editor-instructions]
               {:output (format-query-output structured instr {:preamble? true})
                :structured-output structured
                :instructions instr
@@ -177,29 +170,23 @@
           {:keys [valid? error-message dialect]} validation-result
           {:keys [query-id query query-content]} action-result]
       (if valid?
-        (let [structured  (assoc action-result :result-type :query)
-              instr       (instructions/edit-sql-query-instructions-for query-id)
-              results-url (streaming/query->question-url query)
-              buffer-id  (first-code-editor-buffer-id)]
+        (let [structured (assoc action-result :result-type :query)
+              buffer-id  (first-code-editor-buffer-id)
+              instr      (instructions/edit-sql-query-instructions-for query-id (some? buffer-id))]
           {:output (format-query-output structured instr)
            :structured-output structured
            :instructions instr
            :data-parts [(if buffer-id
                           (code-edit-part buffer-id query-content)
-                          (streaming/viz-part {:inline?   (shared/inline-viz-capable?)
-                                               :entity-id (str (random-uuid))
+                          (streaming/viz-part {:entity-id (str (random-uuid))
                                                :query-id  query-id
-                                               :query     (links/->legacy-mbql query)
-                                               :title     title
-                                               :link      results-url}))]})
+                                               :query     (links/->frontend-query query)
+                                               :title     title}))]})
         (let [instr (instructions/sql-validation-error-instructions dialect error-message)]
           {:output (format-validation-error-output instr)
            :instructions instr})))
     (catch Exception e
-      (log/errorf "Error editing SQL query: %s" (ex-message e))
-      (if (:agent-error? (ex-data e))
-        (metabot.tools.u/handle-agent-error e)
-        {:output (str "Failed to edit SQL query: " (or (ex-message e) "Unknown error"))}))))
+      (metabot.tools.u/handle-agent-error e))))
 
 ;;; ──────────────────────────────────────────────────────────────────
 ;;; Replace SQL query
@@ -229,26 +216,20 @@
           {:keys [valid? dialect error-message]} validation-result
           {:keys [query-id query query-content]} action-result]
       (if valid?
-        (let [structured  (assoc action-result :result-type :query)
-              instr       (instructions/replace-sql-query-instructions-for query-id)
-              results-url (streaming/query->question-url query)
-              buffer-id  (first-code-editor-buffer-id)]
+        (let [structured (assoc action-result :result-type :query)
+              buffer-id  (first-code-editor-buffer-id)
+              instr      (instructions/replace-sql-query-instructions-for query-id (some? buffer-id))]
           {:output (format-query-output structured instr)
            :structured-output structured
            :instructions instr
            :data-parts [(if buffer-id
                           (code-edit-part buffer-id query-content)
-                          (streaming/viz-part {:inline?   (shared/inline-viz-capable?)
-                                               :entity-id (str (random-uuid))
+                          (streaming/viz-part {:entity-id (str (random-uuid))
                                                :query-id  query-id
-                                               :query     (links/->legacy-mbql query)
-                                               :title     title
-                                               :link      results-url}))]})
+                                               :query     (links/->frontend-query query)
+                                               :title     title}))]})
         (let [instr (instructions/sql-validation-error-instructions dialect error-message)]
           {:output (format-validation-error-output instr)
            :instructions instr})))
     (catch Exception e
-      (log/errorf "Error replacing SQL query: %s" (ex-message e))
-      (if (:agent-error? (ex-data e))
-        (metabot.tools.u/handle-agent-error e)
-        {:output (str "Failed to replace SQL query: " (or (ex-message e) "Unknown error"))}))))
+      (metabot.tools.u/handle-agent-error e))))

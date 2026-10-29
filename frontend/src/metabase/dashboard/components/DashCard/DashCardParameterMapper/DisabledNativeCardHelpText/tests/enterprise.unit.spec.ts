@@ -9,7 +9,7 @@ function setup(opts: SetupOpts) {
 
 describe("DashCardParameterMapper > DisabledNativeCardHelpText (EE without token)", () => {
   it.each([{ showMetabaseLinks: false }, { showMetabaseLinks: true }])(
-    "should hide the parameter help link regardless of showMetabaseLinks = %s",
+    "should keep parameter help text while hiding the documentation link regardless of showMetabaseLinks = %s",
     ({ showMetabaseLinks }) => {
       setup({ showMetabaseLinks });
       expect(

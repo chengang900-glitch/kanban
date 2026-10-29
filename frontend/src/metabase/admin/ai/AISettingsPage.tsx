@@ -1,24 +1,26 @@
 import type { ReactNode } from "react";
 import { t } from "ttag";
 
-import {
-  SettingsPageWrapper,
-  SettingsSection,
-} from "metabase/admin/components/SettingsSection";
-import { useListMetabotsQuery } from "metabase/api";
-import { useAdminSetting } from "metabase/api/utils";
 import { Link } from "metabase/common/components/Link";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
-import { useSetting } from "metabase/common/hooks";
+import { UpsellGem } from "metabase/common/components/upsells/components/UpsellGem";
+import { useListMetabotsQuery } from "metabase/metabot";
 import { FIXED_METABOT_IDS } from "metabase/metabot/constants";
 import {
   PLUGIN_EMBEDDING_IFRAME_SDK,
   PLUGIN_EMBEDDING_SDK,
 } from "metabase/plugins";
-import { useRouter } from "metabase/router";
+import { queryToSearch, useSearchParams } from "metabase/router";
+import { useAdminSetting, useSetting } from "metabase/settings";
+import {
+  SettingsPageWrapper,
+  SettingsSection,
+} from "metabase/settings-components";
 import { Divider, Flex, Stack, Switch, Tabs } from "metabase/ui";
 
+import { AIModelSettingsSection } from "./AIModelSettingsSection";
 import { AIProviderSettingsSection } from "./AIProviderSettingsSection";
+import { EmbeddedMetabotUpsell } from "./EmbeddedMetabotUpsell";
 import { McpAppsSettings } from "./McpAppsSettings";
 import { MetabotSettingsPanel } from "./MetabotSettingsPanel";
 
@@ -27,6 +29,7 @@ type MetabotTabId =
   | typeof FIXED_METABOT_IDS.EMBEDDED;
 
 const SETUP_SECTION_ID = "setup";
+const MODELS_SECTION_ID = "models";
 const METABOT_SECTION_ID = "metabot";
 const MCP_SECTION_ID = "mcp";
 const AGENT_API_SECTION_ID = "agent-api";
@@ -35,9 +38,7 @@ const METABOT_SETTINGS_PATH = "/admin/metabot";
 const METABOT_ID_QUERY_PARAM = "metabot_id";
 
 export function AISettingsPage() {
-  const {
-    location: { query },
-  } = useRouter();
+  const [searchParams] = useSearchParams();
 
   const isConfigured = !!useSetting("llm-metabot-configured?");
   const hasEmbedding =
@@ -51,7 +52,7 @@ export function AISettingsPage() {
   const areAiFeaturesEnabled = aiFeaturesEnabledValue !== false;
 
   const selectedMetabotId = getSelectedMetabotId(
-    query?.[METABOT_ID_QUERY_PARAM],
+    searchParams.get(METABOT_ID_QUERY_PARAM),
   );
 
   const handleAiFeaturesEnabledChange = async (checked: boolean) => {
@@ -64,12 +65,13 @@ export function AISettingsPage() {
   return (
     <SettingsPageWrapper
       title={t`AI features`}
-      description={t`Manage your AI provider connection.`}
+      description={t`Manage your AI provider connection and Metabot.`}
     >
       {areAiFeaturesEnabled && (
         <>
           <AIProviderSettingsSection id={SETUP_SECTION_ID} />
           <DisabledSection disabled={!isConfigured}>
+            <AIModelSettingsSection id={MODELS_SECTION_ID} />
             <MetabotSettingsSection
               hasEmbedding={hasEmbedding}
               id={METABOT_SECTION_ID}
@@ -149,15 +151,15 @@ function MetabotSettingsSection({
   selectedMetabotId: MetabotTabId;
 }) {
   const { data, isLoading, error } = useListMetabotsQuery();
-  const visibleMetabotId =
-    !hasEmbedding && selectedMetabotId === FIXED_METABOT_IDS.EMBEDDED
-      ? FIXED_METABOT_IDS.DEFAULT
-      : selectedMetabotId;
-  const activeMetabot = data?.items.find((m) => m.id === visibleMetabotId);
+  const shouldShowUpsell =
+    !hasEmbedding && selectedMetabotId === FIXED_METABOT_IDS.EMBEDDED;
+  const activeMetabot = !shouldShowUpsell
+    ? data?.items.find((m) => m.id === selectedMetabotId)
+    : null;
 
   return (
     <SettingsSection id={id} title={t`Metabot settings`}>
-      <Tabs value={String(visibleMetabotId)}>
+      <Tabs value={String(selectedMetabotId)}>
         <Tabs.List>
           <Tabs.Tab
             renderRoot={(props) => (
@@ -170,24 +172,25 @@ function MetabotSettingsSection({
           >
             {t`Internal`}
           </Tabs.Tab>
-          {hasEmbedding && (
-            <Tabs.Tab
-              renderRoot={(props) => (
-                <Link
-                  {...props}
-                  to={getMetabotTabPath(FIXED_METABOT_IDS.EMBEDDED)}
-                />
-              )}
-              value={String(FIXED_METABOT_IDS.EMBEDDED)}
-            >
-              {t`Embedded`}
-            </Tabs.Tab>
-          )}
+          <Tabs.Tab
+            renderRoot={(props) => (
+              <Link
+                {...props}
+                to={getMetabotTabPath(FIXED_METABOT_IDS.EMBEDDED)}
+              />
+            )}
+            value={String(FIXED_METABOT_IDS.EMBEDDED)}
+            rightSection={!hasEmbedding && <UpsellGem.New size={14} />}
+          >
+            {t`Embedded`}
+          </Tabs.Tab>
         </Tabs.List>
       </Tabs>
 
       {activeMetabot ? (
         <MetabotSettingsPanel metabot={activeMetabot} />
+      ) : shouldShowUpsell ? (
+        <EmbeddedMetabotUpsell />
       ) : (
         <LoadingAndErrorWrapper
           loading={isLoading}
@@ -217,14 +220,13 @@ function ToggleSettingsSection({
     <SettingsSection
       id={id}
       title={
-        <Flex align="center" gap="md" justify="space-between" w="100%">
+        <Flex align="center" gap="lg" justify="space-between" w="100%">
           <div>{title}</div>
           <Switch
             aria-label={title}
             checked={checked}
             disabled={disabled}
             onChange={(event) => onChange(event.target.checked)}
-            size="sm"
             w="auto"
           />
         </Flex>
@@ -245,7 +247,7 @@ function DisabledSection({
 }) {
   return (
     <Stack
-      gap="lg"
+      gap="xl"
       opacity={disabled ? 0.4 : 1}
       aria-disabled={disabled || undefined}
       {...(disabled ? { inert: "" } : {})}
@@ -255,7 +257,7 @@ function DisabledSection({
   );
 }
 
-function getSelectedMetabotId(metabotId: string | undefined): MetabotTabId {
+function getSelectedMetabotId(metabotId: string | null): MetabotTabId {
   if (metabotId === String(FIXED_METABOT_IDS.EMBEDDED)) {
     return FIXED_METABOT_IDS.EMBEDDED;
   }
@@ -266,8 +268,8 @@ function getSelectedMetabotId(metabotId: string | undefined): MetabotTabId {
 function getMetabotTabPath(metabotId: MetabotTabId) {
   return {
     pathname: METABOT_SETTINGS_PATH,
-    query: {
+    search: queryToSearch({
       [METABOT_ID_QUERY_PARAM]: String(metabotId),
-    },
+    }),
   };
 }

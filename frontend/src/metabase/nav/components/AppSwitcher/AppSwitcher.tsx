@@ -4,12 +4,15 @@ import { t } from "ttag";
 import { ForwardRefLink } from "metabase/common/components/Link";
 import { trackDataStudioOpened } from "metabase/common/data-studio/analytics";
 import { canAccessDataStudio as canAccessDataStudioSelector } from "metabase/common/data-studio/selectors";
-import { userInitials } from "metabase/common/utils/user";
+import { canAccessEmbeddingHub as canAccessEmbeddingHubSelector } from "metabase/common/embedding-hub/selectors";
+import { trackMonitorOpened } from "metabase/common/monitor/analytics";
+import { canAccessMonitor as canAccessMonitorSelector } from "metabase/common/monitor/selectors";
+import { prepareInitials } from "metabase/common/utils/user";
+import { getUser } from "metabase/current-user";
 import { useDispatch, useSelector } from "metabase/redux";
 import { logout } from "metabase/redux/auth";
 import { setOpenModal } from "metabase/redux/ui";
 import { getAdminPaths } from "metabase/selectors/admin";
-import { getUser } from "metabase/selectors/user";
 import {
   ActionIcon,
   Avatar,
@@ -42,13 +45,20 @@ export const AppSwitcher = ({ className }: { className?: string }) => {
   // based on whether they're an admin or not
   const adminItems = useSelector(getAdminPaths);
   const canAccessDataStudio = useSelector(canAccessDataStudioSelector);
+  const canAccessMonitor = useSelector(canAccessMonitorSelector);
+  const canAccessEmbeddingHub = useSelector(canAccessEmbeddingHubSelector);
 
   const currentApp = useGetCurrentApp();
 
   const appsSection = useMemo(() => {
     const showAdminSettingsItem = adminItems?.length > 0;
 
-    if (!canAccessDataStudio && !showAdminSettingsItem) {
+    if (
+      !canAccessDataStudio &&
+      !canAccessMonitor &&
+      !canAccessEmbeddingHub &&
+      !showAdminSettingsItem
+    ) {
       return null;
     }
 
@@ -68,6 +78,21 @@ export const AppSwitcher = ({ className }: { className?: string }) => {
       </Menu.Item>,
     ];
 
+    if (showAdminSettingsItem) {
+      items.push(
+        <Menu.Item
+          key="admin-app-link"
+          component={ForwardRefLink}
+          to={"/admin"}
+          leftSection={
+            <Icon
+              name="io"
+              {...(currentApp === "admin" ? CURRENT_APP_ICON_OVERRIDES : null)}
+            />
+          }
+        >{t`Admin`}</Menu.Item>,
+      );
+    }
     if (canAccessDataStudio) {
       items.push(
         <Menu.Item
@@ -89,37 +114,68 @@ export const AppSwitcher = ({ className }: { className?: string }) => {
         </Menu.Item>,
       );
     }
-    if (showAdminSettingsItem) {
+    if (canAccessMonitor) {
       items.push(
         <Menu.Item
-          key="admin-app-link"
+          key="monitor-app-link"
           component={ForwardRefLink}
-          to={"/admin"}
+          to={Urls.monitor()}
+          onAuxClick={trackMonitorOpened}
+          onClickCapture={trackMonitorOpened}
           leftSection={
             <Icon
-              name="io"
-              {...(currentApp === "admin" ? CURRENT_APP_ICON_OVERRIDES : null)}
+              name="pulse"
+              {...(currentApp === "monitor"
+                ? CURRENT_APP_ICON_OVERRIDES
+                : null)}
             />
           }
-        >{t`Admin`}</Menu.Item>,
+        >
+          {t`Monitor`}
+        </Menu.Item>,
+      );
+    }
+    if (canAccessEmbeddingHub) {
+      items.push(
+        <Menu.Item
+          key="embedding-hub-link"
+          component={ForwardRefLink}
+          to={Urls.embeddingHub()}
+          leftSection={
+            <Icon
+              name="embed"
+              {...(currentApp === "embedding-hub"
+                ? CURRENT_APP_ICON_OVERRIDES
+                : null)}
+            />
+          }
+        >
+          {t`Embedding hub`}
+        </Menu.Item>,
       );
     }
 
     return (
       <>
         <Divider key="app-sectiondivider" w="100%" my="sm" />
-        <Box px="md">{items}</Box>
+        <Box px="lg">{items}</Box>
       </>
     );
-  }, [canAccessDataStudio, adminItems, currentApp]);
+  }, [
+    canAccessDataStudio,
+    canAccessMonitor,
+    canAccessEmbeddingHub,
+    adminItems,
+    currentApp,
+  ]);
 
   return (
     <>
-      <Menu position="bottom-end" shadow="md" width={200} offset={9}>
+      <Menu position="bottom-end" shadow="sm" width={200} offset={9}>
         <Menu.Target>
           {appsSection ? (
             <ActionIcon
-              size="2.25rem"
+              size="2rem"
               p="sm"
               variant="outline"
               bd="1px solid var(--mb-color-border-neutral)"
@@ -148,13 +204,13 @@ export const AppSwitcher = ({ className }: { className?: string }) => {
               bd="1px solid var(--mb-color-border-neutral)"
               data-testid="app-switcher-target"
             >
-              {user ? userInitials(user) : "?"}
+              {user ? prepareInitials(user) : "?"}
             </Avatar>
           )}
         </Menu.Target>
         <Menu.Dropdown w={320} px="0">
           {/* Avatar Stuff */}
-          <Box px="md">
+          <Box px="lg">
             <Menu.Item
               component={ForwardRefLink}
               to={Urls.accountSettings()}
@@ -162,9 +218,9 @@ export const AppSwitcher = ({ className }: { className?: string }) => {
             >
               <Group wrap="nowrap">
                 <Avatar color="core-brand" radius="lg" size={32}>
-                  {user ? userInitials(user) : "?"}
+                  {user ? prepareInitials(user) : "?"}
                 </Avatar>
-                <Stack gap="xs">
+                <Stack gap="xxs">
                   <Text lh="xs">{user?.first_name}</Text>
                   <Text c="text-disabled" fz="md" lh="xs">
                     {user?.email}
@@ -179,15 +235,15 @@ export const AppSwitcher = ({ className }: { className?: string }) => {
 
           {/* Logout and Help */}
           <Divider w="100%" my="sm" />
-          <Box px="md">
+          <Box px="lg">
             <Menu.Sub position="left-start" offset={20} closeDelay={350}>
               <Menu.Sub.Target>
                 <Menu.Sub.Item>{t`Help`}</Menu.Sub.Item>
               </Menu.Sub.Target>
               <Menu.Sub.Dropdown data-testid="help-submenu">
-                <Menu.Item
-                  onClick={() => dispatch(setOpenModal("help"))}
-                >{t`Keyboard shortcuts`}</Menu.Item>
+                <Menu.Item onClick={() => dispatch(setOpenModal("help"))}>
+                  {t`Keyboard shortcuts`}
+                </Menu.Item>
               </Menu.Sub.Dropdown>
             </Menu.Sub>
             <Menu.Item

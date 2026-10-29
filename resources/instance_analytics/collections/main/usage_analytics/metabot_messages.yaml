@@ -1,5 +1,5 @@
-name: AI机器人消息
-description: 每行对应一条未删除的 AI机器人消息，包含角色、配置、令牌、用户和所属会话。
+name: Metabot Messages
+description: One row per non-deleted Metabot message, with role, profile, tokens, user, and the owning conversation.
 entity_id: H20MNO_ZroDFEmgYzMLcZ
 created_at: '2026-04-22T05:29:01.750254Z'
 creator_id: internal@metabase.com
@@ -81,7 +81,7 @@ result_metadata:
   visibility_type: normal
 - base_type: type/Text
   coercion_strategy: null
-  description: AI机器人 profile (e.g. default, embedded) that produced the message.
+  description: Metabot profile (e.g. default, embedded) that produced the message.
   display_name: Profile ID
   effective_type: type/Text
   field_ref:

@@ -5,11 +5,8 @@ import {
   setupPropertiesEndpoints,
   setupSettingsEndpoints,
 } from "__support__/server-mocks";
+import { createMockSettingsState, createMockState } from "__support__/state";
 import { renderWithProviders, screen, waitFor } from "__support__/ui";
-import {
-  createMockSettingsState,
-  createMockState,
-} from "metabase/redux/store/mocks";
 import type {
   SearchEngineSettingValue,
   TokenFeatures,
@@ -73,26 +70,27 @@ const setup = async (
       }),
     },
   );
+
+  expect(
+    await screen.findByTestId("search-engine-setting"),
+  ).toBeInTheDocument();
 };
 
 const progressBar = () => screen.findByRole("progressbar");
 const toggle = () => screen.findByRole("switch");
 
 describe("SearchSettingsWidget", () => {
-  it("should hide the commercial setting for non-pro plans", async () => {
+  it("should display upsell for non-pro plans", async () => {
     await setup("semantic", "starter");
     expect(
-      screen.queryByText(/Advanced semantic search/),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText(/Get this with Pro/)).not.toBeInTheDocument();
+      await screen.findByText(/Advanced semantic search/),
+    ).toBeInTheDocument();
+    expect(await screen.findByText(/Get this with Pro/)).toBeInTheDocument();
   });
 
   it("should display setting toggle as disabled for pro plans", async () => {
     await setup("semantic", "pro");
 
-    expect(
-      await screen.findByTestId("search-engine-setting"),
-    ).toBeInTheDocument();
     expect(
       await screen.findByText("Advanced semantic search"),
     ).toBeInTheDocument();

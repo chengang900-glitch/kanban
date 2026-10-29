@@ -1,12 +1,11 @@
 import { t } from "ttag";
 
+import type { SdkIframeEmbedSetupExperience } from "metabase/embedding/types";
+
 import { AppearanceStep } from "./components/steps/AppearanceStep/AppearanceStep";
 import { GetCodeStep } from "./components/steps/GetCodeStep/GetCodeStep";
 import { SelectEmbedExperienceStep } from "./components/steps/SelectEmbedExperienceStep/SelectEmbedExperienceStep";
-import type {
-  SdkIframeEmbedSetupExperience,
-  SdkIframeEmbedSetupStep,
-} from "./types";
+import type { SdkIframeEmbedSetupStep } from "./types";
 
 /** The maximum number of recent items to show in the resource selection step. */
 export const EMBED_RESOURCE_LIST_MAX_RECENTS = 6;
@@ -50,7 +49,7 @@ export const getEmbedExperiences = ({
           {
             value: "metabot" as const,
             title: t`Metabot`,
-            description: t`Embed an AI chat interface`,
+            description: t`Embed a Metabot chat interface`,
             supportsOss: false,
             supportsGuestEmbed: false,
           },

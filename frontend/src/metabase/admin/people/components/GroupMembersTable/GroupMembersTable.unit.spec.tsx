@@ -1,7 +1,7 @@
 import { setupEnterprisePlugins } from "__support__/enterprise";
 import { mockSettings } from "__support__/settings";
+import { createMockState } from "__support__/state";
 import { renderWithProviders, screen } from "__support__/ui";
-import { createMockState } from "metabase/redux/store/mocks";
 import type { Group, Member } from "metabase-types/api";
 import {
   createMockTokenFeatures,
@@ -61,12 +61,6 @@ const setup = ({ group }: { group: Group }) => {
 };
 
 describe("GroupMembersTable", () => {
-  it("should show member names as last name followed by first name", () => {
-    setup({ group: createMockGroupWithMembers() });
-
-    expect(screen.getByText("UserTest")).toBeInTheDocument();
-  });
-
   describe("Type column (manager toggle)", () => {
     it("should show Type column for regular groups", () => {
       setup({

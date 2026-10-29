@@ -5,10 +5,15 @@ import {
   StaticQuestion,
   type StaticQuestionProps,
 } from "@metabase/embedding-sdk-react";
-import { useState } from "react";
 
+import { SAMPLE_DB_ID } from "e2e/support/cypress_data";
 import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
-import { createQuestion, modal, popover } from "e2e/support/helpers";
+import {
+  createQuestion,
+  modal,
+  popover,
+  selectScheduleTime,
+} from "e2e/support/helpers";
 import { getSdkRoot } from "e2e/support/helpers/e2e-embedding-sdk-helpers";
 import {
   DEFAULT_SDK_AUTH_PROVIDER_CONFIG,
@@ -122,67 +127,6 @@ describe("scenarios > embedding-sdk > static-question", () => {
     });
   });
 
-  it("should show a loader instead of the empty results state until `questionId` resolves (EMB-2390)", () => {
-    const EMPTY_STATE_SELECTOR = 'img[alt="Code prompt icon"]';
-    const PENDING_ID_HOLD_MS = 1500;
-
-    const DeferredQuestion = ({ resolvedId }: { resolvedId: number }) => {
-      const [questionId, setQuestionId] = useState<number | null>(null);
-
-      return (
-        <div>
-          <StaticQuestion questionId={questionId} />
-          <button onClick={() => setQuestionId(resolvedId)}>Resolve id</button>
-        </div>
-      );
-    };
-
-    cy.get<number>("@questionId").then((questionId) => {
-      mountSdkContent(<DeferredQuestion resolvedId={questionId} />);
-
-      cy.log("keeps the loader up while the id is still null");
-      cy.window().then((win) => {
-        return new Cypress.Promise((resolve, reject) => {
-          const startedAt = Date.now();
-
-          const checkInterval = setInterval(() => {
-            if (win.document.querySelector(EMPTY_STATE_SELECTOR)) {
-              clearInterval(checkInterval);
-              reject(
-                new Error(
-                  "the empty results state must not show while `questionId` is null",
-                ),
-              );
-            } else if (Date.now() - startedAt >= PENDING_ID_HOLD_MS) {
-              clearInterval(checkInterval);
-              resolve();
-            }
-          }, 20);
-        });
-      });
-      getSdkRoot().within(() => {
-        cy.findByTestId("loading-indicator").should("be.visible");
-      });
-
-      cy.findByRole("button", { name: "Resolve id" }).click();
-
-      cy.log("no flash between the id resolving and the results rendering");
-      H.assertElementNeverExists({
-        shouldNotExistSelector: EMPTY_STATE_SELECTOR,
-        successSelector: "[data-testid='table-header']",
-        rejectionMessage:
-          "the empty results state must not flash between the id resolving and the results rendering",
-        pollInterval: 20,
-        timeout: 15000,
-      });
-
-      getSdkRoot().within(() => {
-        cy.findByText("Product ID").should("be.visible");
-        cy.findByText("Max of Quantity").should("be.visible");
-      });
-    });
-  });
-
   it("should show question title", () => {
     mountStaticQuestion({ title: true });
 
@@ -278,6 +222,7 @@ describe("scenarios > embedding-sdk > static-question", () => {
 
       cy.log("alerts modal is open");
       cy.wait("@listAlerts");
+      selectScheduleTime();
       modal().within(() => {
         cy.findByRole("heading", { name: "New alert" }).should("be.visible");
         cy.button("Done").click();
@@ -299,6 +244,7 @@ describe("scenarios > embedding-sdk > static-question", () => {
       });
 
       popover().findByRole("option", { name: "weekly" }).click();
+      selectScheduleTime();
       modal().within(() => {
         cy.button("Save changes").click();
         cy.findByRole("heading", { name: "Edit alerts" }).should("be.visible");
@@ -342,5 +288,44 @@ describe("scenarios > embedding-sdk > static-question", () => {
 
       getSdkRoot().button("Alerts").should("be.visible");
     });
+  });
+
+  it("should not request /api/card/undefined when clicking a data point on a query-only ad-hoc card", () => {
+    // A query-only ad-hoc card has no saved card id. A static question must not
+    // navigate on a chart click — previously it did, fetching
+    // `GET /api/card/undefined` (the new card's id was `undefined`).
+    cy.intercept("GET", "/api/card/undefined").as("getUndefinedCard");
+
+    mountSdkContent(
+      <StaticQuestion
+        card={{
+          query: {
+            database: SAMPLE_DB_ID,
+            type: "query",
+            query: {
+              "source-table": ORDERS_ID,
+              aggregation: [["count"]],
+              breakout: [
+                ["field", ORDERS.CREATED_AT, { "temporal-unit": "month" }],
+              ],
+              limit: 5,
+            },
+          },
+        }}
+      />,
+    );
+
+    getSdkRoot().within(() => {
+      cy.log("the aggregated query renders a cartesian chart");
+      H.cartesianChartCircle().should("have.length.greaterThan", 0);
+
+      cy.log("clicking a data point must not navigate to a new card");
+      H.cartesianChartCircle().first().click();
+
+      // The chart stays put (retry gives any erroneous navigation time to fire).
+      H.cartesianChartCircle().should("have.length.greaterThan", 0);
+    });
+
+    cy.get("@getUndefinedCard.all").should("have.length", 0);
   });
 });

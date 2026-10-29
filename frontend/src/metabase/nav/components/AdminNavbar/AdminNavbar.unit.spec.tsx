@@ -1,11 +1,11 @@
 import userEvent from "@testing-library/user-event";
-import { Route } from "react-router";
 
 import { setupBugReportingDetailsEndpoint } from "__support__/server-mocks";
 import { mockSettings } from "__support__/settings";
+import { createMockState } from "__support__/state";
 import { renderWithProviders, screen, waitFor } from "__support__/ui";
 import type { AdminPath } from "metabase/redux/store";
-import { createMockState } from "metabase/redux/store/mocks";
+import { Route } from "metabase/router";
 import {
   createMockSettings,
   createMockTokenStatus,
@@ -18,9 +18,9 @@ import { AdminNavbar } from "./AdminNavbar";
 // its own spec. Here the list is a fixture: what matters is that digit N routes
 // to the Nth tab, whatever the tabs happen to be.
 const ADMIN_PATHS: AdminPath[] = [
-  { key: "settings", path: "/admin/settings", name: "Settings" },
-  { key: "databases", path: "/admin/databases", name: "Databases" },
-  { key: "people", path: "/admin/people", name: "People" },
+  { key: "settings", path: "/admin/settings", getName: () => "Settings" },
+  { key: "databases", path: "/admin/databases", getName: () => "Databases" },
+  { key: "people", path: "/admin/people", getName: () => "People" },
 ];
 
 type SetupOpts = {
@@ -50,7 +50,7 @@ const setup = ({
   return renderWithProviders(
     <Route
       path="*"
-      component={() => <AdminNavbar path="/admin" adminPaths={adminPaths} />}
+      element={<AdminNavbar path="/admin" adminPaths={adminPaths} />}
     />,
     {
       storeInitialState: state,
@@ -62,13 +62,13 @@ const setup = ({
 };
 
 const setupTabs = async (adminPaths: AdminPath[] = ADMIN_PATHS) => {
-  const { history } = setup({ isAdmin: true, adminPaths });
+  const { router } = setup({ isAdmin: true, adminPaths });
 
   // The digit shortcut is registered from an effect; a keystroke dispatched in
   // the same tick as the initial render lands before that and is lost.
   await screen.findByTestId("admin-navbar");
 
-  return { history };
+  return { router };
 };
 
 describe("AdminNavbar", () => {
@@ -104,27 +104,23 @@ describe("AdminNavbar", () => {
           [`${index + 1}`, adminPath.key, adminPath.path] as const,
       ),
     )("pressing %s goes to the %s tab", async (key, _key, pathname) => {
-      const { history } = await setupTabs();
+      const { router } = await setupTabs();
 
       await userEvent.keyboard(key);
 
-      await waitFor(() =>
-        expect(history?.getCurrentLocation().pathname).toBe(pathname),
-      );
+      await waitFor(() => expect(router?.location.pathname).toBe(pathname));
     });
 
     it("ignores digits past the end of the tab list", async () => {
-      const { history } = await setupTabs();
+      const { router } = await setupTabs();
 
       await userEvent.keyboard(`${ADMIN_PATHS.length + 1}`);
-      expect(history?.getCurrentLocation().pathname).toBe("/admin");
+      expect(router?.location.pathname).toBe("/admin");
 
       // The handler is live — the out-of-range digit was ignored, not dropped.
       await userEvent.keyboard("2");
       await waitFor(() =>
-        expect(history?.getCurrentLocation().pathname).toBe(
-          ADMIN_PATHS[1].path,
-        ),
+        expect(router?.location.pathname).toBe(ADMIN_PATHS[1].path),
       );
     });
   });

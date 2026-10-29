@@ -1,12 +1,14 @@
 import { useDisclosure } from "@mantine/hooks";
-import { push } from "react-router-redux";
 import { t } from "ttag";
 
 import { useListDatabasesQuery } from "metabase/api";
 import { QuestionPickerModal } from "metabase/common/components/Pickers";
+import { UpsellGem } from "metabase/common/components/upsells/components/UpsellGem";
 import { useHasTokenFeature } from "metabase/common/hooks";
-import { PLUGIN_REMOTE_SYNC } from "metabase/plugins";
-import { useDispatch, useSelector } from "metabase/redux";
+import { useSelector } from "metabase/redux";
+import { useNavigate } from "metabase/router";
+import { useTransformPermissions } from "metabase/transforms/hooks/use-transform-permissions";
+import { getShouldShowPythonTransformsUpsell } from "metabase/transforms/selectors";
 import { Button, Center, Icon, Loader, Menu, Tooltip } from "metabase/ui";
 import * as Urls from "metabase/urls";
 
@@ -16,7 +18,7 @@ import { CreateTransformCollectionModal } from "../../../components/CreateTransf
 import { shouldDisableItem } from "./utils";
 
 export const CreateTransformMenu = () => {
-  const dispatch = useDispatch();
+  const navigate = useNavigate();
   const [isPickerOpened, { open: openPicker, close: closePicker }] =
     useDisclosure();
   const [
@@ -25,23 +27,26 @@ export const CreateTransformMenu = () => {
   ] = useDisclosure();
 
   const hasPythonTransformsFeature = useHasTokenFeature("transforms-python");
+  const shouldShowPythonTransformsUpsell = useSelector(
+    getShouldShowPythonTransformsUpsell,
+  );
 
   const { data: databases, isLoading } = useListDatabasesQuery({
     include_analytics: true,
   });
-  const isRemoteSyncReadOnly = useSelector(
-    PLUGIN_REMOTE_SYNC.getIsRemoteSyncReadOnly,
-  );
+  const shouldShowPythonScriptOption =
+    hasPythonTransformsFeature || shouldShowPythonTransformsUpsell;
+  const { remoteSyncReadOnly } = useTransformPermissions();
 
   const handlePythonClick = () => {
-    dispatch(push(Urls.newPythonTransform())); // Route will show upsell modal if feature is not enabled
+    navigate(Urls.newPythonTransform()); // Route will show upsell modal if feature is not enabled
 
     if (hasPythonTransformsFeature) {
       trackTransformCreate({ creationType: "python" });
     }
   };
 
-  if (isRemoteSyncReadOnly) {
+  if (remoteSyncReadOnly) {
     return (
       <Tooltip
         label={t`Transforms can't be created when Remote Sync is in read-only mode`}
@@ -49,6 +54,7 @@ export const CreateTransformMenu = () => {
         <Button
           aria-label={t`Create a transform`}
           disabled
+          size="lg"
           leftSection={<Icon name="add" size={16} />}
         >
           {t`New`}
@@ -64,6 +70,7 @@ export const CreateTransformMenu = () => {
           <Tooltip label={t`Create a transform`}>
             <Button
               aria-label={t`Create a transform`}
+              size="lg"
               leftSection={<Icon name="add" size={16} />}
             >
               {t`New`}
@@ -82,7 +89,7 @@ export const CreateTransformMenu = () => {
                 leftSection={<Icon name="notebook" />}
                 onClick={() => {
                   trackTransformCreate({ creationType: "query" });
-                  dispatch(push(Urls.newQueryTransform()));
+                  navigate(Urls.newQueryTransform());
                 }}
               >
                 {t`Query builder`}
@@ -91,15 +98,18 @@ export const CreateTransformMenu = () => {
                 leftSection={<Icon name="sql" />}
                 onClick={() => {
                   trackTransformCreate({ creationType: "native" });
-                  dispatch(push(Urls.newNativeTransform()));
+                  navigate(Urls.newNativeTransform());
                 }}
               >
                 {t`SQL query`}
               </Menu.Item>
 
-              {hasPythonTransformsFeature && (
+              {shouldShowPythonScriptOption && (
                 <Menu.Item
                   leftSection={<Icon name="code_block" />}
+                  rightSection={
+                    !hasPythonTransformsFeature ? <UpsellGem size={14} /> : null
+                  }
                   onClick={handlePythonClick}
                 >
                   {t`Python script`}
@@ -132,7 +142,7 @@ export const CreateTransformMenu = () => {
           models={["card", "dataset"]}
           isDisabledItem={(item) => shouldDisableItem(item, databases?.data)}
           onChange={(item) => {
-            dispatch(push(Urls.newTransformFromCard(item.id)));
+            navigate(Urls.newTransformFromCard(item.id));
             closePicker();
           }}
           onClose={closePicker}

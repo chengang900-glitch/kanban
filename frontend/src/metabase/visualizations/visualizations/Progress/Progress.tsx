@@ -10,10 +10,12 @@ import { t } from "ttag";
 
 import CS from "metabase/css/core/index.css";
 import { Flex, Icon } from "metabase/ui";
+import { assignLazily } from "metabase/utils/merge-lazily";
 import { checkNotNull } from "metabase/utils/types";
-import { formatValue } from "metabase/visualizations/lib/formatting";
+import { formatValue } from "metabase/value-formatting";
 import type { VisualizationProps } from "metabase/visualizations/types";
 
+import S from "./Progress.module.css";
 import { PROGRESS_CHART_DEFINITION } from "./definition";
 import {
   calculateProgressMetrics,
@@ -29,9 +31,7 @@ const MAX_BAR_HEIGHT = 65;
 const MIN_BAR_HEIGHT = 30;
 const COMPONENT_HEIGHT_TO_MIN_BAR_HEIGHT = 99;
 
-Object.assign(Progress, PROGRESS_CHART_DEFINITION);
-
-export function Progress(props: VisualizationProps) {
+function ProgressComponent(props: VisualizationProps) {
   const {
     className,
     isMobile,
@@ -68,11 +68,12 @@ export function Progress(props: VisualizationProps) {
   const progressColor = colors.foreground;
   const restColor = colors.background;
   const arrowColor = colors.pointer;
-  const progressStyle = {
+  const progressStyle: CSSProperties &
+    Record<`--progress-chart-${string}`, string> = {
     "--progress-chart-color": colors.main,
     "--progress-chart-light-color": colors.light,
     "--progress-chart-dark-color": colors.dark,
-  } as CSSProperties;
+  };
 
   const barMessage = getProgressMessage(metrics);
 
@@ -206,11 +207,14 @@ export function Progress(props: VisualizationProps) {
               height: "100%",
             }}
           >
-            {!barMessage && barPercent > 0 && barPercent < 1 && (
-              <span data-testid="progress-bar-percent">
-                {Math.round(barPercent * 100)}%
-              </span>
-            )}
+            {!barMessage &&
+              barPercent > 0 &&
+              barPercent < 1 &&
+              (props.width - 20) * barPercent >= 64 && (
+                <span className={S.percent} data-testid="progress-bar-percent">
+                  {Math.round(barPercent * 100)}%
+                </span>
+              )}
           </div>
           {barMessage && (
             <div
@@ -280,3 +284,8 @@ export function IconWithBorder() {
     </Flex>
   );
 }
+
+export const Progress = assignLazily(
+  ProgressComponent,
+  PROGRESS_CHART_DEFINITION,
+);

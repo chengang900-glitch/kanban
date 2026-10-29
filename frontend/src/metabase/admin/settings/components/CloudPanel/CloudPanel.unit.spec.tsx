@@ -5,23 +5,13 @@ import {
   setupBugReportingDetailsEndpoint,
   setupPropertiesEndpoints,
 } from "__support__/server-mocks";
+import { createMockState } from "__support__/state";
 import { renderWithProviders, screen, waitFor, within } from "__support__/ui";
-import { getPlan } from "metabase/common/utils/plan";
-import { createMockState } from "metabase/redux/store/mocks";
+import { getPlan, getSettings } from "metabase/settings";
 import type { CloudMigration } from "metabase-types/api/cloud-migration";
 import { createMockSettings, createMockUser } from "metabase-types/api/mocks";
 
 import { CloudPanel } from "./CloudPanel";
-
-// The production entry is hidden; this trigger keeps the underlying migration flow covered.
-jest.mock("metabase/admin/upsells/UpsellCloud", () => ({
-  UpsellCloud: ({ onOpenModal }: { onOpenModal: () => void }) => (
-    <div>
-      <h1>Migrate to Metabase Cloud</h1>
-      <button onClick={onOpenModal}>Try for free</button>
-    </div>
-  ),
-}));
 
 const POLL_INTERVAL = 200;
 
@@ -40,8 +30,9 @@ const setup = () => {
     },
   );
 
-  const storeUrl = store.getState().settings.values["store-url"];
-  const plan = getPlan(store.getState().settings.values["token-features"]);
+  const settings = getSettings(store.getState());
+  const storeUrl = settings["store-url"];
+  const plan = getPlan(settings["token-features"]);
   const metabaseStoreLink = `${storeUrl}/checkout?migration-source-plan=${plan}&migration-id=${BASE_RESPONSE.external_id}`;
 
   return { mockMigrationStart, store, metabaseStoreLink };
@@ -102,6 +93,7 @@ describe("CloudPanel", () => {
     await userEvent.click(cancelButton);
 
     await expectCancelConfirmationModal();
+    // Unjustified type cast. FIXME
     expect((store.getState() as any).undo).toHaveLength(0);
     await userEvent.click(
       within(
@@ -116,6 +108,7 @@ describe("CloudPanel", () => {
         }),
       ).toBeTruthy();
     });
+    // Unjustified type cast. FIXME
     expect((store.getState() as any).undo).toHaveLength(1);
 
     fetchMockCloudMigrationGetSequence([CANCELED_RESPONSE]);
@@ -254,12 +247,6 @@ const expectStartConfirmationModal = async () => {
   expect(
     await screen.findByText(/Get started with Metabase Cloud/),
   ).toBeInTheDocument();
-  expect(
-    screen.getByText(/Just a heads up: your Metabase will be read-only/),
-  ).toBeInTheDocument();
-  expect(
-    screen.queryByRole("link", { name: /Learn More/ }),
-  ).not.toBeInTheDocument();
 };
 
 const expectProgressState = async (storeUrl: string) => {

@@ -1,7 +1,7 @@
 import { jt, t } from "ttag";
 
 import { useDocsUrl } from "metabase/common/hooks";
-import { Alert, Anchor, Icon, Text } from "metabase/ui";
+import { Alert, Anchor, Icon } from "metabase/ui";
 
 import { SETUP_SSO_CAMPAIGN, UTM_LOCATION } from "../../analytics";
 
@@ -13,35 +13,28 @@ const utmTags = {
 };
 
 export const SetupSsoAlert = () => {
-  const { url: setupSsoUrl, showMetabaseLinks } = useDocsUrl(
-    "embedding/sdk/authentication",
-    {
-      utm: utmTags,
-    },
-  );
+  // eslint-disable-next-line metabase/no-unconditional-metabase-links-render -- Only for admins
+  const { url: setupSsoUrl } = useDocsUrl("embedding/sdk/authentication", {
+    utm: utmTags,
+  });
 
   return (
     <Alert
-      icon={
-        <Icon name="warning_triangle_filled" c="text-secondary" size={16} />
-      }
+      size="compact"
+      icon={<Icon name="warning_triangle_filled" />}
       color="warning"
     >
-      <Text size="md" lh="lg">
-        {showMetabaseLinks
-          ? jt`This embed will only work for local testing. To get production ready code, configure ${(
-              <Anchor
-                key="configure-sso"
-                href={setupSsoUrl}
-                target="_blank"
-                size="md"
-                lh="lg"
-              >
-                {t`JWT SSO or SAML`}
-              </Anchor>
-            )}.`
-          : t`This embed will only work for local testing. To get production ready code, configure JWT SSO or SAML.`}
-      </Text>
+      {jt`This embed will only work for local testing. To get production ready code, configure ${(
+        <Anchor
+          key="configure-sso"
+          href={setupSsoUrl}
+          target="_blank"
+          size="md"
+          lh="lg"
+        >
+          {t`JWT SSO or SAML`}
+        </Anchor>
+      )}.`}
     </Alert>
   );
 };

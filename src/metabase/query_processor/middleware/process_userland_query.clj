@@ -8,15 +8,18 @@
   (:refer-clojure :exclude [every? empty? get-in not-empty])
   (:require
    [java-time.api :as t]
+   [medley.core :as m]
    [metabase.analytics-interface.core :as analytics]
    [metabase.analytics.core :as analytics.core]
    [metabase.analytics.settings :as analytics.settings]
    [metabase.api.common :as api]
+   [metabase.app-db.sql-errors :as sql-errors]
    [metabase.batch-processing.core :as grouper]
    [metabase.events.core :as events]
    [metabase.lib.computed :as lib.computed]
    [metabase.lib.core :as lib]
    [metabase.queries.models.query :as query]
+   [metabase.query-processor.db :as query-processor.db]
    [metabase.query-processor.middleware.enterprise :as qp.middleware.enterprise]
    [metabase.query-processor.schema :as qp.schema]
    [metabase.query-processor.util :as qp.util]
@@ -25,9 +28,7 @@
    [metabase.util.json :as json]
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
-   [metabase.util.performance :refer [every? empty? get-in not-empty]]
-   ^{:clj-kondo/ignore [:discouraged-namespace]}
-   [toucan2.core :as t2]))
+   [metabase.util.performance :refer [every? empty? get-in not-empty]]))
 
 (set! *warn-on-reflection* true)
 
@@ -46,6 +47,26 @@
 
 (def ^:private save-execution-metadata-queue-capacity 500)
 
+(defn- insert-query-executions-resiliently!
+  "Insert a batch of QueryExecutions in one statement. The batch is one transaction, so a single row the app DB
+  rejects (e.g. an overlong value in a narrow column) would discard every row in it: on failure, retry the rows one
+  at a time so only the bad row is lost. Any other failure (e.g. the app DB is down) would fail every retry too, each
+  possibly waiting for a connection, so then the batch is dropped."
+  [query-executions]
+  (try
+    (query-processor.db/insert-query-executions! query-executions)
+    (catch Throwable e
+      (if (sql-errors/row-rejected? e)
+        (do
+          (log/warnf "Error saving %d QueryExecution(s) as a batch, retrying individually: %s"
+                     (count query-executions) (ex-message e))
+          (doseq [query-execution query-executions]
+            (try
+              (query-processor.db/insert-query-executions! [query-execution])
+              (catch Throwable e
+                (log/errorf "Error saving query execution info: %s" (ex-message e))))))
+        (log/errorf "Error saving %d QueryExecution(s): %s" (count query-executions) (ex-message e))))))
+
 (defn- save-execution-metadata!*
   "Save a batch of `QueryExecution`s and update the average execution times for the corresponding `Query`s."
   [query-executions]
@@ -59,14 +80,11 @@
         (query/save-queries-and-update-average-execution-times! entries)
         (catch Throwable e
           (log/errorf "Error updating query average execution times: %s" (ex-message e)))))
-    (try
-      (let [{with-context true, no-context false} (group-by (comp some? :context) query-executions)]
-        (when (seq no-context)
-          (log/warnf "Cannot save %d QueryExecution(s), missing :context" (count no-context)))
-        (when (seq with-context)
-          (t2/insert! :model/QueryExecution (map #(dissoc % :json_query) with-context))))
-      (catch Throwable e
-        (log/errorf "Error saving query execution info: %s" (ex-message e))))))
+    (let [{with-context true, no-context false} (group-by (comp some? :context) query-executions)]
+      (when (seq no-context)
+        (log/warnf "Cannot save %d QueryExecution(s), missing :context" (count no-context)))
+      (when (seq with-context)
+        (insert-query-executions-resiliently! (map #(dissoc % :json_query) with-context))))))
 
 (defonce ^:private save-execution-metadata-queue
   (delay (grouper/start!
@@ -84,7 +102,12 @@
         ;; processed the request (and its dynamic bindings and clock) is long gone. `include-sdk-info` also runs in
         ;; the `before-insert` hook as a safety net for any code path that inserts QueryExecution directly (where
         ;; dynamic vars would still be bound).
-        execution-info' (add-running-time (analytics.core/include-sdk-info execution-info))]
+        json-query      (:json_query execution-info)
+        execution-info' (-> execution-info
+                            (dissoc :json_query)
+                            analytics.core/include-sdk-info
+                            add-running-time
+                            (cond-> json-query (assoc :json_query json-query)))]
     (if qp.util/*execute-async?*
       (grouper/submit! @save-execution-metadata-queue execution-info')
       (save-execution-metadata!* [execution-info']))))
@@ -95,12 +118,13 @@
   []
   (grouper/flush! @save-execution-metadata-queue))
 
-(defn- save-successful-execution-metadata! [cache-details is-sandboxed? query-execution result-rows]
+(defn- save-successful-execution-metadata! [cache-details is-sandboxed? sandbox-details query-execution result-rows]
   (let [qe-map (assoc query-execution
                       :cache_hit       (boolean (:cached cache-details))
                       :cache_hash      (:hash cache-details)
                       :result_rows     result-rows
-                      :is_sandboxed    (boolean is-sandboxed?))]
+                      :is_sandboxed    (boolean is-sandboxed?)
+                      :sandbox_details sandbox-details)]
     (save-execution-metadata! qe-map)))
 
 (defn- save-failed-query-execution! [query-execution message]
@@ -118,8 +142,11 @@
    (-> query-execution
        add-running-time
        (dissoc :error :hash :executor_id :action_id :is_sandboxed :is_impersonated :is_db_routed :card_id :dashboard_id :transform_id :lens_id :lens_params :pulse_id :result_rows :native
-               :parameterized :parameters))
-   (dissoc result :cache/details)
+               :parameterized :parameters :sandbox_details))
+   ;; `[:data :sandbox_details]` exists only to be recorded in the QueryExecution row (see
+   ;; [[save-successful-execution-metadata!]]) — it has no business going back to the client
+   (-> (dissoc result :cache/details)
+       (m/update-existing :data dissoc :sandbox_details))
    {:cached                 (when (:cached cache) (:updated_at cache))
     :status                 :completed
     :average_execution_time (when (:cached cache)
@@ -140,7 +167,8 @@
                                                    :card-id (:card_id execution-info)
                                                    :context (:context execution-info)}))
        (save-successful-execution-metadata!
-        (:cache/details acc) (get-in acc [:data :is_sandboxed]) execution-info @row-count)
+        (:cache/details acc) (get-in acc [:data :is_sandboxed]) (get-in acc [:data :sandbox_details])
+        execution-info @row-count)
        (rf (if (map? acc)
              (success-response execution-info acc)
              acc)))
@@ -206,6 +234,7 @@
              :is_db_routed    (qp.middleware.enterprise/currently-db-routed?)}
       destination-db-id (assoc :database_id destination-db-id))))
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:dynamic ^:private *execution-context-ref*
   "Bound to an atom by [[process-userland-query-middleware]] for each userland query.
   [[capture-execution-context-middleware]] writes the snapshotted impersonation/db-routing context here while the
@@ -264,7 +293,7 @@
 
   3. Add extra info like `running_time` and `started_at` to the results
 
-  4. Submit a background job to analyze field usages"
+  4. Submit a background job to save execution info"
   [qp :- ::qp.schema/qp]
   (mu/fn [query :- ::qp.schema/any-query
           rff   :- ::qp.schema/rff]
@@ -281,8 +310,7 @@
         (let [query          (assoc-in query [:info :query-hash] (qp.util/query-hash query))
               execution-info (query-execution-info query)]
           (letfn [(rff* [metadata]
-                    (let [;; we only need the preprocessed query to find field usages, so make sure we don't return it
-                          result         (rff (dissoc metadata :preprocessed_query))
+                    (let [result         (rff metadata)
                           execution-info (enrich-with-execution-context execution-info)]
                       (add-and-save-execution-metadata-xform! execution-info result)))]
             (try

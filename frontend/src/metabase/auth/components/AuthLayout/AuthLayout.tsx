@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { useSetting } from "metabase/common/hooks";
+import { useSetting } from "metabase/settings";
 import { Text } from "metabase/ui";
 import { getDisplaySiteName } from "metabase/utils/branding";
 

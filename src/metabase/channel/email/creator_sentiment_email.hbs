@@ -2,28 +2,37 @@
   <div class="card-container" style="color: {{colorTextMedium}};">
     {{#if self-hosted}}
     <p style="font-weight: 500; font-size: 0.875em; line-height: 1.375em; color: {{colorTextMedium}};">
-      <i>（此邮件直接由 {{self-hosted}} 发送，不经过外部服务）</i>
+      <i>(This email is sent directly from {{self-hosted}}, it doesn't go through any external services)</i>
     </p>
     {{/if}}
 
     <p style="font-weight: 500; line-height: 1.375em; color: {{colorTextMedium}};">
-      你好，{{first-name}}：
+      Hi {{first-name}},
     </p>
 
     <p style="font-weight: 500; line-height: 1.375em; color: {{colorTextMedium}};">
-      感谢你使用数据看板创建问题、看板等分析内容。
+      We at Metabase are working hard to make the experience of people like you, who create lots of content (questions, dashboards, etc).
     </p>
 
     <p style="font-weight: 600; line-height: 1.375em; color: {{colorTextMedium}};">
-      此邮件无需进行任何操作。
+      We’d like to know how we’re doing.<br>Can you spare 30 seconds to fill out this NPS survey?
+    </p>
+
+    <div style="text-align: center;">
+      <a
+        href="{{{link}}}"
+        style="display: inline-block; padding: 0.75rem 1.125em; background-color: {{applicationColor}}; color: #FFF; border-radius: 6px; font-size: 0.875em; font-weight: 700; text-decoration: none;"
+      >
+        Answer Now
+      </a>
+    </div>
+
+    <p style="font-weight: 500; line-height: 1.375em; color: {{colorTextMedium}};">
+      Thank you,
     </p>
 
     <p style="font-weight: 500; line-height: 1.375em; color: {{colorTextMedium}};">
-      谢谢。
-    </p>
-
-    <p style="font-weight: 500; line-height: 1.375em; color: {{colorTextMedium}};">
-      数据看板团队
+      - The Metabase Product Team
     </p>
   </div>
 {{> _footer }}

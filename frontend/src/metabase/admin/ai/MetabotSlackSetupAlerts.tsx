@@ -1,9 +1,12 @@
 import { t } from "ttag";
 
 import { CopyButton } from "metabase/common/components/CopyButton";
-import { ButtonLink } from "metabase/common/components/ExternalLink";
+import {
+  ButtonLink,
+  ExternalLink,
+} from "metabase/common/components/ExternalLink";
 import { Link } from "metabase/common/components/Link";
-import { Alert, Group, Icon, Stack, Text } from "metabase/ui";
+import { Alert, Group, Icon, Stack } from "metabase/ui";
 
 import S from "./MetabotSlackSetup.module.css";
 
@@ -22,23 +25,18 @@ export function MissingScopesAlert({
       : "https://api.slack.com/apps";
 
   return (
-    <Alert
-      color="core-brand"
-      title={t`Metabot needs more Slack permissions`}
-      styles={{ label: { fontSize: "var(--mantine-font-size-md)" } }}
-    >
-      <Stack gap="md" mt="sm">
-        <Text>
-          {t`Your Slack app is missing OAuth scopes required for Metabot. Copy the updated manifest and paste it in your Slack app settings. You will need to re-install your application to your workspace after.`}
-        </Text>
-        <Group gap="md">
+    <Alert color="core-brand" title={t`Metabot needs more Slack permissions`}>
+      <Stack gap="lg" mt="sm">
+        {t`Your Slack app is missing OAuth scopes required for Metabot. Copy the updated manifest and paste it in your Slack app settings. You will need to re-install your application to your workspace after.`}
+        <Group gap="lg">
           <CopyButton
+            className={S.copyButton}
             value={JSON.stringify(manifest, null, 2)}
             target={
-              <button type="button" className={S.copyButton}>
+              <>
                 <span>{t`Copy manifest`}</span>
-                <Icon name="copy" size={16} ml="sm" />
-              </button>
+                <Icon name="copy" size={16} ml="sm" aria-hidden />
+              </>
             }
           />
           <ButtonLink href={slackUrl}>
@@ -54,26 +52,34 @@ export function MissingScopesAlert({
 export function MetabotSetupRequiredAlert() {
   return (
     <Alert
+      size="compact"
       color="core-brand"
       title={t`This feature requires an AI model`}
-      styles={{ label: { fontSize: "var(--mantine-font-size-md)" } }}
     >
-      <Text mt="sm">
-        <Link
-          to="/admin/metabot#setup"
-          variant="brand"
-        >{t`Connect to a provider`}</Link>
-      </Text>
+      <Link
+        to="/admin/metabot#setup"
+        variant="brand"
+      >{t`Connect to a provider`}</Link>
     </Alert>
   );
 }
 
-export function EncryptionRequiredAlert() {
+interface EncryptionRequiredAlertProps {
+  docsUrl: string;
+}
+
+export function EncryptionRequiredAlert({
+  docsUrl,
+}: EncryptionRequiredAlertProps) {
   return (
     <Alert
+      size="compact"
       color="core-brand"
       title={t`You must enable encryption for your instance in order to use this feature`}
-      styles={{ label: { fontSize: "var(--mantine-font-size-md)" } }}
-    />
+    >
+      <ExternalLink
+        href={docsUrl}
+      >{t`Learn how to enable encryption`}</ExternalLink>
+    </Alert>
   );
 }

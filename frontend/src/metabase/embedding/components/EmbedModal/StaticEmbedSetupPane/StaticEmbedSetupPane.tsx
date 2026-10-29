@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 import { useAsync } from "react-use";
 import { t } from "ttag";
 
-import { useSetting } from "metabase/common/hooks";
 import CS from "metabase/css/core/index.css";
 import { getPreviewParamsBySlug } from "metabase/embedding/components/EmbedModal/StaticEmbedSetupPane/lib/get-preview-params-by-slug";
 import { getStaticEmbedSetupPublishHandlers } from "metabase/embedding/components/EmbedModal/StaticEmbedSetupPane/lib/get-static-embed-setup-publish-handlers";
@@ -20,6 +19,7 @@ import type {
 } from "metabase/embedding/types";
 import { useSelector } from "metabase/redux";
 import { getCanWhitelabel } from "metabase/selectors/whitelabel";
+import { useSetting } from "metabase/settings";
 import { Paper, Stack, Tabs } from "metabase/ui";
 import { checkNotNull } from "metabase/utils/types";
 import type { EmbeddingParameters } from "metabase-types/api";
@@ -31,7 +31,7 @@ import { ParametersSettings } from "./ParametersSettings";
 import { PreviewModeSelector } from "./PreviewModeSelector";
 import { type PreviewBackgroundType, PreviewPane } from "./PreviewPane";
 import { ServerEmbedCodePane } from "./ServerEmbedCodePane";
-import { SettingsTabLayout } from "./StaticEmbedSetupPane.styled";
+import { SettingsTabLayout } from "./SettingsTabLayout";
 import { getDefaultDisplayOptions } from "./config";
 import { getDefaultEmbeddingParams } from "./lib/get-default-embedding-params";
 import { getHasParamsChanged } from "./lib/get-has-params-changed";

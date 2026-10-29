@@ -1,15 +1,16 @@
 import { useMemo } from "react";
-import type { Route } from "react-router";
-import { push, replace } from "react-router-redux";
 import { t } from "ttag";
 
 import { DatabaseEditConnectionForm } from "metabase/admin/databases/components/DatabaseEditConnectionForm";
 import { useGetDatabaseQuery, useUpdateDatabaseMutation } from "metabase/api";
+import { ExternalLink } from "metabase/common/components/ExternalLink";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
+import { useDocsUrl } from "metabase/common/hooks";
 import { usePageTitle } from "metabase/hooks/use-page-title";
 import { useDispatch } from "metabase/redux";
 import { addUndo } from "metabase/redux/undo";
-import { Flex, Modal, Text } from "metabase/ui";
+import { useNavigate, useParams } from "metabase/router";
+import { Flex, Icon, Modal, Text } from "metabase/ui";
 import * as Urls from "metabase/urls";
 import { useCreateDestinationDatabaseMutation } from "metabase-enterprise/api";
 import type { Database, DatabaseData } from "metabase-types/api";
@@ -19,14 +20,16 @@ import { paramIdToGetQuery } from "../utils";
 import S from "./DestinationDatabaseConnectionModal.module.css";
 import { pickPrefillFieldsFromPrimaryDb } from "./utils";
 
-export const DestinationDatabaseConnectionModal = ({
-  params: { databaseId, destinationDatabaseId },
-  route,
-}: {
-  params: { databaseId: string; destinationDatabaseId?: string };
-  route: Route;
-}) => {
+export const DestinationDatabaseConnectionModal = () => {
+  const { databaseId = "", destinationDatabaseId } = useParams<{
+    databaseId: string;
+    destinationDatabaseId: string;
+  }>();
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  // eslint-disable-next-line metabase/no-unconditional-metabase-links-render -- Admin settings
+  const { url: docsUrl } = useDocsUrl("permissions/database-routing");
 
   const primaryDbReq = useGetDatabaseQuery(paramIdToGetQuery(databaseId));
   const destinationDbReq = useGetDatabaseQuery(
@@ -54,9 +57,9 @@ export const DestinationDatabaseConnectionModal = ({
   const handleCloseModal = (method = "push") => {
     const dbId = parseInt(databaseId, 10);
     if (method === "push") {
-      dispatch(push(Urls.viewDatabase(dbId)));
+      navigate(Urls.viewDatabase(dbId));
     } else {
-      dispatch(replace(Urls.viewDatabase(dbId)));
+      navigate(Urls.viewDatabase(dbId), { replace: true });
     }
   };
 
@@ -101,7 +104,7 @@ export const DestinationDatabaseConnectionModal = ({
       }
       opened
       onClose={handleCloseModal}
-      padding="xl"
+      padding="xxl"
       classNames={{
         content: S.modalRoot,
         header: S.modalHeader,
@@ -112,16 +115,23 @@ export const DestinationDatabaseConnectionModal = ({
         <>
           <Flex
             py="sm"
-            px="md"
-            mx="xl"
-            my="md"
+            px="lg"
+            mx="xxl"
+            my="lg"
             bg="background_page-secondary"
             align="center"
-            justify="flex-start"
+            justify="space-between"
             bd="1px solid border-neutral"
             style={{ borderRadius: ".5rem" }}
           >
             <Text>{t`You can also add databases programmatically via the API.`}</Text>
+            <ExternalLink
+              key="link"
+              href={docsUrl}
+              style={{ display: "flex", alignItems: "center", gap: 4 }}
+            >
+              {t`Learn more`} <Icon name="share" aria-hidden />
+            </ExternalLink>
           </Flex>
 
           <DatabaseEditConnectionForm
@@ -130,7 +140,6 @@ export const DestinationDatabaseConnectionModal = ({
             handleSaveDb={handleSaveDatabase}
             onSubmitted={handleOnSubmit}
             onCancel={handleCloseModal}
-            route={route}
             config={{
               name: { isSlug: true },
               engine: { fieldState: "hidden" },

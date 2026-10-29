@@ -1,16 +1,9 @@
-import "metabase/plugins/builtin";
+import "metabase/auth/plugins";
 import { screen } from "__support__/ui";
 
 import { setup } from "./setup";
 
 describe("Login", () => {
-  it("renders the login heading without the product name", () => {
-    setup({ isPasswordLoginEnabled: true });
-
-    expect(screen.getByRole("heading")).toHaveTextContent("Sign in");
-    expect(screen.getByRole("heading")).not.toHaveTextContent("Metabase");
-  });
-
   it("should render a list of auth providers", () => {
     setup({ isPasswordLoginEnabled: true, isGoogleAuthEnabled: true });
 

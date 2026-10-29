@@ -72,6 +72,14 @@
         (is (= "output-available" (:state part)))
         (is (contains? part :output))
         (is (= {} (:output part)))))
+    (testing "the result map passes through verbatim, not trimmed like new writes"
+      (let [[part] (migrate/migrate-v1-native->v2
+                    [tool-input {:type "tool-output" :id "tc1"
+                                 :result {:output            "rows"
+                                          :structured-output {:query-id 7}
+                                          :resources         [{:blob "big"}]}}])]
+        (is (= {:output "rows" :structured-output {:query-id 7} :resources [{:blob "big"}]}
+               (:output part)))))
     (testing "tool-output with a string :error becomes output-error with :errorText and no :output"
       (let [[part] (migrate/migrate-v1-native->v2
                     [tool-input {:type "tool-output" :id "tc1" :result {} :error "boom"}])]
@@ -102,10 +110,6 @@
     (is (= [{:type "text" :text "Found it"}]
            (migrate/migrate-v1-native->v2
             [{:type "text" :id "t1" :text "Found it"}]))))
-  (testing "reasoning passes through with :id stripped"
-    (is (= [{:type "reasoning" :text "Checking the data"}]
-           (migrate/migrate-v1-native->v2
-            [{:type "reasoning" :id "r1" :text "Checking the data"}]))))
   (testing "data entries convert like external DATA entries"
     (is (= [{:type "data-navigate_to" :data "/question/1"}]
            (migrate/migrate-v1-native->v2
@@ -116,7 +120,7 @@
   (testing "unknown :type throws"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Unrecognized v1 native entry type"
                           (migrate/migrate-v1-native->v2
-                           [{:type "unknown" :text "hmm"}])))))
+                           [{:type "reasoning" :text "hmm"}])))))
 
 (deftest ^:parallel migrate-v1-user-message->v2-test
   (testing "user messages convert to text parts"
@@ -148,7 +152,6 @@
                     {:type "tool-output" :id "tc2" :result {} :error {:message "boom"}}
                     {:type "tool-input" :id "tc3" :function "search" :arguments {:q "y"}}
                     {:type "text" :id "t1" :text "Found it"}
-                    {:type "reasoning" :id "r1" :text "Checking the data"}
                     {:type "data" :data-type "state" :version 1 :data {}}
                     {:type "error" :error {:message "boom"}}]
                    [{:role "user" :content "Do we have data on orders"}]

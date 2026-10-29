@@ -4,11 +4,18 @@ import fetchMock from "fetch-mock";
 import { screen, waitFor, within } from "__support__/ui";
 import * as Analytics from "metabase/analytics";
 import {
+  createMockCollection,
+  createMockDatabase,
   createMockRecentCollectionItem,
   createMockRecentTableItem,
+  createMockSearchResult,
 } from "metabase-types/api/mocks";
 
 import { type CommonSetupProps, commonSetup } from "./setup";
+
+const ACTIONS_DATABASE = createMockDatabase({
+  settings: { "database-enable-actions": true },
+});
 
 const setup = (props: CommonSetupProps = {}) =>
   commonSetup({ ...props, isEE: false });
@@ -101,7 +108,7 @@ describe("PaletteResults", () => {
     ).toHaveLength(2);
   });
 
-  it("should allow you to search entities without a docs link", async () => {
+  it("should allow you to search entities, and provide a docs link", async () => {
     setup({ query: "Bar" });
 
     await waitFor(async () => {
@@ -124,8 +131,45 @@ describe("PaletteResults", () => {
       await screen.findByRole("option", { name: "Bar Dashboard" }),
     ).toHaveTextContent("Such Bar. Much Wow.");
     expect(
-      screen.queryByText('Search Metabase\'s docs for "Bar"'),
-    ).not.toBeInTheDocument();
+      await screen.findByText('Search Metabase\'s docs for "Bar"'),
+    ).toBeInTheDocument();
+  });
+
+  it("should link a data app search result to its app", async () => {
+    setup({
+      query: "Link",
+      searchItems: [
+        createMockSearchResult({
+          id: 7,
+          model: "data-app",
+          name: "Link Test",
+          data_app_slug: "link-test",
+        }),
+      ],
+    });
+
+    expect(
+      await screen.findByRole("link", { name: "Link Test" }),
+    ).toHaveAttribute("href", "/apps/link-test");
+  });
+
+  it("should label a data app search result as a data app, not by a collection", async () => {
+    setup({
+      query: "Link",
+      searchItems: [
+        createMockSearchResult({
+          id: 7,
+          model: "data-app",
+          name: "Link Test",
+          collection: createMockCollection({ name: "Shorebirds" }),
+          data_app_slug: "link-test",
+        }),
+      ],
+    });
+
+    const option = await screen.findByRole("option", { name: "Link Test" });
+    expect(option).toHaveTextContent("Data app");
+    expect(option).not.toHaveTextContent("Shorebirds");
   });
 
   it("should display collections that search results are from", async () => {
@@ -157,12 +201,16 @@ describe("PaletteResults", () => {
     expect(await screen.findByText("Settings - Email")).toBeInTheDocument();
   });
 
+  it("should provide a link to Domains settings for admins", async () => {
+    setup({ query: "doma", isAdmin: true });
+    expect(await screen.findByText("Settings - Domains")).toBeInTheDocument();
+  });
+
   it("should not provide links to settings pages for non-admins", async () => {
     setup({ query: "setu", isAdmin: false });
-    expect(await screen.findByText("Results")).toBeInTheDocument();
     expect(
-      screen.queryByText(`Search Metabase's docs for "setu"`),
-    ).not.toBeInTheDocument();
+      await screen.findByText(`Search Metabase's docs for "setu"`),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Admin")).not.toBeInTheDocument();
     expect(screen.queryByText("Settings - Setup")).not.toBeInTheDocument();
   });
@@ -175,10 +223,9 @@ describe("PaletteResults", () => {
 
   it("should not provide links to admin pages for non-admins", async () => {
     setup({ query: "permi", isAdmin: false });
-    expect(await screen.findByText("Results")).toBeInTheDocument();
     expect(
-      screen.queryByText(`Search Metabase's docs for "permi"`),
-    ).not.toBeInTheDocument();
+      await screen.findByText(`Search Metabase's docs for "permi"`),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Admin")).not.toBeInTheDocument();
     expect(screen.queryByText("Permissions")).not.toBeInTheDocument();
   });
@@ -193,12 +240,23 @@ describe("PaletteResults", () => {
     expect(fetchMock.callHistory.calls("path:/api/search").length).toBe(1);
   });
 
-  it("should not provide a link to Metabase docs", async () => {
+  it("should provide a link to docs with the proper url param", async () => {
     setup({ query: "model" });
-    expect(await screen.findByText("Results")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: /Search Metabase's docs/ }),
-    ).not.toBeInTheDocument();
+    const docsLink = await screen.findByRole("link", {
+      name: /Search Metabase's docs/,
+    });
+    expect(docsLink).toHaveAttribute(
+      "href",
+      expect.stringContaining("query=model"),
+    );
+    expect(docsLink).toHaveAttribute(
+      "href",
+      expect.stringContaining("utm_medium=command-palette"),
+    );
+    expect(docsLink).toHaveAttribute(
+      "href",
+      expect.stringContaining("utm_campaign=docs-search"),
+    );
 
     // One call is always made to determine if the instance has models inside useCommandPaletteBasicActions
     expect(fetchMock.callHistory.calls("path:/api/search").length).toBe(2);
@@ -216,30 +274,48 @@ describe("PaletteResults", () => {
 
   it("should not offer the New embed action to non-admins", async () => {
     setup({ query: "new embed", isAdmin: false });
-    expect(await screen.findByText("Results")).toBeInTheDocument();
     expect(
-      screen.queryByText(`Search Metabase's docs for "new embed"`),
-    ).not.toBeInTheDocument();
+      await screen.findByText(`Search Metabase's docs for "new embed"`),
+    ).toBeInTheDocument();
     expect(screen.queryByText("New embed")).not.toBeInTheDocument();
   });
 
+  it("should offer the New action action to admins", async () => {
+    setup({
+      query: "new action",
+      isAdmin: true,
+      databases: [ACTIONS_DATABASE],
+    });
+    expect(await screen.findByText("New action")).toBeInTheDocument();
+  });
+
+  it("should not offer the New action action to non-admins", async () => {
+    setup({
+      query: "new action",
+      isAdmin: false,
+      databases: [ACTIONS_DATABASE],
+    });
+    expect(
+      await screen.findByText(`Search Metabase's docs for "new action"`),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("New action")).not.toBeInTheDocument();
+  });
+
   it("should start a new metric", async () => {
-    const { history } = setup({ query: "new met" });
+    const { router } = setup({ query: "new met" });
 
     await userEvent.click(await screen.findByText("New metric"));
 
-    await waitFor(() =>
-      expect(history?.getCurrentLocation().pathname).toBe("/metric/new"),
-    );
+    await waitFor(() => expect(router?.location.pathname).toBe("/metric/new"));
   });
 
   it("should start a new document", async () => {
-    const { history } = setup({ query: "new document" });
+    const { router } = setup({ query: "new document" });
 
     await userEvent.click(await screen.findByText("New document"));
 
     await waitFor(() =>
-      expect(history?.getCurrentLocation().pathname).toBe("/document/new"),
+      expect(router?.location.pathname).toBe("/document/new"),
     );
   });
 
@@ -266,10 +342,10 @@ describe("PaletteResults", () => {
 
   it("should not prompt non-admins to search everything", async () => {
     setup({ query: "zzzz", settings: { "active-users-count": 2 } });
-    expect(await screen.findByText("Results")).toBeInTheDocument();
+
     expect(
-      screen.queryByText(`Search Metabase's docs for "zzzz"`),
-    ).not.toBeInTheDocument();
+      await screen.findByText(`Search Metabase's docs for "zzzz"`),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Search everything")).not.toBeInTheDocument();
   });
 
@@ -280,7 +356,7 @@ describe("PaletteResults", () => {
       "true",
     );
     expect(
-      screen.queryByLabelText(/Search Metabase's docs/),
-    ).not.toBeInTheDocument();
+      await screen.findByLabelText(/Search Metabase's docs/),
+    ).toHaveAttribute("aria-disabled", "false");
   });
 });

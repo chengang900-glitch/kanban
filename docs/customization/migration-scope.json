@@ -1,0 +1,2107 @@
+{
+  "legacy_base": "d7ac0abea18703302b5e99986f6668a09d0f4947",
+  "legacy_custom": "7521b2d0649fe54c94674d424de15a2c5359460f",
+  "target_base": "43a24f64f0e522aaeb6f3b2cf39001c6e451bc56",
+  "paths": [
+    {
+      "path": ".clj-kondo/config/modules/config.edn",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "Dockerfile",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "METABASE_CUSTOMIZATION_PLAN.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "METABASE_UPGRADE_CHECKLIST.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "MIGRATION_V0.63.19.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "bin/build/src/i18n/create_artifacts.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "bin/build/src/i18n/create_artifacts/backend.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "bin/build/src/i18n/create_artifacts/frontend.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "bin/build/test/i18n/create_artifacts/backend_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "bin/build/test/i18n/create_artifacts/frontend_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "bin/keycloak-portal/browser-local.mjs",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "bin/keycloak-portal/build-portal-fixture.mjs",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "bin/keycloak-portal/isolated-server.mjs",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "bin/keycloak-portal/seed-local.mjs",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "bin/keycloak-portal/test-local.sh",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "docs/keycloak-portal/Caddyfile.example",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/keycloak-portal/README.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/keycloak-portal/VALIDATION.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/keycloak-portal/keycloak-client.template.json",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/keycloak-portal/librechat.patch",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/keycloak-portal/metabase.env.example",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-01-v0.63.2-admin-doc-links-migration.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-01-v0.63.2-brand-navigation-migration.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-01-v0.63.2-commercial-prompts-migration.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-01-v0.63.2-confirmed-commercial-links-migration.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-01-v0.63.2-help-upsell-cleanup-migration.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-01-v0.63.2-openai-compatible-provider-migration.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-01-v0.63.2-openai-compatible-responses-protocol.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-01-v0.63.2-permissions-doc-links-migration.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-01-v0.63.2-thinking-tool-choice-retry-migration.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-02-v0.63.2-remaining-customizations-migration.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-03-v0.63.2-final-ui-branding-cleanup.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-15-metabot-execution-details.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-22-v0.63.14-full-customization-migration.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-10-03-keycloak-portal.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-10-05-auto-bind-keycloak-email.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-15-metabot-execution-details-design.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-10-03-keycloak-portal-design.md",
+      "decision": "reference-only-new-records"
+    },
+    {
+      "path": "e2e/support/assets/favicon.ico",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/backend/src/metabase_enterprise/audit_app/pages/common.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/embedding/data-picker/DataSelectorTablePicker/DataSelectorTablePicker.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/advanced_permissions/components/ImpersonationModal/ImpersonationModal.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/advanced_permissions/components/ImpersonationModal/ImpersonationModalView.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/ai-controls/nav.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/audit_app/metabot-analytics/nav.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/auth/components/AuthSettingsPage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/database_routing/DestinationDatabaseConnectionModal/DestinationDatabaseConnectionModal.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/remote_sync/components/RemoteSyncAdminSettings/DevInstanceUpsell.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/remote_sync/components/RemoteSyncAdminSettings/RemoteSyncSettingsForm.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/replacement/pages/MigrateModelsPage/ModelSidebar/InfoSection/InfoSection.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/semantic_search/SearchSettingsWidget.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/semantic_search/SearchSettingsWidget.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/settings/selectors.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/transforms-python/upsells/PythonTransformsUpsellModal/PurchaseAdvancedTransforms.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/transforms-python/upsells/PythonTransformsUpsellModal/PurchaseAdvancedTransforms.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/transforms/upsells/pages/TransformsUpsellPage/TransformsUpsellPage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "enterprise/frontend/src/metabase-enterprise/transforms/upsells/pages/TransformsUpsellPage/TransformsUpsellPage.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/embedding-sdk-bundle/components/private/PublicComponentWrapper/SdkError.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase-types/api/metabot.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase-types/api/settings.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/account/profile/components/UserProfileForm/UserProfileForm.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/account/profile/components/UserProfileForm/UserProfileForm.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/actions/containers/ActionCreator/FormCreator/Description/Description.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/actions/containers/ActionCreator/FormCreator/Description/test/common.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/actions/containers/ActionCreator/FormCreator/Description/test/enterprise.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/actions/containers/ActionCreator/FormCreator/Description/test/premium.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/actions/containers/ActionCreator/FormCreator/EmptyFormPlaceholder/tests/common.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/ai/AIProviderSettingsSection.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/ai/AIProviderSettingsSection.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/ai/AISettingsPage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/ai/AISettingsPage.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/ai/EmbeddedMetabotUpsell.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/ai/McpAppsSettings.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/ai/McpAppsSettings.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/ai/MetabotAdminSuggestedPrompts.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/ai/MetabotAdminSuggestedPrompts.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/ai/MetabotNavPane.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/ai/MetabotSlackSetup.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/ai/MetabotSlackSetup.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/ai/MetabotSlackSetupAlerts.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/databases/components/DatabaseModelFeaturesSection/ModelCachingControl/ModelCachingControl.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/databases/containers/DatabasePage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/databases/containers/DatabasePage.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/embedding/components/EmbeddingNav.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/embedding/components/EmbeddingNav.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/people/components/GroupMembersTable/GroupMembersTable.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/people/components/PeopleNav.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/people/containers/AdminPeopleApp/AdminPeopleApp.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/people/forms/UserForm.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/people/forms/UserForm.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/performance/components/ModelPersistenceConfiguration.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/performance/components/ModelPersistenceConfiguration.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/permissions/components/ApplicationPermissionsHelp/ApplicationPermissionsHelp.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/permissions/components/CollectionPermissionsHelp/CollectionPermissionsHelp.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/permissions/components/DataPermissionsHelp/DataPermissionsHelp.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/permissions/components/DataPermissionsHelp/DataPermissionsHelp.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/permissions/components/LegacyPermissionsModal/LegacyPermissionsModal.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/permissions/components/PermissionsDocumentationLinks.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/permissions/components/PermissionsEditor/PermissionsEditorLegacyWarning.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/permissions/components/PermissionsEditor/PermissionsEditorSplitPermsMessage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/routes.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/auth/components/AuthCard/AuthCard.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/auth/components/GoogleAuthForm/GoogleAuthForm.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/CloudPanel/CloudPanel.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/CloudPanel/MigrationStart.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/EmbeddingSettings/EmbeddingSdkSettings/EmbeddingSdkSettings.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/embedding/settings/EmbeddingSecuritySettings/EmbeddingAppSameSiteCookieDescription.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/EmbeddingSettings/EmbeddingSecuritySettings/tests/common.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/EmbeddingSettings/EmbeddingSettings/EmbeddingSettings.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/EmbeddingSettings/EmbeddingSettings/tests/enterprise.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/EmbeddingSettings/SharedCombinedEmbeddingSettings/SharedCombinedEmbeddingSettings.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsLicense/SettingsLicense.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsLicense/SettingsLicense.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsNav/SettingsNav.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsNav/SettingsNav.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsPages/AuthenticationSettingsPage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsPages/CloudSettingsPage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsPages/CloudSettingsPage.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsPages/EmailSettingsPage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsPages/GeneralSettingsPage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsPages/GeneralSettingsPage.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsPages/LicenseSettingsPage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsPages/LocalizationSettingsPage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsPages/RemoteSyncSettingsPage.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsPages/UpdatesSettingsPage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsPages/UpdatesSettingsPage.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsPages/test/AuthenticationSettingsPage.enterprise.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/SettingsPages/test/AuthenticationSettingsPage.oss.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/widgets/HomepageSetting.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/widgets/HomepageSetting.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/widgets/Notifications/WebhookForm.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/widgets/UsageTracking/AnonymousTrackingInput.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/widgets/UsageTracking/AnonymousTrackingInput.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/widgets/UsageTracking/BaseUsageTrackingSettingToggle.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/widgets/VersionUpdateNotice/VersionUpdateNotice.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/components/widgets/VersionUpdateNotice/VersionUpdateNotice.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/slack/SlackConfiguration.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/slack/SlackSetup.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/slack/SlackSetup.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/tests/enterprise.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/tests/oss.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/tests/premium.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/settings/tests/setup.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/upsells/HiddenAdminUpsells.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/upsells/HiddenAdminUpsells.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/upsells/UpsellCloud.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/upsells/UpsellPermissions.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/upsells/UpsellPermissions.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/upsells/UpsellRemoteSync.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/upsells/UpsellSdkLink.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/upsells/UpsellWhitelabel.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/upsells/index.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/admin/utils.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/api/ai-streaming/process-stream.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/api/ai-streaming/process-stream.unit.spec.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/api/ai-streaming/schemas.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/api/localization.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/api/metabot.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/api/tags/constants.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/app/nav/AppBar.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/app/selectors.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/auth/components/AuthLayout/AuthLayout.styled.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/auth/components/AuthLayout/AuthLayout.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/auth/components/AuthLayout/AuthLayout.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/auth/components/Login/Login.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/auth/components/Login/tests/common.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/auth/components/Login/tests/setup.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/auth/components/LoginForm/LoginForm.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/auth/components/PasswordPanel/PasswordPanel.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/browse/metrics/tests/common.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/browse/models/BrowseModels.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/AppBanner/AppBanner.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/AppBanner/AppBanner.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/EntityIdCard/EntityIdCard.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/ErrorPages/use-error-info.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/ExportSettingsWidget/ExportSettingsWidget.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/Glossary/GlossaryTable.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/NewItemMenu/NewItemMenu.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/NewItemMenu/NewItemMenuView.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/SetByEnvVar/SetByEnvVar.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/UserAvatar/UserAvatar.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/UserPicker/UserPicker.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/UserPicker/UserPicker.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/CommercialUpsells.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/StoragePurchaseModal/StoragePurchaseButton.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/UpsellEmbedHomepage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/UpsellMetabaseBanner.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/UpsellUsageAnalytics.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/components/UpgradeModal/UpgradeModal.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/components/UpgradeModal/UpgradeModal.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/components/UpgradeModal/UpgradeModalError.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/components/UpgradeModal/UpgradeModalInitial.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/components/UpgradeModal/UpgradeModalLoading.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/components/UpgradeModal/types.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/components/UpsellCardContent.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/components/UpsellCardContent.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/components/UpsellGem.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/components/UpsellWrapper.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/components/upsells/components/UpsellWrapper.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/data-studio/components/PaneHeader/PaneHeader.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/common/utils/user.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/ActionViz/ExplainerText/ExplainerText.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/ActionViz/ExplainerText/tests/common.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/ActionViz/ExplainerText/tests/enterprise.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/ActionViz/ExplainerText/tests/premium.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/DashCard/DashCard.module.css",
+      "decision": "adapt-chart-to-new-components"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/DashCard/DashCard.tsx",
+      "decision": "adapt-chart-to-new-components"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/DashCard/DashCardParameterMapper/DisabledNativeCardHelpText/DisabledNativeCardHelpText.tsx",
+      "decision": "adapt-chart-to-new-components"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/DashCard/DashCardParameterMapper/DisabledNativeCardHelpText/tests/common.unit.spec.ts",
+      "decision": "adapt-chart-to-new-components"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/DashCard/DashCardParameterMapper/DisabledNativeCardHelpText/tests/enterprise.unit.spec.ts",
+      "decision": "adapt-chart-to-new-components"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/DashCard/DashCardParameterMapper/DisabledNativeCardHelpText/tests/premium.unit.spec.ts",
+      "decision": "adapt-chart-to-new-components"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/DashCard/Dashcard.unit.spec.tsx",
+      "decision": "adapt-chart-to-new-components"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/DashboardHeader/buttons/ExportAsPdfButton.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/DashboardInfoSidebar/DashboardInfoSidebar.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/DashboardInfoSidebar/tests/common.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/DashboardSubscriptionsSidebar/AddEditSidebar/CaveatMessage/CaveatMessage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/DashboardSubscriptionsSidebar/AddEditSidebar/CaveatMessage/tests/common.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/DashboardSubscriptionsSidebar/AddEditSidebar/CaveatMessage/tests/enterprise.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/DashboardSubscriptionsSidebar/AddEditSidebar/CaveatMessage/tests/premium.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/dashboard/components/ParameterLinkedFilters/ParameterLinkedFilters.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/data-studio/app/pages/DataStudioLayout/DataStudioLayout.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/data-studio/app/pages/DataStudioLayout/tests/common.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/data-studio/app/pages/DataStudioLayout/tests/enterprise.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/databases/components/DatabaseEngineList/DatabaseEngineList.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/databases/components/DatabaseEngineList/DatabaseEngineList.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/databases/components/DatabaseForm/DatabaseFormFooter.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/databases/components/DatabaseForm/DatabaseFormFooter.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/databases/components/DatabaseFormError/AdditionalHelpButtonGroup.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/databases/components/DatabaseHelpCard/DatabaseHelpCard.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/databases/components/DatabaseSshDescription/DatabaseSshDescription.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/databases/components/DatabaseSslKeyDescription/DatabaseSslKeyDescription.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/embedding/components/EmbedModal/StaticEmbedSetupPane/LookAndFeelSettings.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/embedding/components/EmbedModal/StaticEmbedSetupPane/OverviewSettings.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/embedding/components/EmbedModal/StaticEmbedSetupPane/tests/common.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/embedding/components/LogoBadge/LogoBadge.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/embedding/components/LogoBadge/LogoBadge.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/embedding/embedding-hub/components/DocsLink.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/embedding/embedding-hub/components/SetupPermissionsAndTenantsPage/DatabaseRoutingStepContent.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/embedding/embedding-hub/components/SetupSsoPage/AddEndpointStep.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/embedding/embedding-iframe-sdk-setup/components/Common/EmbeddingUpsell.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/embedding/embedding-iframe-sdk-setup/components/Common/SetupSsoAlert.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/embedding/embedding-iframe-sdk-setup/components/steps/AppearanceStep/BehaviorCard.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/embedding/embedding-iframe-sdk-setup/components/steps/GetCodeStep/EmbedCodeCard.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/embedding/embedding-iframe-sdk-setup/components/steps/GetCodeStep/MetabaseAccountCard.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/embedding/embedding-iframe-sdk-setup/constants.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/home/components/EmbedHomepage/EmbedHomepage.stories.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/home/components/EmbedHomepage/EmbedHomepage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/home/components/EmbedHomepage/EmbedHomepageView.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/home/components/EmbedHomepage/EmbedJsContent.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/home/components/EmbedHomepage/SDKContent.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/home/components/EmbedHomepage/StaticEmbedContent.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/home/components/EmbedHomepage/tests/EmbedHomepage.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/home/components/HomeHelpCard/tests/common.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/AIProviderConfigurationForm/AIProviderConfigurationForm.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/AIProviderConfigurationForm/OpenAICompatibleProviderFields.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/AIProviderConfigurationForm/index.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/AIProviderConfigurationForm/utils.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/Metabot.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/MetabotAppBarButton.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/MetabotAppBarButton.unit.spec.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/MetabotAsk/MetabotAsk.module.css",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/MetabotAsk/MetabotAsk.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/MetabotAsk/MetabotAsk.unit.spec.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/MetabotAsk/MetabotGreeting.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/MetabotChat/MetabotChat.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/MetabotChat/MetabotChatMessage.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/MetabotChat/MetabotChatMessage.unit.spec.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/MetabotHistory/MetabotHistory.module.css",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/MetabotHistory/MetabotHistory.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/MetabotHistory/MetabotHistory.unit.spec.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/MetabotHistory/index.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/MetabotManagedProviderLimit.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/MetabotManagedProviderLimit.unit.spec.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/NewMenuItemAIExploration.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/components/NewMenuItemAIExploration.unit.spec.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/hooks/use-metabot-agent.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/hooks/use-metabot-name.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/index.tsx",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/state/actions.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/state/reducer.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/state/selectors.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/state/types.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/tests/reducer.unit.spec.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/metabot/utils/slack-mrkdwn.ts",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "frontend/src/metabase/models/containers/NewModelOptions/NewModelOptions.module.css",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/models/containers/NewModelOptions/NewModelOptions.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/models/containers/NewModelOptions/tests/common.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/models/containers/NewModelOptions/tests/enterprise.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/models/containers/NewModelOptions/tests/premium.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/monitor/tools/components/Help/Help.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/monitor/tools/components/Help/Help.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/monitor/tools/components/ToolsApp.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/monitor/tools/components/ToolsApp.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/nav/components/AdminNavbar/AdminNavbar.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/nav/components/AdminNavbar/AdminNavbar.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/nav/components/AppBar/AppBarLogo.styled.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/nav/components/AppBar/AppBarLogo.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/nav/components/AppSwitcher/AppSwitcher.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/nav/components/AppSwitcher/AppSwitcher.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/nav/components/NavbarPromoSlot/NavbarPromoSlot.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/nav/components/StoreLink/StoreLink.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/nav/containers/MainNavbar/MainNavbarContainer/MainNavbarView.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/nav/containers/MainNavbar/tests/common.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/nav/containers/MainNavbar/tests/premium-whitelabel.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/nav/containers/MainNavbar/tests/setup.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/palette/components/test/PaletteResults/PaletteResults-oss.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/parameters/components/ValuesSourceModal/tests/common.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/plugins/oss/core.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/query_builder/components/ImpossibleToCreateModelModal/tests/common.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/query_builder/components/QuestionDownloadWidget/QuestionDownloadWidget.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/query_builder/components/view/PreviewQueryModal/tests/common.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/query_builder/components/view/PreviewQueryModal/tests/enterprise.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/query_builder/components/view/PreviewQueryModal/tests/premium.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/querying/common/components/DataSelector/DataSelectorTablePicker/DataSelectorTablePicker.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/querying/components/QueryVisualization/VisualizationError/VisualizationError.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/querying/components/QueryVisualization/VisualizationError/tests/common.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/querying/components/QueryVisualization/VisualizationError/tests/enterprise.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/querying/components/QueryVisualization/VisualizationError/tests/premium.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/querying/components/expressions/Editor/HelpText/HelpText.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/querying/components/expressions/Editor/HelpText/tests/common.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/querying/components/expressions/Editor/HelpText/tests/enterprise.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/querying/components/expressions/Editor/HelpText/tests/premium.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/querying/components/template_tags/TagEditorHelp/tests/common.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/querying/components/template_tags/TagEditorParamParts/FilterWidgetTypeSelect.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/querying/notebook/components/NativeQueryPreview/NativeQueryPreview.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/redux/downloads.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/redux/downloads.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/redux/embed/embed.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/redux/embed/embed.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/redux/store/embed.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/reference/segments/SegmentList/SegmentList.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/reference/segments/SegmentList/tests/common.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/reference/segments/SegmentList/tests/enterprise.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/reference/segments/SegmentList/tests/premium.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/rich_text_editing/tiptap/extensions/MetabotEmbed/MetabotEmbed.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/selectors/whitelabel/tests/common.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/selectors/whitelabel/tests/enterprise.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/selectors/whitelabel/tests/premium.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/components/CompletedStep/CompletedStep.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/components/CompletedStep/CompletedStep.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/components/DataUsageStep/DataUsageStep.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/components/DataUsageStep/DataUsageStep.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/components/InviteUserForm/InviteUserForm.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/components/LanguageStep/LanguageStep.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/components/LicenseTokenStep/LicenseTokenForm.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/components/SettingsPage/SettingsPage.module.css",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/components/SettingsPage/SettingsPage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/components/SetupHelp/SetupHelp.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/components/UsageQuestionStep/UsageQuestionStep.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/components/UserForm/UserForm.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/components/UserStep/UserStep.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/components/WelcomePage/WelcomePage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/components/WelcomePage/WelcomePage.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/tests/common.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/tests/enterprise.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/tests/premium-pro-cloud.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/tests/premium-pro-selfhosted.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/tests/premium-starter-cloud.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/tests/setup.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/utils.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/setup/utils.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/transforms/components/IncrementalTransform/IncrementalTransformSettings.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/transforms/components/LockedTransformsBanner/LockedTransformsBanner.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/transforms/components/LockedTransformsBanner/LockedTransformsBanner.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/transforms/components/LockedTransformsHoverCard/LockedTransformsHoverCard.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/transforms/components/LockedTransformsHoverCard/LockedTransformsHoverCard.unit.spec.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/transforms/pages/TransformListPage/CreateTransformMenu/CreateTransformMenu.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/transforms/pages/TransformListPage/TransformListPage.tsx",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/utils/branding.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/utils/branding.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/utils/user.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/utils/user.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/visualizations/visualizations/Map/CustomMapFooter/tests/common.unit.spec.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "frontend/src/metabase/visualizations/visualizations/Progress/Progress.tsx",
+      "decision": "adapt-chart-to-new-components"
+    },
+    {
+      "path": "frontend/src/metabase/visualizations/visualizations/Progress/Progress.unit.spec.tsx",
+      "decision": "adapt-chart-to-new-components"
+    },
+    {
+      "path": "frontend/src/metabase/visualizations/visualizations/SmartScalar/SmartScalar.tsx",
+      "decision": "adapt-chart-to-new-components"
+    },
+    {
+      "path": "frontend/src/metabase/visualizations/visualizations/SmartScalar/tests/SmartScalar.unit.spec.tsx",
+      "decision": "adapt-chart-to-new-components"
+    },
+    {
+      "path": "frontend/src/types/global.d.ts",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "locales/metabase.po",
+      "decision": "keep-new-translations-brand-at-build"
+    },
+    {
+      "path": "locales/zh-CN.po",
+      "decision": "keep-new-translations-brand-at-build"
+    },
+    {
+      "path": "resources/frontend_client/app/assets/img/favicon.ico",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "resources/frontend_client/app/assets/img/login-fluent-background.png",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "resources/frontend_client/favicon.ico",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "resources/instance_analytics/collections/main/usage_analytics/ai_usage_log.yaml",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/instance_analytics/collections/main/usage_analytics/metabot_conversations.yaml",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/instance_analytics/collections/main/usage_analytics/metabot_messages.yaml",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/instance_analytics/databases/internal_metabase_database/schemas/public/tables/v_ai_usage_log/fields/conversation_id.yaml",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/instance_analytics/databases/internal_metabase_database/schemas/public/tables/v_ai_usage_log/fields/ip_address.yaml",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/instance_analytics/databases/internal_metabase_database/schemas/public/tables/v_ai_usage_log/fields/profile_id.yaml",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/instance_analytics/databases/internal_metabase_database/schemas/public/tables/v_ai_usage_log/fields/source_name.yaml",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/instance_analytics/databases/internal_metabase_database/schemas/public/tables/v_metabot_conversations/fields/profile_id.yaml",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/instance_analytics/databases/internal_metabase_database/schemas/public/tables/v_metabot_conversations/fields/profile_name.yaml",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/instance_analytics/databases/internal_metabase_database/schemas/public/tables/v_metabot_conversations/fields/source_name.yaml",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/instance_analytics/databases/internal_metabase_database/schemas/public/tables/v_metabot_conversations/v_metabot_conversations.yaml",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/instance_analytics/databases/internal_metabase_database/schemas/public/tables/v_metabot_messages/fields/profile_id.yaml",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/instance_analytics/databases/internal_metabase_database/schemas/public/tables/v_metabot_messages/v_metabot_messages.yaml",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/metabot/prompts/example_questions_metric.selmer",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/metabot/prompts/example_questions_table.selmer",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/metabot/prompts/system/internal.selmer",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "resources/migrations/063/20261003_oss_keycloak.yaml",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "src/metabase/channel/api/email.clj",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/_footer.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/_header.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/_notification_card_condition.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/broken_subscription_notification.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/card_notification_archived.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/card_notification_changed_stopped.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/comment_created.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/creator_sentiment_email.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/dashboard_subscription.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/follow_up_email.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/login_from_new_device.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/logo.clj",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/messages.clj",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/mfa_disabled.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/mfa_enabled.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/mfa_login_code.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/mfa_removed_by_admin.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/new_user_invite.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/notification_card.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/notification_card_new_confirmation.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/notification_card_unsubscribed.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/notification_card_you_were_added.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/notification_card_you_were_removed.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/password_reset.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/persisted-model-error.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/result_attachment.clj",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/security_advisory.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/slack_token_error.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/support_access_grant.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/transform_failed.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/transform_failure_digest.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/user_joined_notification.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/email/warn_deprecate_pulse.hbs",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/impl/email.clj",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/shared.clj",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/channel/slack.clj",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/comments/models/comment_reaction.clj",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/llm/settings.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/agent/core.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/agent/profiles.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/agent/prompts.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/api.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/api/conversations.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/api/metabot.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/example_question_generator.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/persistence.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/schema/migrate_v1_to_v2.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/schema/v1.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/self.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/self/chat_completions.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/self/core.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/self/openai_compatible.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/settings.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/suggested_prompts.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/tools/construct.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/tools/entity_details.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/tools/search.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/metabot/tools/util.clj",
+      "decision": "exclude-native-ai-history"
+    },
+    {
+      "path": "src/metabase/notification/payload/impl/system_event.clj",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/notification/seed.clj",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/pulse/task/email_remove_legacy_pulse.clj",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/sso/auth_wrapper.clj",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "src/metabase/server/middleware/security.clj",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "src/metabase/server/middleware/session.clj",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "src/metabase/server/routes/index.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "src/metabase/session/api.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "src/metabase/slackbot/api.clj",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/slackbot/events.clj",
+      "decision": "review-brand-only-keep-new-behavior"
+    },
+    {
+      "path": "src/metabase/sso/api/keycloak.clj",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "src/metabase/sso/core.clj",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "src/metabase/sso/init.clj",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "src/metabase/sso/keycloak/integration.clj",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "src/metabase/sso/keycloak/protocol.clj",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "src/metabase/sso/keycloak/session.clj",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "src/metabase/sso/keycloak/settings.clj",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "src/metabase/sso/keycloak/store.clj",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "src/metabase/sso/models/keycloak.clj",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "src/metabase/system/settings.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "src/metabase/users/models/user.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "src/metabase/util/i18n.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/channel/api/email_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/channel/email/messages_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/channel/impl/email_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/channel/shared_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/collections_rest/api_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/comments/api_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/dashboards_rest/api_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/llm/settings_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/agent/core_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/agent/profiles_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/agent/prompts_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/api/conversations_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/api/metabot_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/api_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/example_question_generator_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/native_generation_integration_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/persistence_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/schema/migrate_v1_to_v2_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/self/openai_compatible_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/self_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/settings_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/tools/construct_representations_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/tools/search_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/metabot/tools/util_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/model_persistence/task/persist_refresh_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/notification/api/notification_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/notification/payload/impl/card_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/notification/payload/impl/system_event_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/notification/test_util.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/pulse/dashboard_subscription_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/pulse/send_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/pulse/task/email_remove_legacy_pulse_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/queries_rest/api/card_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/server/routes/index_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/session/api_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/session/models/session_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/sso/keycloak/integration_test.clj",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "test/metabase/sso/keycloak/protocol_test.clj",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "test/metabase/sso/keycloak/store_test.clj",
+      "decision": "migrate-keycloak-review-new-auth"
+    },
+    {
+      "path": "test/metabase/system/settings_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/transforms/jobs_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/transforms/notification_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/users/models/user_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    },
+    {
+      "path": "test/metabase/util/i18n_test.clj",
+      "decision": "review-selectively-no-blanket-patch"
+    }
+  ]
+}

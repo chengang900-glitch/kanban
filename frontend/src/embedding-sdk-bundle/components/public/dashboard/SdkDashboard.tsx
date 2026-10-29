@@ -23,6 +23,7 @@ import {
 import { SdkAdHocQuestion } from "embedding-sdk-bundle/components/private/SdkAdHocQuestion";
 import { useSdkInternalNavigationOptional } from "embedding-sdk-bundle/components/private/SdkInternalNavigation/context";
 import { SdkQuestion } from "embedding-sdk-bundle/components/public/SdkQuestion/SdkQuestion";
+import { DashboardSubscriptionsButton } from "embedding-sdk-bundle/components/public/notifications/DashboardSubscriptionsButton";
 import { useDashboardLoadHandlers } from "embedding-sdk-bundle/hooks/private/use-dashboard-load-handlers";
 import { useExtractResourceIdFromJwtToken } from "embedding-sdk-bundle/hooks/private/use-extract-resource-id-from-jwt-token";
 import { useSdkBreadcrumbs } from "embedding-sdk-bundle/hooks/private/use-sdk-breadcrumb";
@@ -42,6 +43,7 @@ import {
 import {
   getGuestTokenForMount,
   getIsGuestEmbed,
+  getPlugins,
   getSessionTokenState,
 } from "embedding-sdk-bundle/store/selectors";
 import type { MetabaseQuestion } from "embedding-sdk-bundle/types";
@@ -51,6 +53,7 @@ import type {
   SdkDashboardId,
 } from "embedding-sdk-bundle/types/dashboard";
 import type { MetabasePluginsConfig } from "embedding-sdk-bundle/types/plugins";
+import { getErrorMessage } from "metabase/api/utils/errors";
 import { useConfirmation } from "metabase/common/hooks";
 import { useLocale } from "metabase/common/hooks/use-locale";
 import {
@@ -67,11 +70,15 @@ import {
   type DashboardContextProviderHandle,
   useDashboardContext,
 } from "metabase/dashboard/context";
-import { getDashboardComplete, getIsDirty } from "metabase/dashboard/selectors";
+import {
+  getDashboardComplete,
+  getIsDirty,
+  getIsEditing,
+} from "metabase/dashboard/selectors";
 import type { RefreshPeriod } from "metabase/dashboard/types";
+import type { ParameterValues } from "metabase/embedding-sdk/types/dashboard";
 import { EmbeddingEntityContextProvider } from "metabase/embedding/context";
 import EmbedFrameS from "metabase/embedding/theme.module.css";
-import type { ParameterValues } from "metabase/embedding-sdk/types/dashboard";
 import { useSelector } from "metabase/redux";
 import { resetErrorPage, setErrorPage } from "metabase/redux/app";
 import { dismissAllUndo } from "metabase/redux/undo";
@@ -224,7 +231,7 @@ export type SdkDashboardInnerProps = SdkDashboardProps &
   Partial<
     Pick<
       DashboardContextProps,
-      | "getClickActionMode"
+      | "clickActionMode"
       | "dashboardActions"
       | "dashcardMenu"
       | "navigateToNewCardFromDashboard"
@@ -256,7 +263,7 @@ const SdkDashboardInner = ({
   renderDrillThroughQuestion: AdHocQuestionView,
   dashboardActions,
   dashcardMenu,
-  getClickActionMode,
+  clickActionMode,
   navigateToNewCardFromDashboard,
   className,
   style,
@@ -352,8 +359,15 @@ const SdkDashboardInner = ({
     dashboardId,
   });
 
+  // `dashboardCardMenu` can be supplied either directly on the dashboard via
+  // `plugins`, or globally through `MetabaseProvider` (stored in the SDK Redux
+  // state). The local prop takes precedence, then the global plugin, and
+  // finally the component's built-in default menu.
+  const globalPlugins = useSdkSelector(getPlugins);
   const finalDashcardMenu =
-    plugins?.dashboard?.dashboardCardMenu ?? dashcardMenu;
+    plugins?.dashboard?.dashboardCardMenu ??
+    globalPlugins?.dashboard?.dashboardCardMenu ??
+    dashcardMenu;
 
   const [renderModeState, setRenderMode] = useState<
     "dashboard" | "queryBuilder"
@@ -369,6 +383,7 @@ const SdkDashboardInner = ({
     useState<number>();
 
   const dashboard = useSelector(getDashboardComplete);
+  const isEditing = useSelector(getIsEditing);
   const autoScrollToDashcardId = useMemo(
     () =>
       dashboard?.dashcards.find(
@@ -547,7 +562,7 @@ const SdkDashboardInner = ({
         style={style}
       >
         <SdkError
-          message={errorPage.data?.message ?? t`Something's gone wrong`}
+          message={getErrorMessage(errorPage, t`Something's gone wrong`)}
         />
       </MaybeStyledWrapper>
     );
@@ -565,6 +580,7 @@ const SdkDashboardInner = ({
             ? navigateToNewCardFromDashboard
             : onNavigateToNewCardFromDashboard
         }
+        onEditQuestion={onEditQuestionWithNav}
         onNewQuestion={() => {
           if (isDashboardDirty) {
             show({
@@ -588,7 +604,7 @@ const SdkDashboardInner = ({
                 dispatch(setEditingDashboard(dashboard));
               },
               confirmButtonProps: {
-                color: "core-brand",
+                color: "brand",
               },
             });
           } else {
@@ -611,7 +627,7 @@ const SdkDashboardInner = ({
         onLoad={handleLoad}
         onLoadWithoutCards={handleLoadWithoutCards}
         onError={(error) => dispatch(setErrorPage(error))}
-        getClickActionMode={getClickActionMode}
+        clickActionMode={clickActionMode}
         dashcardMenu={finalDashcardMenu}
         dashboardActions={dashboardActions}
         onAddQuestion={(dashboard) => {
@@ -640,15 +656,13 @@ const SdkDashboardInner = ({
             </MaybeStyledWrapper>
           ))
           .with({ finalRenderMode: "dashboard" }, () => (
-            <SdkDashboardProvider
-              plugins={plugins}
-              onEditQuestion={onEditQuestionWithNav}
-            >
+            <SdkDashboardProvider plugins={plugins}>
               {children ?? (
                 <MaybeStyledWrapper
                   skip={skipStyledWrapper}
                   className={className}
                   style={style}
+                  fullHeight={isEditing}
                 >
                   <Dashboard className={EmbedFrameS.EmbedFrame} />
                   <AutoRefreshController refreshPeriod={autoRefreshInterval} />
@@ -696,6 +710,7 @@ const SdkDashboardInner = ({
   );
 };
 
+// Unjustified type cast. FIXME
 export const SdkDashboard = withPublicComponentWrapper(SdkDashboardInner, {
   supportsGuestEmbed: true,
 }) as typeof SdkDashboardInner &
@@ -708,10 +723,11 @@ export const SdkDashboard = withPublicComponentWrapper(SdkDashboardInner, {
     | "ParametersList"
     | "FullscreenButton"
     | "ExportAsPdfButton"
-    | "SubscriptionsButton"
     | "InfoButton"
     | "RefreshPeriod"
-  >;
+  > & {
+    SubscriptionsButton: typeof DashboardSubscriptionsButton;
+  };
 
 SdkDashboard.Grid = Dashboard.Grid;
 SdkDashboard.Header = Dashboard.Header;
@@ -720,7 +736,7 @@ SdkDashboard.Tabs = Dashboard.Tabs;
 SdkDashboard.ParametersList = Dashboard.ParametersList;
 SdkDashboard.FullscreenButton = Dashboard.FullscreenButton;
 SdkDashboard.ExportAsPdfButton = Dashboard.ExportAsPdfButton;
-SdkDashboard.SubscriptionsButton = Dashboard.SubscriptionsButton;
+SdkDashboard.SubscriptionsButton = DashboardSubscriptionsButton;
 SdkDashboard.InfoButton = Dashboard.InfoButton;
 SdkDashboard.RefreshPeriod = Dashboard.RefreshPeriod;
 

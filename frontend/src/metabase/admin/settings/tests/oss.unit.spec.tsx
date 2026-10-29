@@ -39,17 +39,14 @@ describe("Admin Settings Routing - OSS", () => {
     );
   });
 
-  describe("hides commercial upsells", () => {
+  describe("should show an upsell on the $name route", () => {
     it.each(upsells)(
-      "hides the upsell on the $name route",
+      "should show an upsell on the $name route",
       async ({ path }) => {
         await setup({ isAdmin: true, initialRoute: path });
         expect(
-          screen.queryByText("Make Metabase look like you"),
-        ).not.toBeInTheDocument();
-        expect(
-          screen.queryByRole("link", { name: "Learn more" }),
-        ).not.toBeInTheDocument();
+          await screen.findByText("Make Metabase look like you"),
+        ).toBeInTheDocument();
       },
     );
   });
@@ -58,8 +55,8 @@ describe("Admin Settings Routing - OSS", () => {
     it("does not show the enterprise version of the license route", async () => {
       await setup({ isAdmin: true, initialRoute: "/license" });
       expect(
-        screen.queryByText("Explore our paid plans"),
-      ).not.toBeInTheDocument();
+        await screen.findByText("Explore our paid plans"),
+      ).toBeInTheDocument();
       expect(screen.queryByText(/Billing/)).not.toBeInTheDocument();
     });
 

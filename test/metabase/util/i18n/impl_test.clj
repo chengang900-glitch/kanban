@@ -27,6 +27,11 @@
       (is (= expected
              (i18n.impl/normalized-locale-string s))))))
 
+(deftest normalized-locale-string-ignores-default-locale-test
+  (mt/with-locale! "tr"
+    (is (= "id_IN"
+           (i18n.impl/normalized-locale-string "ID-in")))))
+
 (deftest ^:parallel locale-test
   (testing "Should be able to coerce various types of objects to Locales"
     (doseq [arg-type [:str :keyword]
@@ -146,3 +151,15 @@
           (testing "we should still be able to (no-op) i18n stuff"
             (is (= "Testing"
                    (i18n/trs "Testing")))))))))
+
+(deftest ^:parallel branded-translation-template-test
+  (testing "Branding does not rewrite interpolation values or legal and technical text"
+    (is (= "Dashboard account: Metabase Customer"
+           (i18n.impl/translate "en" "Metabase account: {0}" ["Metabase Customer"])))
+    (is (= "Metabase is a Trademark of Metabase, Inc"
+           (i18n.impl/translate "en" "Metabase is a Trademark of Metabase, Inc")))
+    (is (= "MetabaseUser https://Metabase.com Dashboard."
+           (i18n.impl/translate "en" "MetabaseUser https://Metabase.com Metabase."))))
+  (testing "Chinese fallback templates use the localized product name"
+    (is (= "数据看板 account: 客户Metabase"
+           (i18n.impl/translate "zh_CN" "Metabase account: {0}" ["客户Metabase"])))))

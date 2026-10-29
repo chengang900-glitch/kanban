@@ -1,7 +1,5 @@
 import { render as testingLibraryRender } from "@testing-library/react";
 import fetchMock from "fetch-mock";
-import type { ReactNode } from "react";
-import { Route } from "react-router";
 
 import {
   setupEnterpriseOnlyPlugin,
@@ -12,21 +10,24 @@ import {
   setupDatabasesEndpoints,
   setupEmailEndpoints,
   setupGroupsEndpoint,
+  setupLibraryEndpoints,
   setupNotificationChannelsEndpoints,
   setupPropertiesEndpoints,
   setupSettingEndpoint,
   setupSettingsEndpoints,
   setupSlackAppInfoEndpoint,
   setupSlackManifestEndpoint,
+  setupTimezonesEndpoint,
   setupTokenStatusEndpoint,
   setupUploadManagementEndpoint,
   setupUserKeyValueEndpoints,
 } from "__support__/server-mocks";
 import { setupWebhookChannelsEndpoint } from "__support__/server-mocks/channel";
 import { mockSettings } from "__support__/settings";
+import { createMockState } from "__support__/state";
 import { getTestStoreAndWrapper, screen } from "__support__/ui";
 import { getSettingsRoutes } from "metabase/admin/settingsRoutes";
-import { createMockState } from "metabase/redux/store/mocks";
+import { Outlet, Route } from "metabase/router";
 import type { TokenFeature, TokenFeatures } from "metabase-types/api";
 import {
   createMockSettings,
@@ -50,7 +51,7 @@ export const ossRoutes: RouteMap = {
   webhooks: { path: "/webhooks", testPattern: /Configure webhooks/i },
   authentication: {
     path: "/authentication",
-    testPattern: /Allows users within your LDAP directory to log in/i,
+    testPattern: /Sign in with Google/i,
   },
   google: {
     path: "/authentication/google",
@@ -61,7 +62,7 @@ export const ossRoutes: RouteMap = {
     path: "/authentication/api-keys",
     testPattern: /Create API keys to let users authenticate/i,
   },
-  maps: { path: "/maps", testPattern: /Map tile server URL/i },
+  maps: { path: "/maps", testPattern: /Map tile server public URL/i },
   localization: { path: "/localization", testPattern: /Instance language/i },
   uploads: {
     path: "/uploads",
@@ -71,18 +72,27 @@ export const ossRoutes: RouteMap = {
     path: "/public-sharing",
     testPattern: /Enable Public Sharing/i,
   },
-};
-
-export const enterpriseRoutes: RouteMap = {
-  license: {
-    path: "/license",
-    testPattern: /License/i,
-    role: "heading",
+  license: { path: "/license", testPattern: /Looking for more/i },
+  appearance: {
+    path: "/appearance",
+    testPattern: /Make Metabase look like you/i,
+  },
+  cloud: { path: "/cloud", testPattern: /Migrate to Metabase Cloud/i },
+  remoteSync: {
+    path: "/remote-sync",
+    testPattern: /Manage your Metabase content in Git/i,
   },
 };
 
+export const enterpriseRoutes: RouteMap = {
+  license: { path: "/license", testPattern: /License/i, role: "heading" },
+};
+
 export const premiumRoutes: RouteMap = {
-  saml: { path: "/authentication/saml", testPattern: /Set up SAML-based SSO/i },
+  saml: {
+    path: "/authentication/saml",
+    testPattern: /Identity provider \(IdP\) configuration/i,
+  },
   jwt: { path: "/authentication/jwt", testPattern: /Server Settings/i },
 };
 
@@ -121,6 +131,7 @@ export const setup = async ({
   if (hasTokenFeatures) {
     // all or nothing token features
     Object.keys(tokenFeatures).forEach((feature) => {
+      // Unjustified type cast. FIXME
       tokenFeatures[feature as TokenFeature] = true;
     });
   }
@@ -142,6 +153,7 @@ export const setup = async ({
   setupApiKeyEndpoints([]);
   setupGroupsEndpoint([]);
   setupDatabasesEndpoints([]);
+  setupTimezonesEndpoint(["Europe/Paris", "US/Mountain", "UTC"]);
   setupSlackManifestEndpoint();
   setupSlackAppInfoEndpoint();
   setupUploadManagementEndpoint([]);
@@ -166,6 +178,7 @@ export const setup = async ({
   });
   fetchMock.get("path:/api/cloud-migration", { status: 204 });
   fetchMock.get("path:/api/ee/sso/oidc", []);
+  setupLibraryEndpoints();
   fetchMock.get("path:/api/ee/remote-sync/dirty", {
     data: [],
     metadata: {
@@ -199,9 +212,7 @@ export const setup = async ({
     initialRoute: `/admin/settings${initialRoute}`,
   });
 
-  const PassThroughGuard = ({ children }: { children: ReactNode }) => (
-    <>{children}</>
-  );
+  const PassThroughGuard = () => <Outlet />;
 
   testingLibraryRender(
     <Route path="admin/settings">

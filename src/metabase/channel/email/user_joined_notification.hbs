@@ -4,36 +4,55 @@
       <tr>
         <td>
           <div class="container" style="background-color: white; max-width: 555px; border-radius: 24px; margin: 0 auto; padding: 40px; border: 1px solid rgba(7, 23, 34, 0.14)">
+            <div style="text-align: center; margin-bottom: 32px;">
+              {{#if context.application_logo_url}}<img style="max-height: 45px; max-width: 100%;" src="{{context.application_logo_url}}" alt="{{context.application_name}} logo"/>{{else}}<span style="font-size: 24px; font-weight: 700;">{{context.application_name}}</span>{{/if}}
+            </div>
+
             <h1 style="text-align: center; font-size: 27px; line-height: 36px; font-weight: 400; margin: 0 0 16px 0; color: #2F3C45;">
               {{#if joinedViaSSO}}
-                {{joinedUserName}} 创建了数据看板账号
+                {{joinedUserName}} created a {{context.application_name}} account.
               {{else}}
-                {{joinedUserName}} 已接受数据看板邀请
+                {{joinedUserName}} accepted their {{context.application_name}} invitation.
               {{/if}}
             </h1>
 
             <p style="text-align: center; font-size: 15px; line-height: 165%; color: #2F3C45; margin: 0;">
               <a href="mailto:{{{adminEmail}}}" style="color: {{context.application_color}}; text-decoration: none;">{{joinedUserEmail}}</a>
-              已于 {{joinedDate}}{{#if joinedViaSSO}}通过单点登录（SSO）{{/if}}加入。
+              joined {{#if joinedViaSSO}}via Single Sign-On {{/if}}on {{joinedDate}}.
             </p>
 
             <div style="text-align: center; margin-top: 32px;">
               <a href="{{joinedUserEditUrl}}" style="display: inline-block; background-color: {{context.application_color}}; color: #ffffff !important; font-weight: 700; font-size: 14px; border-radius: 8px; padding: 12px 16px; text-decoration: none;">
-                编辑 {{joinedUserName}} 的设置
+                Edit {{joinedUserName}}'s settings
               </a>
             </div>
 
             <p style="text-align: center; font-size: 12px; line-height: 16px; color: #656F76; margin: 16px 0 0 0;">
-              按钮无法使用？请将以下链接复制到浏览器中打开：<br/>
+              Button not working? Paste this link into your browser:<br/>
               <a href="{{joinedUserEditUrl}}" style="color: {{context.application_color}};">{{{joinedUserEditUrl}}}</a>
             </p>
 
             <hr style="margin-top: 32px; margin-bottom: 32px;">
             <div style="font-size: 12px; line-height: 16px; width: max-content; margin: 0 auto; color: #656F76; text-align: center;">
-              发送自 <a href="{{context.site_url}}" style="color: {{context.application_color}}">{{context.site_url}}</a>。
+              Sent from <a href="{{context.site_url}}" style="color: {{context.application_color}}">{{context.site_url}}</a>.
             </div>
           </div>
 
+          <div style="margin-top: 40px;">
+            <div style="text-align: center; color: #92999E; font-size: 13px;">
+              Metabase, Inc.
+            </div>
+
+            <div style="text-align: center; color: #92999E; font-size: 13px;">
+              9740 Campo Rd., Suite 1029, Spring Valley, CA 91977
+            </div>
+
+            <div style="text-align: center; margin-top: 8px;">
+              <a href="https://www.metabase.com" style="color: #656F76 !important; font-size: 13px;">
+                www.metabase.com
+              </a>
+            </div>
+          </div>
         </td>
       </tr>
     </table>

@@ -1,0 +1,113 @@
+{
+  "local_only": true,
+  "target": {
+    "tag": "v0.65.2",
+    "commit": "86e10edfb72a553851c39ef73f53b5c0f09a38b3"
+  },
+  "source_commit": "e134ef6e13db7c7a692ccfaeacb80386c6186dca",
+  "frontend": {
+    "suites": 30,
+    "tests": 421,
+    "failures": 0
+  },
+  "backend_core": {
+    "tests": 156,
+    "assertions": 853,
+    "failures": 0,
+    "errors": 0,
+    "log": "target/v652-upgrade/backend-tests-final.log"
+  },
+  "backend_final_auth_and_module_checks": {
+    "tests": 136,
+    "assertions": 9039,
+    "failures": 0,
+    "errors": 0,
+    "log": "target/v652-upgrade/backend-module-final.log"
+  },
+  "translation_build_tests": {
+    "tests": 5,
+    "assertions": 27,
+    "failures": 0,
+    "errors": 0
+  },
+  "typecheck": "passed",
+  "lint_and_hooks": "passed",
+  "native_ai_unchanged": [
+    "src/metabase/metabot",
+    "src/metabase/llm",
+    "frontend/src/metabase/metabot"
+  ],
+  "official_migrations_unchanged": true,
+  "not_validated": [
+    "production PostgreSQL migration",
+    "real Keycloak or LibreChat portal",
+    "actual LLM inference",
+    "full upstream test suite"
+  ],
+  "verification_date": "2026-10-29",
+  "version": "v0.65.2 / e134ef6",
+  "artifact": {
+    "version": "tag=v0.65.2\nhash=e134ef6\ndate=2026-10-29",
+    "bytes": 715874150,
+    "sha256": "26ef58bc04b39c75016d6772327752a3624829007459e6e0426ceb70a0c3b60e",
+    "zip_entries": 304874,
+    "zip_crc": "pass",
+    "enterprise_backend_present": false,
+    "source_commit": "e134ef6e13db7c7a692ccfaeacb80386c6186dca",
+    "release_path": "/Users/chengang/Documents/UhooAI服务器/metabase-v0.64.2.5/target/releases/v0.65.2-e134ef6e/metabase.jar"
+  },
+  "browser_final": {
+    "source_commit": "e134ef6e13db7c7a692ccfaeacb80386c6186dca",
+    "pages": [
+      "admin-general",
+      "domains",
+      "localization",
+      "database-form",
+      "mcp",
+      "help-version",
+      "embedding-get-started",
+      "embedding-security",
+      "dashboard"
+    ],
+    "all_passed": true,
+    "synthetic_oidc": {
+      "user_a_personal_collection": 5,
+      "user_b_personal_collection": 6,
+      "same_origin_iframe": true,
+      "signed_logout_returns_login": true
+    },
+    "evidence_directory": "output/playwright/v652-upgrade/"
+  },
+  "migration": {
+    "type": "isolated H2 synthetic fixture from v0.64.3 / 6bd491e",
+    "users": 3,
+    "cards": 47,
+    "dashboard_id": 2,
+    "dashcards": 8,
+    "explicit_sso_bindings": 2,
+    "users_cards_dashboard_layout_bindings_site_name_locale_preserved": true,
+    "query_uuid_comparison": "Canonicalized only declared lib/uuid identifiers and their exact references; repeated reads on the same version also regenerate these UUIDs.",
+    "canonical_cards_sha256": "3f1f81b4c929c7d7e99fcb0179bb33cb632cf4cbad01ba6093f16ce5b8e7bce8"
+  },
+  "queries": {
+    "count": 8,
+    "total_rows": 104,
+    "all_completed": true,
+    "ignore_cache_requested": true,
+    "progress_values": [
+      65,
+      1,
+      0,
+      100,
+      125,
+      null
+    ]
+  },
+  "backend_groups_overlap": true,
+  "test_listeners_stopped": [
+    33419,
+    33420,
+    33421
+  ],
+  "browser_test_tab_closed": true
+}

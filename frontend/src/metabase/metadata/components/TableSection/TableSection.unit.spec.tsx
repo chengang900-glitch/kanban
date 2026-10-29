@@ -1,10 +1,10 @@
 import userEvent from "@testing-library/user-event";
 import fetchMock from "fetch-mock";
-import { Route } from "react-router";
 
 import { setupTableEndpoints } from "__support__/server-mocks";
 import { renderWithProviders, screen, waitFor, within } from "__support__/ui";
 import { UndoListing } from "metabase/common/components/UndoListing";
+import { Route } from "metabase/router";
 import type { FieldId, Table } from "metabase-types/api";
 import { createMockDatabase, createMockTable } from "metabase-types/api/mocks";
 import {
@@ -13,30 +13,6 @@ import {
 } from "metabase-types/api/mocks/presets";
 
 import { TableSection } from "./TableSection";
-
-/**
- * The sortable field list reorders through a dnd-kit PointerSensor, which
- * jsdom cannot simulate, so it is replaced with a button that emits a new order.
- */
-jest.mock("../TableSortableFieldList", () => ({
-  TableSortableFieldList: ({
-    table,
-    onChange,
-  }: {
-    table: Table;
-    onChange: (fieldOrder: FieldId[]) => void;
-  }) => (
-    <button
-      onClick={() =>
-        onChange(
-          (table.fields ?? []).map((field) => Number(field.id)).reverse(),
-        )
-      }
-    >
-      Reorder fields
-    </button>
-  ),
-}));
 
 const ORDERS_TABLE = createOrdersTable({
   fields: [createOrdersQuantityField()],
@@ -55,7 +31,7 @@ function setup({ table = createMockTable(), fieldId }: SetupOpts = {}) {
   renderWithProviders(
     <Route
       path="/"
-      component={() => (
+      element={
         <>
           <TableSection
             table={table}
@@ -66,7 +42,7 @@ function setup({ table = createMockTable(), fieldId }: SetupOpts = {}) {
           />
           <UndoListing />
         </>
-      )}
+      }
     />,
     { withRouter: true },
   );
@@ -144,17 +120,38 @@ describe("TableSection", () => {
 
       await assertErrorToast("Failed to update field order");
     });
+  });
 
-    it("shows an error toast when a custom field order fails to save", async () => {
-      setup({ table: ORDERS_TABLE });
-      fetchMock.modifyRoute(`table-${ORDERS_TABLE.id}-fields-order`, {
-        response: { status: 500 },
-      });
+  describe("read-only table", () => {
+    it("shows a table that cannot be written as read-only", () => {
+      setup({ table: { ...ORDERS_TABLE, can_write: false } });
 
-      await userEvent.click(screen.getByRole("button", { name: /Sorting/ }));
-      await userEvent.click(screen.getByText("Reorder fields"));
+      expect(
+        screen.getByPlaceholderText("Give this table a name"),
+      ).toHaveAttribute("readonly");
+      expect(screen.getByLabelText("table2 icon")).toBeInTheDocument();
+      expect(screen.getByLabelText("Go to this table")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Sorting/ }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText("Give this field a name"),
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: /Sync options/ }),
+      ).toBeEnabled();
+    });
 
-      await assertErrorToast("Failed to update field order");
+    it("keeps a writable table editable", () => {
+      setup({ table: { ...ORDERS_TABLE, can_write: true } });
+
+      expect(
+        screen.getByPlaceholderText("Give this table a name"),
+      ).not.toHaveAttribute("readonly");
+      expect(screen.getByRole("button", { name: /Sorting/ })).toBeEnabled();
+      expect(
+        screen.getByPlaceholderText("Give this field a name"),
+      ).toBeEnabled();
     });
   });
 });

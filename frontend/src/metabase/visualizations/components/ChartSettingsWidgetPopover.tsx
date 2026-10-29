@@ -5,8 +5,7 @@ import CS from "metabase/css/core/index.css";
 import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
 import { Box, Space, Tabs } from "metabase/ui";
 import { PopoverWithRef } from "metabase/ui/components/overlays/Popover/PopoverWithRef";
-
-import type { Widget } from "../types";
+import type { Widget } from "metabase/viz-core";
 
 import ChartSettingsWidget from "./ChartSettingsWidget";
 import {
@@ -46,6 +45,7 @@ export const ChartSettingsWidgetPopover = ({
   const hasMultipleSections = sections.current.length > 1;
 
   const onClose = () => {
+    // Unjustified type cast. FIXME
     const activeElement = document.activeElement as HTMLElement;
     if (activeElement && scrollContainer?.contains(activeElement)) {
       activeElement.blur();
@@ -58,6 +58,7 @@ export const ChartSettingsWidgetPopover = ({
       anchorEl={anchor}
       opened={!!anchor && widgets.length > 0}
       onDismiss={onClose}
+      closeOnEscape={false}
       position="right"
       offset={{ mainAxis: 10, crossAxis: 10 }}
       middlewares={{
@@ -77,24 +78,28 @@ export const ChartSettingsWidgetPopover = ({
             pt={hasMultipleSections ? 0 : undefined}
             ref={setScrollContainer}
             data-testid="chart-settings-widget-popover-content"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                // Escape bubbles here after a focused *BlurChange input has
+                // discarded its pending value via flushSync; Mantine's document-level
+                // closeOnEscape would unmount the widget before the input could react.
+                onClose();
+              }
+            }}
             mah="40rem"
             miw="336px"
             className={CS.overflowYAuto}
           >
             {hasMultipleSections && (
               <Tabs
-                px="md"
-                pt="xs"
+                px="lg"
+                pt="xxs"
                 value={currentSection}
-                onChange={(section) => setCurrentSection(String(section))}
+                onChange={(section) => setCurrentSection(section ?? undefined)}
               >
                 <Tabs.List grow>
                   {sections.current.map((sectionName) => (
-                    <Tabs.Tab
-                      key={sectionName}
-                      value={String(sectionName)}
-                      p="md"
-                    >
+                    <Tabs.Tab key={sectionName} value={String(sectionName)}>
                       {sectionName}
                     </Tabs.Tab>
                   ))}

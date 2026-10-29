@@ -10,7 +10,6 @@ export function AnonymousTrackingInput() {
       settingName="anon-tracking-enabled"
       title={t`Send anonymous tracking data to Metabase`}
       trackChange={trackTrackingPermissionChanged}
-      hideDescription
     />
   );
 }

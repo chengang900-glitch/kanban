@@ -15,7 +15,7 @@ import type {
 import { Stack, Text } from "metabase/ui";
 
 import { ClientEmbedCodePane } from "./ClientEmbedCodePane";
-import { SettingsTabLayout } from "./StaticEmbedSetupPane.styled";
+import { SettingsTabLayout } from "./SettingsTabLayout";
 import { StaticEmbedSetupPaneSettingsContentSection } from "./StaticEmbedSetupPaneSettingsContentSection";
 
 export interface OverviewSettingsProps {
@@ -37,17 +37,15 @@ export const OverviewSettings = ({
     clientCodeOptions[0].id,
   );
 
-  const { url: docsUrl, showMetabaseLinks } = useDocsUrl(
-    "embedding/static-embedding",
-    {
-      utm: {
-        utm_source: "product",
-        utm_medium: "docs",
-        utm_campaign: "embedding-static",
-        utm_content: "static-embed-settings-overview",
-      },
+  // eslint-disable-next-line metabase/no-unconditional-metabase-links-render -- This links only shows for admins.
+  const { url: docsUrl } = useDocsUrl("embedding/static-embedding", {
+    utm: {
+      utm_source: "product",
+      utm_medium: "docs",
+      utm_campaign: "embedding-static",
+      utm_content: "static-embed-settings-overview",
     },
-  );
+  });
 
   useEffect(() => {
     if (selectedServerCodeOption) {
@@ -68,22 +66,18 @@ export const OverviewSettings = ({
         <StaticEmbedSetupPaneSettingsContentSection
           title={t`Setting up a static embed`}
         >
-          <Text>{t`To embed this ${resourceType} in your application you’ll just need to publish it, and paste these code snippets in the proper places in your app.`}</Text>
-          <br />
-          {resourceType === "dashboard" && (
-            <>
+          <Stack gap="lg">
+            <Text>{t`To embed this ${resourceType} in your application you’ll just need to publish it, and paste these code snippets in the proper places in your app.`}</Text>
+            {resourceType === "dashboard" && (
               <Text>{t`You can also hide or lock any of the dashboard’s parameters.`}</Text>
-              <br />
-            </>
-          )}
-          {showMetabaseLinks && (
+            )}
             <Text>{jt`Check out the ${(
               <ExternalLink
                 key="doc"
                 href={docsUrl}
               >{t`documentation`}</ExternalLink>
             )} for more.`}</Text>
-          )}
+          </Stack>
         </StaticEmbedSetupPaneSettingsContentSection>
       }
       previewSlot={

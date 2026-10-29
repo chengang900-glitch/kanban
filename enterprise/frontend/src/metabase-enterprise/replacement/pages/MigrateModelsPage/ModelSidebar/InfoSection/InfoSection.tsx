@@ -4,7 +4,6 @@ import { t } from "ttag";
 import { DateTime } from "metabase/common/components/DateTime";
 import CS from "metabase/css/core/index.css";
 import { Box, Group, Card as MantineCard, Stack } from "metabase/ui";
-import { getUserName } from "metabase/utils/user";
 import type { Card } from "metabase-types/api";
 
 import S from "./InfoSection.module.css";
@@ -52,7 +51,11 @@ export function InfoSection({ card }: InfoSectionProps) {
           label={t`Last edited by`}
           date={lastEditInfo.timestamp}
         >
-          <Box className={CS.textWrap}>{getUserName(lastEditInfo)}</Box>
+          <Box className={CS.textWrap}>
+            {[lastEditInfo.first_name, lastEditInfo.last_name]
+              .filter(Boolean)
+              .join(" ")}
+          </Box>
         </InfoSectionItem>
       )}
     </MantineCard>
@@ -67,7 +70,7 @@ type InfoSectionItemProps = {
 
 function InfoSectionItem({ label, date, children }: InfoSectionItemProps) {
   return (
-    <Stack className={S.section} p="md" gap="xs">
+    <Stack className={S.section} p="lg" gap="xxs">
       <Box className={CS.textWrap} c="text-secondary" fz="sm" lh="h5">
         {label}
       </Box>

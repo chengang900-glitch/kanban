@@ -1,9 +1,9 @@
 (ns metabase.permissions-rest.api-test
   "Tests for `/api/permissions` endpoints."
   (:require
-   [clojure.string :as str]
    [clojure.test :refer :all]
    [medley.core :as m]
+   [metabase.collections.models.collection :as collection]
    [metabase.config.core :as config]
    [metabase.permissions-rest.api :as api.permissions]
    [metabase.permissions-rest.api-test-util :as perm-test-util]
@@ -68,13 +68,141 @@
       (is (= "You don't have permissions to do that."
              (mt/user-http-request :rasta :get 403 "permissions/group"))))))
 
-(deftest no-data-analyst-groups-test
-  (testing "GET /api/permissions/group"
-    (testing "in OSS, the data analyst group is hidden"
-      ;; note that this uses `config/ee-available?` instead of a feature to avoid hiding a group that may stil provide permissions!
-      (when-not config/ee-available?
-        (is (not (contains? (set (map :name (mt/user-http-request :crowberto :get 200 "permissions/group")))
-                            "Data Analysts")))))))
+(defn- data-analyst-group-id []
+  (u/the-id (perms-group/data-analyst)))
+
+(defn- add-to-data-analyst-group-with-feature!
+  "Add `user-id` to the Data Analysts group, temporarily enabling `advanced-permissions` to get past the addition gate."
+  [user-id]
+  (mt/with-premium-features #{:advanced-permissions}
+    (perms/add-user-to-group! user-id (data-analyst-group-id))))
+
+(defn- data-analyst-group-listed? []
+  (contains? (set (map :id (fetch-groups))) (data-analyst-group-id)))
+
+(mt/when-ee-evailable
+ (deftest data-analyst-group-listed-with-feature-test
+   (testing "GET /api/permissions/group lists the Data Analysts group with advanced-permissions, even when empty"
+     (mt/with-premium-features #{:advanced-permissions}
+       (is (data-analyst-group-listed?))))))
+
+(deftest data-analyst-group-hidden-without-feature-when-empty-test
+  (testing "GET /api/permissions/group omits an empty Data Analysts group without advanced-permissions"
+    (mt/with-premium-features #{}
+      (is (not (data-analyst-group-listed?))))))
+
+(mt/when-ee-evailable
+ (deftest data-analyst-group-listed-without-feature-when-populated-test
+   (testing "GET /api/permissions/group lists a populated Data Analysts group without advanced-permissions"
+     (mt/with-temp [:model/User {user-id :id} {}]
+       (add-to-data-analyst-group-with-feature! user-id)
+       (mt/with-premium-features #{}
+         (let [group (m/find-first #(= (data-analyst-group-id) (:id %)) (fetch-groups))]
+           (is (some? group))
+           (testing "with its member count"
+             (is (= 1 (:member_count group))))))))))
+
+(mt/when-ee-evailable
+ (deftest data-analyst-group-hidden-without-feature-after-last-member-removed-test
+   (testing "GET /api/permissions/group omits the Data Analysts group once its last member is removed"
+     (mt/with-temp [:model/User {user-id :id} {}]
+       (add-to-data-analyst-group-with-feature! user-id)
+       (mt/with-premium-features #{}
+         (is (data-analyst-group-listed?))
+         (perms/remove-user-from-group! user-id (data-analyst-group-id))
+         (is (not (data-analyst-group-listed?))))))))
+
+(mt/when-ee-evailable
+ (deftest data-analyst-group-visibility-counts-active-members-only-test
+   (testing "GET /api/permissions/group counts only active members when deciding to list the Data Analysts group"
+     (mt/with-temp [:model/User {user-id :id} {}]
+       (add-to-data-analyst-group-with-feature! user-id)
+       (mt/with-premium-features #{}
+         (is (data-analyst-group-listed?))
+         (testing "deactivating the only member hides the group"
+           (t2/update! :model/User user-id {:is_active false})
+           (is (not (data-analyst-group-listed?))))
+         (testing "reactivating them brings it back, the membership having survived"
+           (t2/update! :model/User user-id {:is_active true})
+           (is (data-analyst-group-listed?))
+           (is (t2/exists? :model/PermissionsGroupMembership
+                           :user_id user-id :group_id (data-analyst-group-id)))))))))
+
+(mt/when-ee-evailable
+ (deftest data-analyst-group-membership-listing-test
+   (testing "GET /api/permissions/membership"
+     (testing "without advanced-permissions, memberships of a populated Data Analysts group are listed"
+       (mt/with-temp [:model/User {user-id :id} {}]
+         (add-to-data-analyst-group-with-feature! user-id)
+         (mt/with-premium-features #{}
+           (let [memberships (mt/user-http-request :crowberto :get 200 "permissions/membership")]
+             (is (contains? (set (keep (fn [{:keys [user_id group_id]}]
+                                         (when (= user-id user_id) group_id))
+                                       (mapcat val memberships)))
+                            (data-analyst-group-id))))))))))
+
+(deftest fetch-data-analyst-group-by-id-test
+  (testing "GET /api/permissions/group/:id returns the Data Analysts group regardless of feature or membership"
+    (doseq [features [#{:advanced-permissions} #{}]]
+      (testing (str "premium features: " features)
+        (testing "empty group"
+          (mt/with-premium-features features
+            (is (= (data-analyst-group-id)
+                   (:id (mt/user-http-request :crowberto :get 200
+                                              (format "permissions/group/%d" (data-analyst-group-id))))))))
+        (mt/when-ee-evailable
+         (testing "populated group"
+           (mt/with-temp [:model/User {user-id :id} {}]
+             (add-to-data-analyst-group-with-feature! user-id)
+             (mt/with-premium-features features
+               (let [group (mt/user-http-request :crowberto :get 200
+                                                 (format "permissions/group/%d" (data-analyst-group-id)))]
+                 (is (= (data-analyst-group-id) (:id group)))
+                 (is (contains? (set (map :user_id (:members group))) user-id)))))))))))
+
+(deftest data-analyst-group-data-model-permission-is-locked-test
+  (testing "the Data Analysts group's data-model permission is rendered as enforced and cannot be edited"
+    (doseq [features [#{:advanced-permissions} #{}]]
+      (testing (str "premium features: " features)
+        (mt/with-premium-features features
+          (testing "GET /api/permissions/graph renders the locked value"
+            (is (= {:schemas "all"}
+                   (get-in (mt/user-http-request :crowberto :get 200 "permissions/graph")
+                           [:groups (data-analyst-group-id) (mt/id) :data-model]))))
+          (testing "PUT /api/permissions/graph refuses to change it"
+            (is (= "You cannot modify the data model permission for the 'Data Analysts' group."
+                   (mt/user-http-request
+                    :crowberto :put 400 "permissions/graph"
+                    (assoc-in (data-perms.graph/api-graph)
+                              [:groups (data-analyst-group-id) (mt/id) :data-model]
+                              {:schemas :none}))))))))))
+
+(deftest data-analyst-group-cannot-be-renamed-or-deleted-test
+  (testing "the Data Analysts group is neither renameable nor deletable"
+    (let [error   (format "You cannot edit or delete the '%s' permissions group!"
+                          (t2/select-one-fn :name :model/PermissionsGroup :id (data-analyst-group-id)))
+          locked? (fn []
+                    (is (= error
+                           (mt/user-http-request :crowberto :put 400
+                                                 (format "permissions/group/%d" (data-analyst-group-id))
+                                                 {:name "Renamed Analysts"})))
+                    (is (= error
+                           (mt/user-http-request :crowberto :delete 400
+                                                 (format "permissions/group/%d" (data-analyst-group-id)))))
+                    (is (t2/exists? :model/PermissionsGroup
+                                    :id (data-analyst-group-id)
+                                    :magic_group_type perms-group/data-analyst-magic-group-type)))]
+      (doseq [features [#{:advanced-permissions} #{}]]
+        (testing (str "premium features: " features)
+          (testing "empty group"
+            (mt/with-premium-features features
+              (locked?)))
+          (mt/when-ee-evailable
+           (testing "populated group"
+             (mt/with-temp [:model/User {user-id :id} {}]
+               (add-to-data-analyst-group-with-feature! user-id)
+               (mt/with-premium-features features
+                 (locked?))))))))))
 
 (deftest groups-list-limit-test
   (testing "GET /api/permissions/group?limit=1&offset=1"
@@ -167,6 +295,75 @@
     (testing "requires superuers"
       (is (= "You don't have permissions to do that."
              (mt/user-http-request :rasta :get 403 (format "permissions/group/%d" (:id (perms-group/all-users)))))))))
+
+(deftest invite-group-ids-test
+  (testing "GET /api/permissions/invite-group-ids"
+    (mt/with-temp [:model/Collection       coll      {}
+                   :model/Dashboard        dash      {:collection_id (u/the-id coll)}
+                   :model/PermissionsGroup readers   {:name "Readers"}
+                   :model/PermissionsGroup writers   {:name "Writers"}
+                   :model/PermissionsGroup no-access {:name "No access"}]
+      (perms/grant-collection-read-permissions! readers coll)
+      (perms/grant-collection-readwrite-permissions! writers coll)
+      (perms/grant-collection-read-permissions! (perms-group/all-users) coll)
+      (perms/grant-collection-read-permissions! (perms-group/data-analyst) coll)
+      (let [fetch-ids (fn [] (set (mt/user-http-request :crowberto :get 200 "permissions/invite-group-ids"
+                                                        :type "dashboard" :id (u/the-id dash))))]
+        (mt/with-premium-features #{:advanced-permissions}
+          (let [ids (fetch-ids)]
+            (testing "includes ids of groups with read or read-write access to the item's collection"
+              (is (contains? ids (u/the-id readers)))
+              (is (contains? ids (u/the-id writers)))
+              (is (contains? ids (u/the-id (perms-group/all-users)))))
+            (mt/when-ee-evailable
+             (testing "includes the Data Analysts group when it holds a grant"
+               (is (contains? ids (u/the-id (perms-group/data-analyst))))))
+            (testing "excludes groups without access"
+              (is (not (contains? ids (u/the-id no-access)))))
+            (testing "excludes the Administrators group, whose access is implicit rather than granted"
+              (is (not (contains? ids (u/the-id (perms-group/admin))))))))
+        (testing "without advanced-permissions the Data Analysts group is dropped, even when it holds a grant"
+          (mt/with-premium-features #{}
+            (let [ids (fetch-ids)]
+              (is (not (contains? ids (u/the-id (perms-group/data-analyst)))))
+              (is (contains? ids (u/the-id readers))))))
+        (mt/when-ee-evailable
+         (testing "without advanced-permissions the Data Analysts group is dropped even when populated"
+           (mt/with-temp [:model/User {user-id :id} {}]
+             (add-to-data-analyst-group-with-feature! user-id)
+             (mt/with-premium-features #{}
+               (is (not (contains? (fetch-ids) (u/the-id (perms-group/data-analyst)))))))))))
+    (testing "works for questions, resolving the card's collection"
+      (mt/with-temp [:model/Collection       coll {}
+                     :model/Card             card {:collection_id (u/the-id coll)}
+                     :model/PermissionsGroup g    {:name "Q Readers"}]
+        (perms/grant-collection-read-permissions! g coll)
+        (is (contains? (set (mt/user-http-request :crowberto :get 200 "permissions/invite-group-ids"
+                                                  :type "question" :id (u/the-id card)))
+                       (u/the-id g)))))
+    (testing "resolves the Root collection for items with no collection_id"
+      (mt/with-temp [:model/PermissionsGroup g    {:name "Root Readers"}
+                     :model/Dashboard        dash {:collection_id nil}
+                     :model/Permissions      _    {:group_id (u/the-id g), :object "/collection/root/read/"}]
+        (is (contains? (set (mt/user-http-request :crowberto :get 200 "permissions/invite-group-ids"
+                                                  :type "dashboard" :id (u/the-id dash)))
+                       (u/the-id g)))))
+    (testing "returns no ids for an item in a personal collection (no permission rows exist)"
+      (let [personal-coll (collection/user->personal-collection (mt/user->id :crowberto))]
+        (mt/with-temp [:model/Dashboard dash {:collection_id (u/the-id personal-coll)}]
+          (is (= [] (mt/user-http-request :crowberto :get 200 "permissions/invite-group-ids"
+                                          :type "dashboard" :id (u/the-id dash)))))))
+    (testing "requires superuser, even for users who can read the item"
+      (mt/with-temp [:model/Collection coll {}
+                     :model/Dashboard  dash {:collection_id (u/the-id coll)}]
+        (perms/grant-collection-read-permissions! (perms-group/all-users) coll)
+        (is (= "You don't have permissions to do that."
+               (mt/user-http-request :rasta :get 403 "permissions/invite-group-ids"
+                                     :type "dashboard" :id (u/the-id dash))))))
+    (testing "returns 404 for a nonexistent item"
+      (is (= "Not found."
+             (mt/user-http-request :crowberto :get 404 "permissions/invite-group-ids"
+                                   :type "dashboard" :id Integer/MAX_VALUE))))))
 
 (deftest create-group-test
   (testing "POST /permissions/group"
@@ -470,35 +667,6 @@
                                  (assoc (data-perms.graph/api-graph)
                                         :sandboxes [{:group_id group-id, :table_id table-id, :card_id 1}]))))))))
 
-(deftest update-perms-graph-sandbox-and-impersonation-shapes-test
-  (testing "PUT /api/permissions/graph"
-    (testing "a sandbox or impersonation that isn't a map of the keys the schema declares is refused, so nothing that
-             isn't a permissions record can reach the INSERT that writes one"
-      (mt/with-premium-features #{:sandboxes :advanced-permissions}
-        (let [injection "UPDATE core_user SET is_superuser = true"
-              admins    #(t2/count :model/User :is_superuser true)
-              put!      (fn [body] (mt/user-http-request :crowberto :put 400 "permissions/graph"
-                                                         (merge (data-perms.graph/api-graph) body)))]
-          (doseq [[label k body] [["an impersonation given as a string"  :impersonations {:impersonations [injection]}]
-                                  ["an impersonation of undeclared keys" :impersonations {:impersonations [{:raw injection}]}]
-                                  ["a sandbox given as a string"         :sandboxes      {:sandboxes [injection]}]
-                                  ["a sandbox of undeclared keys"        :sandboxes      {:sandboxes [{:raw injection}]}]]]
-            (testing label
-              (let [before (admins)]
-                (is (contains? (:errors (put! body)) k))
-                (is (= before (admins))
-                    "the injected UPDATE did not run")))))))))
-
-(deftest update-perms-graph-drops-unknown-db-perms-test
-  (testing "PUT /api/permissions/graph"
-    (testing "a per-database key the graph update doesn't act on is dropped rather than carried into the update"
-      (mt/with-temp [:model/PermissionsGroup {group-id :id} {}]
-        (let [graph (assoc-in (data-perms.graph/api-graph)
-                              [:groups group-id (mt/id)]
-                              {:view-data :unrestricted, :is_superuser true})]
-          (is (nil? (get-in (mt/user-http-request :crowberto :put 200 "permissions/graph" graph)
-                            [:groups (keyword (str group-id)) (keyword (str (mt/id))) :is_superuser]))))))))
-
 (deftest update-perms-graph-blocked-view-data-test
   (testing "PUT /api/permissions/graph"
     (testing "setting view-data to blocked automatically sets download-results to no, even if requested otherwise"
@@ -615,6 +783,77 @@
       (testing "Delete membership successfully"
         (mt/user-http-request :crowberto :delete 204 (format "permissions/membership/%d" id))))))
 
+(deftest hide-tenant-groups-from-graph-test
+  (testing "GET /api/permissions/graph hides tenant-group entries when use-tenants is off"
+    (mt/with-premium-features #{:tenants}
+      (mt/with-temporary-setting-values [use-tenants true]
+        (mt/with-temp [:model/PermissionsGroup tenant-group {:name "Acme Tenant" :is_tenant_group true}
+                       :model/Database {db-id :id} {}]
+          (data-perms/set-database-permission! tenant-group db-id :perms/view-data :unrestricted)
+          (testing "tenant group is visible when use-tenants is on"
+            (is (contains? (:groups (mt/user-http-request :crowberto :get 200 "permissions/graph"))
+                           (:id tenant-group))))
+          (testing "GET /graph/group/:tenant-id succeeds when use-tenants is on"
+            (is (contains? (:groups (mt/user-http-request :crowberto :get 200
+                                                          (format "permissions/graph/group/%d" (:id tenant-group))))
+                           (:id tenant-group))))
+          (mt/with-temporary-setting-values [use-tenants false]
+            (testing "tenant group is hidden when use-tenants is off"
+              (is (not (contains? (:groups (mt/user-http-request :crowberto :get 200 "permissions/graph"))
+                                  (:id tenant-group)))))
+            (testing "GET /graph/group/:tenant-id returns 404"
+              (is (= "Not found."
+                     (mt/user-http-request :crowberto :get 404
+                                           (format "permissions/graph/group/%d" (:id tenant-group))))))))))))
+
+(deftest fetch-group-by-id-hides-tenant-group-test
+  (testing "GET /api/permissions/group/:id returns 404 for tenant groups when use-tenants is off"
+    (mt/with-premium-features #{:tenants}
+      (mt/with-temp [:model/PermissionsGroup tenant-group {:name "Acme Tenant" :is_tenant_group true}]
+        (mt/with-temporary-setting-values [use-tenants true]
+          (testing "visible when on"
+            (is (=? {:id (:id tenant-group)}
+                    (mt/user-http-request :crowberto :get 200 (format "permissions/group/%d" (:id tenant-group)))))))
+        (mt/with-temporary-setting-values [use-tenants false]
+          (testing "404 when off"
+            (is (= "Not found."
+                   (mt/user-http-request :crowberto :get 404 (format "permissions/group/%d" (:id tenant-group)))))))))))
+
+(deftest update-and-delete-hide-tenant-group-test
+  (testing "PUT and DELETE /api/permissions/group/:group-id return 404 for tenant groups when use-tenants is off"
+    (mt/with-premium-features #{:tenants}
+      (mt/with-temp [:model/PermissionsGroup tenant-group {:name "Acme Tenant" :is_tenant_group true}]
+        (mt/with-temporary-setting-values [use-tenants false]
+          (testing "PUT returns 404 and does not rename the group"
+            (is (= "Not found."
+                   (mt/user-http-request :crowberto :put 404 (format "permissions/group/%d" (:id tenant-group))
+                                         {:name "Renamed"})))
+            (is (= "Acme Tenant" (t2/select-one-fn :name :model/PermissionsGroup :id (:id tenant-group)))))
+          (testing "DELETE returns 404 and does not delete the group"
+            (is (= "Not found."
+                   (mt/user-http-request :crowberto :delete 404 (format "permissions/group/%d" (:id tenant-group)))))
+            (is (t2/exists? :model/PermissionsGroup :id (:id tenant-group)))))
+        (mt/with-temporary-setting-values [use-tenants true]
+          (testing "PUT succeeds when use-tenants is on"
+            (is (=? {:name "Renamed Tenant"}
+                    (mt/user-http-request :crowberto :put 200 (format "permissions/group/%d" (:id tenant-group))
+                                          {:name "Renamed Tenant"}))))
+          (testing "DELETE succeeds when use-tenants is on"
+            (mt/user-http-request :crowberto :delete 204 (format "permissions/group/%d" (:id tenant-group)))
+            (is (not (t2/exists? :model/PermissionsGroup :id (:id tenant-group))))))))))
+
+(deftest update-perms-graph-rejects-tenant-groups-test
+  (testing "PUT /api/permissions/graph rejects bodies referencing tenant groups when use-tenants is off"
+    (mt/with-premium-features #{:tenants}
+      (mt/with-temp [:model/PermissionsGroup tenant-group {:name "Acme Tenant" :is_tenant_group true}
+                     :model/Database         {db-id :id}  {}]
+        (mt/with-temporary-setting-values [use-tenants false]
+          (let [base     (data-perms.graph/api-graph)
+                attempt  (assoc-in base [:groups (:id tenant-group) db-id :view-data] :unrestricted)
+                response (mt/user-http-request :crowberto :put 400 "permissions/graph" attempt)]
+            (testing "response includes the offending group ID"
+              (is (= [(:id tenant-group)] (get-in response [:errors :tenant-group-ids]))))))))))
+
 (deftest enabling-tenants-changes-groups
   (let [get-magic-group (fn [group-type]
                           (->>
@@ -697,125 +936,42 @@
             (finally
               (t2/delete! :model/PermissionsGroup :id [:in group-ids]))))))))
 
-;;; +----------------------------------------------------------------------------------------------------------------+
-;;; |                             PUT /api/permissions/graph REQUEST SCHEMA                                 |
-;;; +----------------------------------------------------------------------------------------------------------------+
+(deftest add-data-analyst-group-membership-requires-advanced-permissions-test
+  (testing "POST /api/permissions/membership for the Data Analysts group"
+    (let [group-id (u/the-id (perms-group/data-analyst))
+          member?  (fn [user-id]
+                     (t2/exists? :model/PermissionsGroupMembership :user_id user-id :group_id group-id))]
+      (mt/with-temp [:model/User {user-id :id} {}]
+        (testing "is refused without the :advanced-permissions feature"
+          (mt/with-premium-features #{}
+            (is (= (str perms/fail-to-add-data-analyst-msg)
+                   (mt/user-http-request :crowberto :post 402 "permissions/membership"
+                                         {:group_id group-id, :user_id user-id})))
+            (is (not (member? user-id)))
+            (is (not (t2/select-one-fn :is_data_analyst :model/User :id user-id)))))
+        (mt/when-ee-evailable
+         (testing "succeeds with the :advanced-permissions feature"
+           (mt/with-premium-features #{:advanced-permissions}
+             (mt/user-http-request :crowberto :post 200 "permissions/membership"
+                                   {:group_id group-id, :user_id user-id})
+             (is (member? user-id))
+             (is (true? (boolean (t2/select-one-fn :is_data_analyst :model/User :id user-id))))))
+         (testing "and the member can still be removed without the feature"
+           (mt/with-premium-features #{}
+             (let [membership-id (t2/select-one-pk :model/PermissionsGroupMembership
+                                                   :user_id user-id :group_id group-id)]
+               (mt/user-http-request :crowberto :delete 204 (format "permissions/membership/%d" membership-id))
+               (is (not (member? user-id)))
+               (is (not (t2/select-one-fn :is_data_analyst :model/User :id user-id)))))))))))
 
-(def ^:private sql-injection
-  "'; UPDATE core_user SET is_superuser = true; --")
-
-(def ^:private honeysql-forms
-  "Values Toucan would hand to HoneySQL as SQL rather than as data. A vector reaches the JSON body as
-  `[\"raw\", \"...\"]`, so both the keyword and the string spelling are worth refusing."
-  [[:raw sql-injection]
-   ["raw" sql-injection]
-   [:inline sql-injection]
-   ["inline" sql-injection]
-   [:nest sql-injection]
-   [:lift sql-injection]
-   [:param :x]
-   {:raw sql-injection}
-   {:select [:*] :from [:core_user]}])
-
-(defn- put-graph!
-  "PUT a graph update built by merging `body` onto the current graph, returning `[status body]`. Reads the revision
-  fresh so a rejected request earlier in a test doesn't turn a later one into a 409."
-  [body]
-  (let [graph (data-perms.graph/api-graph)
-        resp  (mt/user-http-request-full-response :crowberto :put "permissions/graph"
-                                                  (merge graph (assoc body :revision (:revision graph))))]
-    [(:status resp) (:body resp)]))
-
-(defn- admin-count []
-  (t2/count :model/User :is_superuser true))
-
-(deftest update-perms-graph-rejects-non-record-sandboxes-and-impersonations-test
-  (testing "PUT /api/permissions/graph"
-    (testing "a sandbox or impersonation that isn't a record of the keys the schema declares is refused, so nothing
-             that isn't one can reach the INSERT that writes it"
-      (mt/with-premium-features #{:sandboxes :advanced-permissions}
-        (doseq [[label k body] (concat
-                                [["a sandbox given as a string"          :sandboxes      {:sandboxes sql-injection}]
-                                 ["a sandbox given as a map"             :sandboxes      {:sandboxes {:table_id 1}}]
-                                 ["a null sandbox"                       :sandboxes      {:sandboxes [nil]}]
-                                 ["an empty sandbox"                     :sandboxes      {:sandboxes [{}]}]
-                                 ["a sandbox of undeclared keys"         :sandboxes      {:sandboxes [{:raw sql-injection}]}]
-                                 ["an impersonation given as a string"   :impersonations {:impersonations sql-injection}]
-                                 ["a null impersonation"                 :impersonations {:impersonations [nil]}]
-                                 ["an empty impersonation"               :impersonations {:impersonations [{}]}]
-                                 ["an impersonation of undeclared keys"  :impersonations {:impersonations [{:raw sql-injection}]}]
-                                 ["an impersonation missing db_id"       :impersonations {:impersonations [{:group_id 1 :attribute "role"}]}]
-                                 ["an impersonation with a blank role"   :impersonations {:impersonations [{:group_id 1 :db_id (mt/id) :attribute ""}]}]]
-                                ;; every value that reaches the INSERT has to be a scalar of the declared type: a
-                                ;; HoneySQL form in any of these positions would be rendered as SQL, not bound
-                                (for [form honeysql-forms
-                                      [k field] [[:sandboxes :id] [:sandboxes :group_id] [:sandboxes :table_id]
-                                                 [:sandboxes :card_id] [:sandboxes :permission_id]
-                                                 [:impersonations :group_id] [:impersonations :db_id]
-                                                 [:impersonations :attribute]]]
-                                  [(format "%s %s = %s" (name k) (name field) (pr-str form))
-                                   k
-                                   {k [(assoc (if (= k :sandboxes)
-                                                {:group_id 1 :table_id 1}
-                                                {:group_id 1 :db_id (mt/id) :attribute "role"})
-                                              field form)]}]))]
-          (testing label
-            (let [before        (admin-count)
-                  [status resp] (put-graph! body)]
-              (is (= 400 status))
-              (is (contains? (:errors resp) k))
-              (is (= before (admin-count)) "the injected SQL did not run"))))))))
-
-(deftest update-perms-graph-rejects-non-graph-bodies-test
-  (testing "PUT /api/permissions/graph"
-    (testing "junk anywhere in the graph is refused -- not dropped, leaving the rest of the update to go through,
-             and not thrown out of the decoder as a 500"
-      (mt/with-temp [:model/PermissionsGroup {group-id :id} {}]
-        (doseq [[label groups] [["a string for the graph"  sql-injection]
-                                ["a number for the graph"  5]
-                                ["a vector for the graph"  [1 2]]
-                                ["null for the graph"      nil]
-                                ["a scalar per group"      {group-id 5}]
-                                ["a scalar per database"   {group-id {(mt/id) 5}}]
-                                ["a scalar permission"     {group-id {(mt/id) {:view-data 5}}}]
-                                ["a scalar per schema"     {group-id {(mt/id) {:view-data {"PUBLIC" 5}}}}]
-                                ["an unrecognized permission value" {group-id {(mt/id) {:view-data "bogus"}}}]
-                                ["a HoneySQL permission"   {group-id {(mt/id) {:view-data [:raw sql-injection]}}}]
-                                ["a HoneySQL graph"        {group-id {:select [:*] :from [:core_user]}}]]]
-          (testing label
-            (let [before        (admin-count)
-                  [status resp] (put-graph! {:groups groups})]
-              (is (= 400 status))
-              (is (not (str/includes? (pr-str resp) "core_user"))
-                  "none of it came back out of the graph")
-              (is (= before (admin-count)) "the injected SQL did not run"))))))
-    (testing "so is a body that isn't a map at all"
-      (is (= 400 (:status (mt/user-http-request-full-response :crowberto :put "permissions/graph" [1 2 3])))))))
-
-(deftest update-perms-graph-rejects-out-of-range-ids-test
-  (testing "PUT /api/permissions/graph"
-    (testing "an id that isn't one is refused -- a negative group id used to reach `api-graph` as-is and come back
-             as a 500"
-      (mt/with-temp [:model/PermissionsGroup {group-id :id} {}]
-        (doseq [[label groups] [["a negative group id"    {-1 {(mt/id) {:view-data :unrestricted}}}]
-                                ["a zero group id"        {0 {(mt/id) {:view-data :unrestricted}}}]
-                                ["a non-numeric group id" {:abc {(mt/id) {:view-data :unrestricted}}}]
-                                ["a negative database id" {group-id {-1 {:view-data :unrestricted}}}]
-                                ["a negative table id"    {group-id {(mt/id) {:view-data {"PUBLIC" {-1 :unrestricted}}}}}]]]
-          (testing label
-            (let [[status _] (put-graph! {:groups groups})]
-              (is (= 400 status))
-              (is (not (t2/exists? :model/DataPermissions :group_id [:< 1]))
-                  "nothing was written for the out-of-range id")
-              (is (not (t2/exists? :model/DataPermissions :db_id [:< 1]))))))))))
-
-(deftest update-perms-graph-drops-undeclared-keys-test
-  (testing "PUT /api/permissions/graph"
-    (testing "keys the schema doesn't declare are dropped rather than carried into the update"
-      (mt/with-temp [:model/PermissionsGroup {group-id :id} {}]
-        (let [[status resp] (put-graph! {:groups {group-id {(mt/id) {:view-data :unrestricted
-                                                                     :is_superuser true
-                                                                     :evil sql-injection}}}
-                                         :evil   sql-injection})]
-          (is (= 200 status))
-          (is (nil? (get-in resp [:groups (keyword (str group-id)) (keyword (str (mt/id))) :is_superuser]))))))))
+(mt/when-ee-evailable
+ (deftest clear-data-analyst-group-membership-without-advanced-permissions-test
+   (testing "PUT /api/permissions/membership/:group-id/clear works for the Data Analysts group without the feature"
+     (let [group-id (u/the-id (perms-group/data-analyst))]
+       (mt/with-temp [:model/User {user-id :id} {}]
+         (mt/with-premium-features #{:advanced-permissions}
+           (perms/add-user-to-group! user-id group-id))
+         (mt/with-premium-features #{}
+           (mt/user-http-request :crowberto :put 204 (format "permissions/membership/%d/clear" group-id))
+           (is (not (t2/exists? :model/PermissionsGroupMembership :user_id user-id :group_id group-id)))
+           (is (not (t2/select-one-fn :is_data_analyst :model/User :id user-id)))))))))

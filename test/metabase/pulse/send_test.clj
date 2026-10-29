@@ -53,7 +53,7 @@
 
 (defn- rasta-alert-message
   [& [data]]
-  (merge {:subject        "预警：Test card 有结果"
+  (merge {:subject        "Alert: Test card has results"
           :recipients     #{"rasta@metabase.com"}
           :message-type   :attachments
           :recipient-type nil
@@ -245,7 +245,8 @@
 
            :fixture
            (fn [_ thunk]
-             (with-redefs [body/attached-results-text (pulse.test-util/wrap-function @#'body/attached-results-text)]
+             (mt/with-dynamic-fn-redefs [body/attached-results-text
+                                         (pulse.test-util/wrap-function (mt/original-fn #'body/attached-results-text))]
                (thunk)))
 
            :assert
@@ -273,10 +274,10 @@
                           message)))
                 (testing "attached-results-text should be invoked exactly once"
                   (is (= 1
-                         (count (pulse.test-util/input @#'body/attached-results-text)))))
+                         (count (pulse.test-util/input (mt/dynamic-value #'body/attached-results-text))))))
                 (testing "attached-results-text should return nil since it's a slack message"
                   (is (= [nil]
-                         (pulse.test-util/output @#'body/attached-results-text))))))}}
+                         (pulse.test-util/output (mt/dynamic-value #'body/attached-results-text)))))))}}
           "11 rows in the results no longer causes a CSV attachment per issue #36441."
           {:card (pulse.test-util/checkins-query-card {:aggregation nil, :limit 11})
 
@@ -447,14 +448,14 @@
              :assert
              {:email
               (fn [_ [email]]
-                (is (= (rasta-alert-message {:subject "预警：Test card 已达到目标值"
+                (is (= (rasta-alert-message {:subject "Alert: Test card has reached its goal"
                                              :message [{pulse.test-util/card-name true
-                                                        "该问题已达到目标值 5\\.9。" true}
+                                                        "This question has reached its goal of 5\\.9\\." true}
                                                        pulse.test-util/png-attachment
                                                        pulse.test-util/png-attachment
                                                        pulse.test-util/csv-attachment]})
                        (mt/summarize-multipart-single-email email test-card-regex
-                                                            #"该问题已达到目标值 5\.9。"))))}}
+                                                            #"This question has reached its goal of 5\.9\."))))}}
             "no data"
             {:card
              (merge (pulse.test-util/checkins-query-card {:filter   [:between $date "2014-02-01" "2014-04-01"]
@@ -480,7 +481,7 @@
              :assert
              {:email
               (fn [_ [email]]
-                (is (= (rasta-alert-message {:subject "预警：Test card 已达到目标值"})
+                (is (= (rasta-alert-message {:subject "Alert: Test card has reached its goal"})
                        (mt/summarize-multipart-single-email email test-card-regex))))}})))
 
 (deftest below-goal-alert-test
@@ -501,14 +502,14 @@
              :assert
              {:email
               (fn [_ [email]]
-                (is (= (rasta-alert-message {:subject "预警：Test card 已低于目标值"
+                (is (= (rasta-alert-message {:subject "Alert: Test card has gone below its goal"
                                              :message [{pulse.test-util/card-name true
-                                                        "该问题已低于目标值 1\\.1。" true}
+                                                        "This question has gone below its goal of 1\\.1\\." true}
                                                        pulse.test-util/png-attachment
                                                        pulse.test-util/png-attachment
                                                        pulse.test-util/csv-attachment]})
                        (mt/summarize-multipart-single-email email test-card-regex
-                                                            #"该问题已低于目标值 1\.1。"))))}}
+                                                            #"This question has gone below its goal of 1\.1\."))))}}
             "with no satisfying data"
             {:card
              (merge (pulse.test-util/checkins-query-card {:filter   [:between $date "2014-02-10" "2014-02-12"]
@@ -535,7 +536,7 @@
              :assert
              {:email
               (fn [_ [email]]
-                (is (= (rasta-alert-message {:subject "预警：Test card 已低于目标值"})
+                (is (= (rasta-alert-message {:subject "Alert: Test card has gone below its goal"})
                        (mt/summarize-multipart-single-email email test-card-regex))))}})))
 
 (deftest ^:parallel goal-met-test
@@ -591,7 +592,7 @@
                                                                    :alert_above_goal true}}]
         (let [channel-messages (pulse.test-util/with-captured-channel-send-messages!
                                  (pulse.send/send-pulse! (models.pulse/retrieve-notification pulse-id)))]
-          (is (= (rasta-alert-message {:subject "预警：Test card 已达到目标值"})
+          (is (= (rasta-alert-message {:subject "Alert: Test card has reached its goal"})
                  (mt/summarize-multipart-single-email (-> channel-messages :channel/email first) test-card-regex))))))))
 
 (deftest nonuser-email-test
@@ -612,8 +613,8 @@
                                                      :pulse_channel_id pc-id}]
         (pulse.test-util/email-test-setup!
          (pulse.send/send-pulse! (models.pulse/retrieve-notification pulse-id))
-         (is (mt/received-email-body? :rasta #"管理订阅"))
-         (is (mt/received-email-body? "nonuser@metabase.com" #"取消订阅")))))))
+         (is (mt/received-email-body? :rasta #"Manage your subscriptions"))
+         (is (mt/received-email-body? "nonuser@metabase.com" #"Unsubscribe")))))))
 
 (deftest partial-channel-failure-will-deliver-all-that-success-test
   (testing "if a pulse is set to send to multiple channels and one of them fail, the other channels should still receive the message"
@@ -636,12 +637,69 @@
                                                       (if (= :channel/slack (first args))
                                                         (throw (ex-info "Slack failed" {}))
                                                         (apply original-render-noti args)))]
-            ;; slack failed but email should still be sent
+            ;; slack failed but email should still be sent; the synchronous caller then learns that slack
+            ;; failed (GDGT-3144)
             (is (= {:channel/email 1}
                    (update-vals
                     (pulse.test-util/with-captured-channel-send-messages!
-                      (pulse.send/send-pulse! (t2/select-one :model/Pulse pulse-id)))
+                      (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                                            #"Failed to deliver to channel/slack$"
+                                            (pulse.send/send-pulse! (t2/select-one :model/Pulse pulse-id)))))
                     count)))))))))
+
+(deftest failure-on-several-channels-names-each-channel-test
+  (testing "a synchronous send that fails on several channels names each channel in one exception (GDGT-3144)"
+    (notification.tu/with-send-notification-sync
+      (mt/with-temp
+        [:model/Card         {card-id :id}  (pulse.test-util/checkins-query-card {:breakout [!day.date]
+                                                                                  :limit    1})
+         :model/Pulse        {pulse-id :id} {:name            "Test Pulse"
+                                             :alert_condition "rows"}
+         :model/PulseCard    _              {:pulse_id pulse-id
+                                             :card_id  card-id}
+         :model/PulseChannel _              {:pulse_id     pulse-id
+                                             :channel_type "email"
+                                             :details      {:emails ["foo@metabase.com"]}}
+         :model/PulseChannel _              {:pulse_id     pulse-id
+                                             :channel_type "slack"
+                                             :details      {:channel "#general"}}]
+        (with-redefs [channel/render-notification (fn [channel-type & _]
+                                                    (throw (ex-info (str (name channel-type) " failed") {})))]
+          (let [e (is (thrown? clojure.lang.ExceptionInfo
+                               (pulse.send/send-pulse! (t2/select-one :model/Pulse pulse-id))))]
+            ;; the channels come in the pulse's channel order, which the test does not fix
+            (is (re-matches #"Failed to deliver to (channel/email, channel/slack|channel/slack, channel/email)"
+                            (ex-message e)))
+            (is (=? {:status-code     502
+                     :error-code      :notification/delivery-failed
+                     :notification-id pulse-id}
+                    (ex-data e)))
+            (is (= #{:channel/email :channel/slack}
+                   (set (map :channel_type (:failed-handlers (ex-data e))))))))))))
+
+(deftest webhook-failure-names-the-channel-test
+  (testing "a pulse webhook handler carries its channel under :channel; the failure still names the channel (GDGT-3144)"
+    (notification.tu/with-send-notification-sync
+      (mt/with-temp
+        [:model/Card         {card-id :id}    (pulse.test-util/checkins-query-card {:breakout [!day.date]
+                                                                                    :limit    1})
+         :model/Channel      {channel-id :id} {:type    :channel/http
+                                               :details {:url         "https://example.com/test"
+                                                         :auth-method :none}}
+         :model/Pulse        {pulse-id :id}   {:name            "Test Pulse"
+                                               :alert_condition "rows"}
+         :model/PulseCard    _                {:pulse_id pulse-id
+                                               :card_id  card-id}
+         :model/PulseChannel _                {:pulse_id     pulse-id
+                                               :channel_type "http"
+                                               :channel_id   channel-id}]
+        (with-redefs [channel/render-notification (fn [& _] (throw (ex-info "http failed" {})))]
+          (let [e (is (thrown? clojure.lang.ExceptionInfo
+                               (pulse.send/send-pulse! (t2/select-one :model/Pulse pulse-id))))]
+            (is (= (str "Failed to deliver to channel/http " channel-id) (ex-message e)))
+            (is (=? {:failed-handlers [{:channel_type :channel/http
+                                        :channel_id   channel-id}]}
+                    (ex-data e)))))))))
 
 (deftest alert-send-to-channel-e2e-test
   (testing "Send alert to http channel works e2e"
@@ -652,7 +710,7 @@
                       (swap! requests conj req)
                       {:status 200
                        :body   "ok"}))]
-      (mt/with-temp-env-var-value! [mb-http-channel-host-strategy "allow-all"]
+      (mt/with-temp-env-var-value! [mb-http-channel-allowed-networks "allow-all"]
         (notification.tu/with-notification-testing-setup!
           (channel.http-test/with-server [url [endpoint]]
             (mt/with-temp

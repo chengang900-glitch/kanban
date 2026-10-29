@@ -1,19 +1,19 @@
-import { jt, t } from "ttag";
+import { t } from "ttag";
 
-import {
-  SettingsPageWrapper,
-  SettingsSection,
-} from "metabase/admin/components/SettingsSection";
 import { CollectUserDataInput } from "metabase/admin/settings/components/widgets/UsageTracking/CollectUserDataInput";
 import { UpsellDevInstances } from "metabase/admin/upsells";
-import { useAdminSetting } from "metabase/api/utils";
-import { Link } from "metabase/common/components/Link";
+import { ExternalLink } from "metabase/common/components/ExternalLink";
 import { useHasTokenFeature } from "metabase/common/hooks";
-import { PLUGIN_SEMANTIC_SEARCH } from "metabase/plugins";
-import * as Urls from "metabase/urls";
+import { PLUGIN_EMBEDDING_SDK, PLUGIN_SEMANTIC_SEARCH } from "metabase/plugins";
+import { useSetting } from "metabase/settings";
+import {
+  AdminSettingInput,
+  SettingsPageWrapper,
+  SettingsSection,
+} from "metabase/settings-components";
+import { Group, Icon, Text } from "metabase/ui";
 
 import { DevInstanceBanner } from "../GeneralSettings/DevInstanceBanner";
-import { AdminSettingInput } from "../widgets/AdminSettingInput";
 import { HomepageSetting } from "../widgets/HomepageSetting";
 import { HttpsOnlyWidget } from "../widgets/HttpsOnlyWidget";
 import { SiteUrlWidget } from "../widgets/SiteUrlWidget";
@@ -22,10 +22,9 @@ import { AnonymousTrackingInput } from "../widgets/UsageTracking/AnonymousTracki
 export function GeneralSettingsPage() {
   const hasHostingFeature = useHasTokenFeature("hosting");
   const hasAuditAppFeature = useHasTokenFeature("audit_app");
-  const customVizAvailable = useHasTokenFeature("custom-viz-available");
   const enableAnonymousTracking = !hasHostingFeature;
-  const { value: cspImgEnabled } = useAdminSetting("csp-img-enabled");
-  const { value: customVizEnabled } = useAdminSetting("custom-viz-enabled");
+  const isReactSdkFeatureAvailable = PLUGIN_EMBEDDING_SDK.isEnabled();
+  const isHosted = useSetting("is-hosted?");
 
   return (
     <SettingsPageWrapper title={t`General`}>
@@ -35,6 +34,7 @@ export function GeneralSettingsPage() {
         <AdminSettingInput
           name="site-name"
           title={t`Site name`}
+          description={t`The name used for this instance.`}
           inputType="text"
         />
 
@@ -55,10 +55,11 @@ export function GeneralSettingsPage() {
         />
       </SettingsSection>
 
-      <SettingsSection title={t`Tables, X-Rays and domains`}>
+      <SettingsSection title={t`Tables and X-Rays`}>
         <AdminSettingInput
           name="humanization-strategy"
           title={t`Friendly table and field names`}
+          description={t`To make table and field names more human-friendly, the system will replace dashes and underscores in them with spaces. We’ll capitalize each word while at it, so ‘last_visited_at’ will become ‘Last Visited At’.`}
           options={[
             {
               value: "simple",
@@ -74,45 +75,6 @@ export function GeneralSettingsPage() {
           title={t`Enable X-Ray features`}
           inputType="boolean"
         />
-
-        <AdminSettingInput
-          name="allowed-iframe-hosts"
-          title={t`Allowed domains for iframes in dashboards`}
-          description={t`You should make sure to trust the sources you allow your users to embed in dashboards.`}
-          inputType="textarea"
-        />
-
-        <AdminSettingInput
-          name="csp-img-enabled"
-          title={t`Restrict image domains`}
-          description={
-            customVizEnabled
-              ? jt`Required by Custom Visualizations. Turn off ${(
-                  <Link key="custom-viz" to={Urls.customViz()} variant="brand">
-                    {t`Custom Visualizations`}
-                  </Link>
-                )} before disabling this setting.`
-              : customVizAvailable
-                ? t`Restrict the browser's Content Security Policy so images can only load from this Metabase instance or the domains you list below. Required to enable Custom Visualizations.`
-                : t`Restrict the browser's Content Security Policy so images can only load from this Metabase instance or the domains you list below.`
-          }
-          inputType="boolean"
-          disabled={Boolean(customVizEnabled)}
-        />
-
-        <AdminSettingInput
-          name="csp-img-allowed-hosts"
-          title={t`Allowed domains for images`}
-          description={
-            cspImgEnabled
-              ? customVizAvailable
-                ? t`Domains that images can be loaded from in dashboard text, entity descriptions, and custom visualizations. Leave empty to only allow images hosted by this Metabase instance.`
-                : t`Domains that images can be loaded from in dashboard text and entity descriptions. Leave empty to only allow images hosted by this Metabase instance.`
-              : t`Turn on the "Restrict image domains" setting above to enforce this allowlist.`
-          }
-          inputType="textarea"
-          disabled={!cspImgEnabled}
-        />
       </SettingsSection>
 
       {/* On starter plan, both conditions are `false` */}
@@ -121,6 +83,21 @@ export function GeneralSettingsPage() {
           {enableAnonymousTracking && <AnonymousTrackingInput />}
 
           {hasAuditAppFeature && <CollectUserDataInput />}
+        </SettingsSection>
+      )}
+
+      {isReactSdkFeatureAvailable && isHosted && (
+        <SettingsSection title={t`Version pinning`}>
+          <Text c="text-secondary" lh="lg" mb="sm">
+            {t`Metabase Cloud instances are automatically upgraded to new releases. SDK packages are strictly compatible with specific version of Metabase. You can request to pin your Metabase to a major version and upgrade your Metabase and SDK dependency in a coordinated fashion.`}
+          </Text>
+
+          <ExternalLink href="mailto:help@metabase.com">
+            <Group gap="sm" fw="bold" w="fit-content">
+              <Icon name="mail" size={14} aria-hidden />
+              <span>{t`Request version pinning`}</span>
+            </Group>
+          </ExternalLink>
         </SettingsSection>
       )}
 

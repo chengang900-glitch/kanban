@@ -37,7 +37,7 @@ import { renderWithSDKProviders } from "embedding-sdk-bundle/test/__support__/ui
 import { createMockSdkConfig } from "embedding-sdk-bundle/test/mocks/config";
 import { setupSdkState } from "embedding-sdk-bundle/test/server-mocks/sdk-init";
 import type { SdkQuestionTitleProps } from "embedding-sdk-bundle/types/question";
-import type { BaseEntityId, Card, CardId } from "metabase-types/api";
+import type { BaseEntityId, CardId, UnsavedCard } from "metabase-types/api";
 import {
   createMockCard,
   createMockCardQueryMetadata,
@@ -48,6 +48,7 @@ import {
   createMockDatasetData,
   createMockParameter,
   createMockTable,
+  createMockUnsavedCard,
   createMockUser,
 } from "metabase-types/api/mocks";
 import { createMockEntityId } from "metabase-types/api/mocks/entity-id";
@@ -137,7 +138,7 @@ const setup = async ({
       isValidCard?: boolean;
       withCustomLayout?: boolean;
       cardId: BaseEntityId | CardId | null;
-      deserializedCard?: Card;
+      deserializedCard?: UnsavedCard;
       preventWaitForLoader?: boolean;
       mockNavigation?: SdkInternalNavigationContextValue;
     }
@@ -204,7 +205,12 @@ const setup = async ({
     },
   );
 
-  if (!preventWaitForLoader) {
+  if (preventWaitForLoader) {
+    // These callers assert on the loader, so wait for it to appear rather than
+    // for it to go. The provider settles while this waits, which keeps that
+    // update inside act().
+    await screen.findByTestId("loading-indicator");
+  } else {
     await waitForLoaderToBeRemoved();
   }
 };
@@ -410,7 +416,7 @@ describe("InteractiveQuestion", () => {
       const mockNavigation = makeMockNavigation();
       await setup({
         cardId: null,
-        deserializedCard: createMockCard(),
+        deserializedCard: createMockUnsavedCard(),
         mockNavigation,
       });
 

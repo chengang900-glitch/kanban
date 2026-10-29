@@ -27,8 +27,8 @@ describe("VisualizationError (EE without token)", () => {
       setup({ database, card, showMetabaseLinks: true });
 
       expect(
-        screen.queryByText("Learn how to debug SQL errors"),
-      ).not.toBeInTheDocument();
+        screen.getByText("Learn how to debug SQL errors"),
+      ).toBeInTheDocument();
     });
 
     it("should show a SQL help link when `show-metabase-links: false`", () => {
@@ -44,8 +44,8 @@ describe("VisualizationError (EE without token)", () => {
       setup({ database, card, showMetabaseLinks: false });
 
       expect(
-        screen.queryByText("Learn how to debug SQL errors"),
-      ).not.toBeInTheDocument();
+        screen.getByText("Learn how to debug SQL errors"),
+      ).toBeInTheDocument();
     });
   });
 

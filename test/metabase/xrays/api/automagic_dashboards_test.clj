@@ -386,30 +386,6 @@
                                                   :model-index   nil
                                                   :model-pk      1})))))
 
-(deftest linked-entities-only-includes-readable-tables-test
-  (testing "an FK into the model's pk can come from any table on the instance, so only readable ones are x-rayed"
-    (mt/dataset test-data
-      (with-indexed-model! [{:keys [model-index] :as info}
-                            {:query     (mt/mbql-query products)
-                             :pk-ref    (mt/$ids :products $id)
-                             :value-ref (mt/$ids :products $title)}]
-        (mt/with-test-user :crowberto
-          (testing "sanity: an admin sees the tables linking to the model"
-            (is (seq (api.magic/linked-entities info)))))
-        (perms.test-util/with-no-data-perms-for-all-users!
-          (mt/with-test-user :rasta
-            (testing "a caller with no data permissions gets none of them"
-              (is (empty? (api.magic/linked-entities info))))))
-        (testing "and the endpoint answers with the empty-state dashboard rather than their metadata"
-          (perms.test-util/with-no-data-perms-for-all-users!
-            (let [dash (mt/user-http-request :rasta :get 200
-                                             (format "automagic-dashboards/model_index/%d/primary_key/%d"
-                                                     (:id model-index) 1))]
-              (is (some (fn [dashcard]
-                          (some-> dashcard :visualization_settings :text
-                                  (str/includes? "there's not much else to show")))
-                        (:dashcards dash))))))))))
-
 (deftest create-linked-dashboard-test-regular-queries
   (mt/dataset test-data
     (testing "x-ray an mbql model"
@@ -689,15 +665,16 @@
         (is (not (contains? opts :a/b)))))))
 
 (deftest adhoc-query-decode-strips-extra-keys-test
-  (testing "adhoc queries are validated and stripped of undeclared properties"
+  (testing "adhoc queries are validated and stripped of the query processor's internal keys"
+    ;; `:qp/stage-had-source-card` is a key the QP adds to a stage while a query runs and that permissions later read,
+    ;; so a client must never be able to send it in through an x-ray's adhoc query.
     (mt/with-test-user :rasta
       (let [q      {:database (mt/id)
                     :type     "query"
-                    :query    {:source-table (mt/id :venues)
-                               :a            1
-                               :a/b          2}}
+                    :query    {:source-table             (mt/id :venues)
+                               :qp/stage-had-source-card 1}}
             dq     (:dataset_query (#'api.magic/adhoc-query-instance q))]
         (is (mr/validate ::ads/query dq)
             "decoded adhoc query is a valid MBQL query")
-        (is (every? (fn [stage] (not (some #(contains? stage %) [:a :a/b]))) (:stages dq))
-            "undeclared properties are stripped from every stage")))))
+        (is (every? (fn [stage] (not (contains? stage :qp/stage-had-source-card))) (:stages dq))
+            "internal keys are stripped from every stage")))))

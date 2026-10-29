@@ -33,7 +33,6 @@ export const Default: Story = {
     hasExampleDashboard: true,
     variant: "ee",
     hasEmbeddingFeature: false,
-    showMetabaseLinks: false,
     embeddingDocsUrl:
       "https://www.metabase.com/docs/latest/embedding/start.html",
     analyticsDocsUrl:

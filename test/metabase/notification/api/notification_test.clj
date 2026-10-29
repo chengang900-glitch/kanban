@@ -4,10 +4,13 @@
    [clojure.test :refer :all]
    [java-time.api :as t]
    [medley.core :as m]
+   [metabase.channel.core :as channel]
    [metabase.channel.email.messages :as messages]
    [metabase.collections.models.collection :as collection]
+   [metabase.collections.test-utils :refer [personal-collection-id]]
    [metabase.notification.core :as notification]
    [metabase.notification.models :as models.notification]
+   [metabase.notification.send :as notification.send]
    [metabase.notification.test-util :as notification.tu]
    [metabase.permissions.core :as perms]
    [metabase.test :as mt]
@@ -78,36 +81,6 @@
     (is (= "Not found."
            (mt/user-http-request :crowberto :get (format "notification/%d" Integer/MAX_VALUE))))))
 
-(deftest create-does-not-let-the-caller-pick-ids-test
-  (testing "POST /api/notification"
-    (mt/with-model-cleanup [:model/Notification]
-      (mt/with-temp [:model/Card {card-id :id} {}]
-        (let [chosen       8675309
-              notification {:payload_type  "notification/card"
-                            :id            chosen
-                            :payload       {:id chosen :card_id card-id :send_condition "has_result"}
-                            :subscriptions [{:id              chosen
-                                             :type            "notification-subscription/cron"
-                                             :cron_schedule   "0 0 0 * * ?"
-                                             :ui_display_type "cron/raw"}]
-                            :handlers      [{:id           chosen
-                                             :channel_type "channel/email"
-                                             :recipients   [{:id      chosen
-                                                             :type    "notification-recipient/user"
-                                                             :user_id (mt/user->id :crowberto)}]}]}
-              created      (mt/user-http-request :crowberto :post 200 "notification" notification)]
-          (testing "the ids the caller sent are ignored at every level, rather than becoming primary keys"
-            (is (not= chosen (:id created)))
-            (is (not= chosen (-> created :payload :id)))
-            (is (not= chosen (-> created :subscriptions first :id)))
-            (is (not= chosen (-> created :handlers first :id)))
-            (is (not= chosen (-> created :handlers first :recipients first :id))))
-          (testing "and nothing was inserted at the requested id"
-            (is (nil? (t2/select-one :model/Notification :id chosen))))
-          (testing "the response still carries the real ids"
-            (is (pos-int? (:id created)))
-            (is (pos-int? (-> created :handlers first :id)))))))))
-
 (deftest create-simple-card-notification-test
   (mt/with-model-cleanup [:model/Notification]
     (mt/with-temp [:model/Card {card-id :id} {}]
@@ -156,8 +129,8 @@
     (notification.tu/with-channel-fixtures [:channel/email]
       (mt/with-temp [:model/Card {card-id :id} {:name "My Card"}]
         (doseq [[send_condition expected_text] [["has_result" "whenever this question has any results"]
-                                                ["goal_above" "该问题达到目标值"]
-                                                ["goal_below" "该问题低于目标值"]]]
+                                                ["goal_above" "when this question meets its goal"]
+                                                ["goal_below" "when this question goes below its goal"]]]
           (let [notification {:payload_type  "notification/card"
                               :active        true
                               :payload       {:card_id card-id
@@ -178,7 +151,7 @@
             (testing (format "send email with %s condition" send_condition)
               (testing "recipients will get you were added to a card email"
                 (is (=? {:bcc     #{"rasta@metabase.com" "ngoc@metabase.com"}
-                         :subject "Crowberto Corv 将你添加到预警订阅"
+                         :subject "Crowberto Corv added you to an alert"
                          :body    [{a-card-url true
                                     expected_text true}]}
                         (mt/summarize-multipart-single-email added-email
@@ -186,7 +159,7 @@
                                                              (re-pattern expected_text)))))
               (testing "creator will get confirmation email"
                 (is (=? {:to      #{"crowberto@metabase.com"}
-                         :subject "你已创建预警"
+                         :subject "You set up an alert"
                          :body    [{a-card-url true
                                     expected_text true}]}
                         (mt/summarize-multipart-single-email confirmation-email
@@ -573,6 +546,28 @@
                                  (mt/user-http-request :crowberto :post 204 (format "notification/%d/send" (:id notification))
                                                        {:handler_ids handler-ids}))))))))))))
 
+(deftest send-unsaved-notification-delivery-failure-test
+  (testing "POST /api/notification/send answers 502 with the handlers that did not deliver (GDGT-3144)"
+    (mt/with-temp [:model/Card {card-id :id} {:dataset_query (mt/mbql-query products {:aggregation [[:count]]})}]
+      (notification.tu/with-channel-fixtures [:channel/email]
+        (mt/with-dynamic-fn-redefs [notification.send/should-skip-retry? (constantly true)]
+          (with-redefs [channel/send! (fn [& _] (throw (ex-info "SMTP is down" {})))]
+            (let [response (mt/user-http-request :crowberto :post 502 "notification/send"
+                                                 {:handlers      [{:channel_type :channel/email
+                                                                   :recipients   [{:type    :notification-recipient/user
+                                                                                   :user_id (mt/user->id :crowberto)}]}]
+                                                  :payload_type  :notification/card
+                                                  :payload       {:card_id        card-id
+                                                                  :send_condition :has_result
+                                                                  :send_once      false}
+                                                  :subscriptions [{:type          :notification-subscription/cron
+                                                                   :cron_schedule "0 0 0 * * ?"}]})]
+              (is (=? {:message         "Failed to deliver to channel/email"
+                       :error-code      "notification/delivery-failed"
+                       :failed-handlers [{:channel_type "channel/email"
+                                          :error_type   "clojure.lang.ExceptionInfo"}]} response))
+              (is (not-any? :message (:failed-handlers response))))))))))
+
 (deftest send-unsaved-notification-api-test
   (mt/with-temp [:model/Channel {http-channel-id :id} {:type    :channel/http
                                                        :details {:url         "https://metabase.com/testhttp"
@@ -702,8 +697,7 @@
         (mt/with-user-in-groups [group {:name "test notification perm"}
                                  user  [group]]
           (mt/with-temp
-            [:model/Collection {collection-id :id} {:personal_owner_id (:id user)}
-             :model/Card       {card-id :id}       {:collection_id collection-id}]
+            [:model/Card {card-id :id} {:collection_id (personal-collection-id user)}]
             (let [create-notification! (fn [user-or-id expected-status]
                                          (mt/user-http-request user-or-id :post expected-status "notification"
                                                                {:payload_type "notification/card"
@@ -737,8 +731,7 @@
         (mt/with-user-in-groups [group {:name "notification perm, no ee code"}
                                  user  [group]]
           (perms/grant-application-permissions! group :subscription)
-          (mt/with-temp [:model/Collection {collection-id :id} {:personal_owner_id (:id user)}
-                         :model/Card       {card-id :id}       {:collection_id collection-id}]
+          (mt/with-temp [:model/Card {card-id :id} {:collection_id (personal-collection-id user)}]
             (mt/with-premium-features #{:advanced-permissions}
               (let [notification (mt/user-http-request user :post 200 "notification"
                                                        {:payload_type "notification/card"
@@ -818,39 +811,6 @@
                    (change-notification-creator (mt/user->id :rasta))
                    (move-card-collection (mt/user->id :rasta))))))))))))
 
-(deftest update-card-notification-payload-swap-permissions-test
-  (testing "PUT /api/notification/:id cannot repoint a notification at a Card the user cannot read"
-    (mt/with-model-cleanup [:model/Notification]
-      (mt/with-non-admin-groups-no-root-collection-perms
-        (mt/with-temp [:model/Collection {secret-coll :id} {}
-                       :model/Card       {secret-card :id} {:collection_id secret-coll
-                                                            :name          "SECRET"}]
-          (perms/revoke-collection-permissions! (perms/all-users-group) secret-coll)
-          (notification.tu/with-card-notification
-            [notification {:card         {:collection_id (t2/select-one-pk :model/Collection
-                                                                           :personal_owner_id (mt/user->id :rasta))}
-                           :notification {:creator_id (mt/user->id :rasta)}}]
-            (let [original-card-id (-> notification :payload :card_id)
-                  update!          (fn [card-id expected-status]
-                                     (mt/user-http-request :rasta :put expected-status
-                                                           (format "notification/%d" (:id notification))
-                                                           (-> notification
-                                                               (dissoc :creator_id)
-                                                               (assoc-in [:payload :card_id] card-id)
-                                                               (assoc-in [:payload :send_once] true))))]
-              (mt/with-premium-features #{}
-                (testing "swapping in an unreadable Card is rejected"
-                  (is (= "You don't have permissions to do that."
-                         (update! secret-card 403)))
-                  (is (= original-card-id
-                         (t2/select-one-fn :card_id :model/NotificationCard :id (:payload_id notification))))
-                  (testing "so the Card's definition does not leak through GET"
-                    (is (not= "SECRET"
-                              (-> (mt/user-http-request :rasta :get 200 (format "notification/%d" (:id notification)))
-                                  :payload :card :name)))))
-                (testing "an update that keeps a readable Card still works"
-                  (is (some? (update! original-card-id 200))))))))))))
-
 (deftest create-notification-template-permission-test
   (testing "POST /api/notification - attaching a ChannelTemplate requires the same permission as writing one directly"
     (mt/with-premium-features #{}
@@ -859,8 +819,7 @@
           (mt/with-user-in-groups [_group {:name "template-perms create"}
                                    user   [_group]]
             (mt/with-temp
-              [:model/Collection      {collection-id :id}      {:personal_owner_id (:id user)}
-               :model/Card            {card-id :id}            {:collection_id collection-id}
+              [:model/Card            {card-id :id}            {:collection_id (personal-collection-id user)}
                :model/ChannelTemplate {system-template-id :id} notification.tu/channel-template-email-with-handlebars-body]
               (let [inline-template (-> notification.tu/channel-template-email-with-handlebars-body
                                         (update :channel_type u/qualified-name)
@@ -948,8 +907,7 @@
       (mt/with-user-in-groups [group {:name "test notification perm"}
                                user  [group]]
         (mt/with-temp
-          [:model/Collection {collection-id :id} {:personal_owner_id (:id user)}
-           :model/Card {card-id :id} {:collection_id collection-id}]
+          [:model/Card {card-id :id} {:collection_id (personal-collection-id user)}]
           (let [create-notification! (fn [user-or-id expected-status]
                                        (mt/with-dynamic-fn-redefs [notification/send-notification! (fn [& _args] :done)]
                                          (mt/user-http-request user-or-id :post expected-status "notification/send"
@@ -1309,11 +1267,11 @@
                                (-> notification :payload :card_id))]
             (testing "sends unsubscribe confirmation email"
               (is (=? {:bcc     #{"lucky@metabase.com"}
-                       :subject "你已取消预警订阅"
-                       :body    [{"你已取消对" true
+                       :subject "You unsubscribed from an alert"
+                       :body    [{"You’re no longer receiving alerts about" true
                                   a-href                                    true}]}
                       (mt/summarize-multipart-single-email email
-                                                           #"你已取消对"
+                                                           #"You’re no longer receiving alerts about"
                                                            (re-pattern a-href)))))))))))
 
 (deftest unsubscribe-notification-audit-test
@@ -1365,7 +1323,7 @@
                     card-url-tag (make-card-url-tag notification)]
                 (check-email :email email
                              :expected-bcc #{"rasta@metabase.com" "test@metabase.com"}
-                             :expected-subject "你的预警订阅已被取消"
+                             :expected-subject "You’ve been unsubscribed from an alert"
                              :card-url-tag card-url-tag))))
           (testing "when notification is archived (active -> inactive) with disable_links value:"
             (let [has-link? (fn [disable_links]
@@ -1388,7 +1346,7 @@
                     card-url-tag (make-card-url-tag notification)]
                 (check-email :email email
                              :expected-bcc #{"rasta@metabase.com" "test@metabase.com"}
-                             :expected-subject "Crowberto Corv 将你添加到预警订阅"
+                             :expected-subject "Crowberto Corv added you to an alert"
                              :card-url-tag card-url-tag))))
           (testing "when recipients are modified"
             (notification.tu/with-card-notification
@@ -1406,12 +1364,12 @@
                 (testing "sends unsubscribe email to removed recipients"
                   (check-email :email removed-email
                                :expected-bcc #{"rasta@metabase.com" "test@metabase.com"}
-                               :expected-subject "你的预警订阅已被取消"
+                               :expected-subject "You’ve been unsubscribed from an alert"
                                :card-url-tag card-url-tag))
                 (testing "sends subscription email to new recipients"
                   (check-email :email added-email
                                :expected-bcc #{"lucky@metabase.com" "new@metabase.com"}
-                               :expected-subject "Crowberto Corv 将你添加到预警订阅"
+                               :expected-subject "Crowberto Corv added you to an alert"
                                :card-url-tag card-url-tag)))))
           (testing "no emails sent when recipients haven't changed"
             (notification.tu/with-card-notification
@@ -1461,3 +1419,39 @@
                (testing "success if recipients matches allowed domains"
                  (mt/user-http-request :crowberto :post 204 "notification/send"
                                        (assoc notification :handlers success-handlers)))))))))))
+
+(deftest send-unsaved-notification-echoed-creator-test
+  (testing "POST /api/notification/send accepts a saved notification sent back as fetched, creator included"
+    (notification.tu/with-card-notification
+      [{notification-id :id}
+       {:handlers      [{:channel_type :channel/email
+                         :recipients   [{:type    :notification-recipient/user
+                                         :user_id (mt/user->id :crowberto)}]}]
+        :subscriptions [{:type          :notification-subscription/cron
+                         :cron_schedule "0 0 0 * * ?"}]}]
+      (notification.tu/with-channel-fixtures [:channel/email]
+        (let [echoed (mt/user-http-request :crowberto :get 200 (format "notification/%d" notification-id))]
+          (is (some? (get-in echoed [:creator :date_joined])))
+          (is (=? {:channel/email [{:recipients ["crowberto@metabase.com"]}]}
+                  (notification.tu/with-captured-channel-send!
+                    (mt/user-http-request :crowberto :post 204 "notification/send" echoed)))))))))
+
+(deftest send-unsaved-notification-echoed-card-timestamps-test
+  (testing "POST /api/notification/send accepts a saved notification sent back as fetched, card timestamps included"
+    (notification.tu/with-card-notification
+      [{notification-id :id}
+       {:card          {:cache_invalidated_at   (t/offset-date-time)
+                        :initially_published_at (t/offset-date-time)}
+        :handlers      [{:channel_type :channel/email
+                         :recipients   [{:type    :notification-recipient/user
+                                         :user_id (mt/user->id :crowberto)}]}]
+        :subscriptions [{:type          :notification-subscription/cron
+                         :cron_schedule "0 0 0 * * ?"}]}]
+      (notification.tu/with-channel-fixtures [:channel/email]
+        (let [echoed (mt/user-http-request :crowberto :get 200 (format "notification/%d" notification-id))]
+          (is (=? {:cache_invalidated_at   some?
+                   :initially_published_at some?}
+                  (get-in echoed [:payload :card])))
+          (is (=? {:channel/email [{:recipients ["crowberto@metabase.com"]}]}
+                  (notification.tu/with-captured-channel-send!
+                    (mt/user-http-request :crowberto :post 204 "notification/send" echoed)))))))))

@@ -28,6 +28,11 @@
 ;; if it attempts to delete this user and it is the only admin test user
 (use-fixtures :once (fixtures/initialize :test-users :notifications))
 
+;; Validation fixtures assert English messages independently of the customized site default.
+(use-fixtures :each (fn [run-test]
+                      (mt/with-temporary-setting-values [site-locale "en"]
+                        (run-test))))
+
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                                  POST /setup                                                   |
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -116,13 +121,13 @@
 
                                              :anon-tracking-enabled
                                              {:k  "allow_tracking"
-                                              :vs {"TRUE"  true
-                                                   "true"  true
-                                                   true    true
-                                                   nil     true
-                                                   "FALSE" true
-                                                   "false" true
-                                                   false   true}}
+                                              :vs {"TRUE"  false
+                                                   "true"  false
+                                                   true    false
+                                                   nil     false
+                                                   "FALSE" false
+                                                   "false" false
+                                                   false   false}}
 
                                              :site-locale
                                              {:k  "site_locale"
@@ -140,7 +145,7 @@
 
 (def ^:private create-database-trigger-sync-test-event (atom nil))
 
-(derive :event/database-create ::create-database-trigger-sync-test-events)
+(events/derive! :event/database-create ::create-database-trigger-sync-test-events)
 
 (methodical/defmethod events/publish-event! ::create-database-trigger-sync-test-events
   [topic event]

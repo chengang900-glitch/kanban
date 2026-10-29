@@ -1,6 +1,6 @@
 import { mockSettings } from "__support__/settings";
+import { createMockState } from "__support__/state";
 import { renderWithProviders, screen } from "__support__/ui";
-import { createMockState } from "metabase/redux/store/mocks";
 import {
   createMockSettings,
   createMockTokenFeatures,
@@ -10,7 +10,7 @@ import {
 import { RemoteSyncSettingsPage } from "./RemoteSyncSettingsPage";
 
 describe("RemoteSyncSettingsPage", () => {
-  it("should hide the remote sync upsell when the feature is unavailable", () => {
+  it("should show the remote sync upsell when the feature is off and plan is not Pro", () => {
     const settings = createMockSettings({
       "token-features": createMockTokenFeatures({}),
     });
@@ -23,10 +23,7 @@ describe("RemoteSyncSettingsPage", () => {
     });
 
     expect(
-      screen.queryByText(/Manage your Metabase content in Git/i),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: "Learn more" }),
-    ).not.toBeInTheDocument();
+      screen.getByText(/Manage your Metabase content in Git/i),
+    ).toBeInTheDocument();
   });
 });

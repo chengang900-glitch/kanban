@@ -20,16 +20,10 @@
       (messages/send-password-reset-email! "test@test.com" nil "http://localhost/some/url" true)
       (is (= [{:from    "notifications@metabase.com",
                :to      ["test@test.com"],
-               :subject "[数据看板] 密码重置请求",
+               :subject "[Metabase] Password Reset Request",
                :body    [{:type "text/html; charset=utf-8"}]}]
              (-> (@et/inbox "test@test.com")
-                 (update-in [0 :body 0] dissoc :content))))
-      (let [content (-> (@et/inbox "test@test.com")
-                        (get-in [0 :body 0 :content]))]
-        (is (str/includes? content "重置密码"))
-        (is (str/includes? content "数据看板"))
-        (is (not (str/includes? content "<img")))
-        (is (not (str/includes? content "Reset password"))))))
+                 (update-in [0 :body 0] dissoc :content))))))
   ;; Email contents contain randomized elements, so we only check for the inclusion of a single word to verify
   ;; that the contents changed in the tests below.
   (testing "password reset email tells user if they should log in with Google Sign-In"
@@ -49,7 +43,7 @@
       (messages/send-password-reset-email! "test@test.com" nil "http://localhost/some/url" false)
       (is (-> (@et/inbox "test@test.com")
               (get-in [0 :body 0 :content])
-              (str/includes? "已被停用"))))))
+              (str/includes? "deactivated"))))))
 
 #_(deftest render-pulse-email-test
     (testing "Email with few rows and columns can be rendered when tracing (#21166)"
@@ -75,7 +69,7 @@
   (testing "send email succeeds w/o retry"
     (let [[hook state] (rt/retry-analytics-config-hook)]
       (binding [retry/*test-time-config-hook* hook]
-        (with-redefs [email/send-email! mt/fake-inbox-email-fn]
+        (mt/with-dynamic-fn-redefs [email/send-email! mt/fake-inbox-email-fn]
           (mt/with-temporary-setting-values [email-smtp-host "fake_smtp_host"
                                              email-smtp-port 587]
             (mt/reset-inbox!)
@@ -85,7 +79,7 @@
   (testing "send email fails b/c retry limit"
     (let [[hook state] (rt/retry-analytics-config-hook {:max-retries 1})]
       (binding [retry/*test-time-config-hook* hook]
-        (with-redefs [email/send-email! (tu/works-after 2 mt/fake-inbox-email-fn)]
+        (mt/with-dynamic-fn-redefs [email/send-email! (tu/works-after 2 mt/fake-inbox-email-fn)]
           (mt/with-temporary-setting-values [email-smtp-host "fake_smtp_host"
                                              email-smtp-port 587]
             (mt/reset-inbox!)
@@ -96,7 +90,7 @@
   (testing "send email succeeds w/ retry"
     (let [[hook state] (rt/retry-analytics-config-hook {:max-retries 1})]
       (binding [retry/*test-time-config-hook* hook]
-        (with-redefs [email/send-email! (tu/works-after 1 mt/fake-inbox-email-fn)]
+        (mt/with-dynamic-fn-redefs [email/send-email! (tu/works-after 1 mt/fake-inbox-email-fn)]
           (mt/with-temporary-setting-values [email-smtp-host "fake_smtp_host"
                                              email-smtp-port 587]
             (mt/reset-inbox!)

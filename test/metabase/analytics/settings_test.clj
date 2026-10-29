@@ -46,3 +46,7 @@
              clojure.lang.ExceptionInfo
              #"Setting analytics-pii-retention-enabled is not enabled because feature :audit-app is not available"
              (analytics.settings/analytics-pii-retention-enabled! true)))))))
+
+(deftest anonymous-tracking-default-off-test
+  (mt/with-temporary-setting-values [anon-tracking-enabled nil]
+    (is (false? (analytics.settings/anon-tracking-enabled)))))

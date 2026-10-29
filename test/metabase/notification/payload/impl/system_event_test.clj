@@ -128,49 +128,49 @@
                          (apply mt/summarize-multipart-single-email email regexes)))))]
     (testing "sent from people page"
       (check false
-             "邀请你加入数据看板"
-             [#"Ngoc 邀请你加入数据看板"
-              #"<a[^>]*href=\"https?://metabase\.com/auth/reset_password/.*#new\"[^>]*>立即进入数据看板</a>"]
+             "You're invited to join SuperStar's Metabase"
+             [#"Ngoc wants you to join them on Metabase"
+              #"<a[^>]*href=\"https?://metabase\.com/auth/reset_password/.*#new\"[^>]*>Join Metabase now</a>"]
              "Ngoc")
       (testing "with sso enabled"
         (mt/with-dynamic-fn-redefs [sso.settings/sso-enabled? (constantly true)
                                     session.settings/enable-password-login (constantly false)]
           (check false
-                 "邀请你加入数据看板"
-                 [#"<a[^>]*href=\"https?://metabase\.com/auth/login\"[^>]*>立即进入数据看板</a>"]
+                 "You're invited to join SuperStar's Metabase"
+                 [#"<a[^>]*href=\"https?://metabase\.com/auth/login\"[^>]*>Join Metabase now</a>"]
                  "Ngoc")))
       (testing "with invitor's first_name not defined"
         (check false
-               "邀请你加入数据看板"
-               [#"你受邀加入数据看板"
-                #"<a[^>]*href=\"https?://metabase\.com/auth/reset_password/.*#new\"[^>]*>立即进入数据看板</a>"]
+               "You're invited to join SuperStar's Metabase"
+               [#"You are invited to join Metabase"
+                #"<a[^>]*href=\"https?://metabase\.com/auth/reset_password/.*#new\"[^>]*>Join Metabase now</a>"]
                nil)))
-    (testing "subject remains Chinese regardless of locale"
+    (testing "subject is translated"
       (mt/with-mock-i18n-bundles! {"es" {:messages {"You''re invited to join {0}''s {1}"
                                                     "Estás invitado a unirte al {0} de {1}"}}}
         (mt/with-temporary-setting-values [site-locale "es"]
-          (check false "邀请你加入数据看板" [] "Ngoc"))))
+          (check false "Estás invitado a unirte al SuperStar de Metabase" [] "Ngoc"))))
     (testing "sent from setup page"
       (check true
-             "邀请你加入数据看板"
-             [#"Kratos 邀请你协助设置数据看板"
-              #"数据看板已经可以运行，但 Kratos 需要你协助连接数据。请准备以下信息："
+             "You're invited to join SuperStar's Metabase"
+             [#"Kratos could use your help setting up Metabase"
+              #"Your Metabase is up and running, but Kratos needs you to connect your data. You'll probably need:"
               #"<a[^>]*href=\"https?://metabase\.com/auth/reset_password/.*\?redirect(&#x3D;|=)/admin/databases/create.*#new\"[^>]*>"]
              "Kratos")
       (testing "with invitor's first_name not defined"
         (check true
-               "邀请你加入数据看板"
-               [#"你受邀协助设置数据看板"
-                #"数据看板已经可以运行，需要你协助连接数据。请准备以下信息："
+               "You're invited to join SuperStar's Metabase"
+               [#"You are invited to help setting up Metabase"
+                #"Your Metabase is up and running, but your help is needed to connect data. You'll probably need:"
                 #"<a[^>]*href=\"https?://metabase\.com/auth/reset_password/.*\?redirect(&#x3D;|=)/admin/databases/create.*#new\"[^>]*>"]
                nil)))
-    (testing "custom application logo is not displayed"
+    (testing "with custom application logo (external URL)"
       (mt/with-premium-features #{:whitelabel}
         (check false
-               "邀请你加入数据看板"
-               [#"Ngoc 邀请你加入数据看板"]
+               "You're invited to join SuperStar's Metabase"
+               [#"<img[^>]*src=\"https://metabase\.com/superstar\.png\"[^>]*>"]
                "Ngoc")))
-    (testing "data URI application logo is not displayed or attached"
+    (testing "with custom application logo (data URI - embedded as attachment)"
       (mt/with-premium-features #{:whitelabel}
         (let [email (mt/with-temporary-setting-values
                       [site-url  "https://metabase.com"
@@ -181,8 +181,12 @@
                                                          {:first_name "Ngoc" :email "ngoc@metabase.com"}
                                                          false))
                           :channel/email first))]
-          (is (not (re-find #"<img" (-> email :message first :content))))
-          (is (= 1 (count (:message email)))))))))
+          ;; The logo should be embedded as an attachment with a cid: reference
+          (is (re-find #"<img[^>]*src=\"cid:[^\"]+@metabase\"[^>]*>" (-> email :message first :content)))
+          ;; There should be an attachment for the logo
+          (is (some #(and (= (:type %) :inline)
+                          (= (:content-type %) "image/png"))
+                    (rest (:message email)))))))))
 
 (deftest create-and-invite-user-redirect-test
   (testing "create-and-invite-user! lands the invitee on the invite_target item after signup"
@@ -191,7 +195,7 @@
                             (mt/with-temporary-setting-values [site-url "https://metabase.com"]
                               (-> (notification.tu/with-captured-channel-send!
                                     (user/create-and-invite-user! {:first_name "Newbie" :email (mt/random-email)}
-                                                                  {:first_name "Admin" :email "admin@metabase.com"}
+                                                                  {:id (mt/user->id :crowberto) :first_name "Admin" :email "admin@metabase.com"}
                                                                   false
                                                                   invite-target))
                                   :channel/email first :message first :content)))]
@@ -211,7 +215,7 @@
                               (mt/with-temporary-setting-values [site-url "https://metabase.com"]
                                 (-> (notification.tu/with-captured-channel-send!
                                       (user/create-and-invite-user! {:first_name "Newbie" :email (mt/random-email)}
-                                                                    {:first_name "Admin" :email "admin@metabase.com"}
+                                                                    {:id (mt/user->id :crowberto) :first_name "Admin" :email "admin@metabase.com"}
                                                                     false
                                                                     invite-target))
                                     :channel/email first :message first :content)))]
@@ -230,25 +234,25 @@
                                                               site-name "SuperStar"]
                              (-> (notification.tu/with-captured-channel-send!
                                    (user/create-and-invite-user! {:first_name "Newbie" :email (mt/random-email)}
-                                                                 {:first_name "Ngoc" :email "ngoc@metabase.com"}
+                                                                 {:id (mt/user->id :crowberto) :first_name "Ngoc" :email "ngoc@metabase.com"}
                                                                  false
                                                                  invite-target))
                                  :channel/email first)))
             body         (fn [email] (-> email :message first :content))]
         (testing "dashboard"
           (let [email (invite-email {:type "dashboard" :id 42 :name "Q3 KPIs"})]
-            (is (= "邀请你查看看板“Q3 KPIs”" (:subject email)))
-            (is (re-find #"Ngoc 邀请你查看数据看板" (body email)))
+            (is (= "You're invited to view the dashboard Q3 KPIs" (:subject email)))
+            (is (re-find #"Ngoc wants to share a Metabase dashboard with you" (body email)))
             (is (re-find #"Q3 KPIs" (body email)))))
         (testing "question"
           (let [email (invite-email {:type "question" :id 7 :name "Signups"})]
-            (is (= "邀请你查看问题“Signups”" (:subject email)))
-            (is (re-find #"Ngoc 邀请你查看数据问题" (body email)))
+            (is (= "You're invited to view the question Signups" (:subject email)))
+            (is (re-find #"Ngoc wants to share a Metabase question with you" (body email)))
             (is (re-find #"Signups" (body email)))))
         (testing "no invite_target falls back to the generic invite"
           (let [email (invite-email nil)]
-            (is (= "邀请你加入数据看板" (:subject email)))
-            (is (re-find #"Ngoc 邀请你加入数据看板" (body email)))))))))
+            (is (= "You're invited to join SuperStar's Metabase" (:subject email)))
+            (is (re-find #"Ngoc wants you to join them on Metabase" (body email)))))))))
 
 (deftest notification-create-email-test
   (mt/with-temporary-setting-values [site-url "https://metabase.com"]
@@ -258,7 +262,7 @@
                                                                          :notification-card {:send_condition send-condition}
                                                                          :notification      {:creator_id (:id rasta)}}]
                     (let [card    (-> notification :payload :card)
-                          regexes [#"你已成功为"
+                          regexes [#"This is just a confirmation"
                                    (re-pattern (format "<a href=\"%s\"*>%s</a>" (urls/card-url (:id card)) (:name card)))
                                    condition-regex]
                           email   (-> (notification.tu/with-captured-channel-send!
@@ -268,17 +272,17 @@
                                       first)]
                       (is (= {:recipients     #{(:email rasta)}
                               :message-type   :attachments
-                              :subject        "你已创建预警"
+                              :subject        "You set up an alert"
                               :message        [(zipmap (map str regexes) (repeat true))]
                               :recipient-type :cc}
                              (apply mt/summarize-multipart-single-email email regexes))))))]
       (doseq [[send-condition condition-regex]
               [[:has_result
-                #"当\s*该问题有任何结果\s*时，系统将发送此预警"]
+                #"This alert will be sent\s+whenever this question has any results"]
                [:goal_above
-                #"当\s*该问题达到目标值\s*时，系统将发送此预警"]
+                #"This alert will be sent\s+when this question meets its goal"]
                [:goal_below
-                #"当\s*该问题低于目标值\s*时，系统将发送此预警"]]]
+                #"This alert will be sent\s+when this question goes below its goal"]]]
         (check send-condition condition-regex))))
   (notification.tu/with-notification-testing-setup!
     (notification.tu/with-card-notification
@@ -308,14 +312,14 @@
                                   first))]
                   (is (= {:recipients     recipients
                           :message-type   :attachments
-                          :subject        "Slack 连接已失效"
+                          :subject        "Your Slack connection stopped working"
                           :message        [(zipmap (map str regexes) (repeat true))]
                           :recipient-type :cc}
                          (apply mt/summarize-multipart-single-email email regexes)))))
         admin-emails (t2/select-fn-set :email :model/User :is_superuser true)]
     (testing "send to admins with a link to setting page"
-      (check admin-emails [#"Slack 连接已失效"
-                           #"<a[^>]*href=\"https?://metabase\.com/admin/settings/slack\"[^>]*>前往设置</a>"]))
+      (check admin-emails [#"Your Slack connection stopped working"
+                           #"<a[^>]*href=\"https?://metabase\.com/admin/settings/slack\"[^>]*>Go to settings</a>"]))
     (mt/with-temporary-setting-values
       [admin-email "it@metabase.com"]
       (check (conj admin-emails "it@metabase.com") []))))

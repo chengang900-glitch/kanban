@@ -1,8 +1,7 @@
-// eslint-disable-next-line no-restricted-imports
+// eslint-disable-next-line eslint-js/no-restricted-imports
 import styled from "@emotion/styled";
 
 import { IconButtonWrapper } from "metabase/common/components/IconButtonWrapper";
-import { LoadingSpinner } from "metabase/common/components/LoadingSpinner";
 import { color } from "metabase/ui/utils/colors";
 
 export const StatusRoot = styled.div`
@@ -78,13 +77,6 @@ export const StatusCardDescription = styled.div`
   font-weight: bold;
   line-height: 0.8125rem;
   margin-top: 0.25rem;
-`;
-
-export const StatusCardSpinner = styled(LoadingSpinner)`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--mb-color-core-brand);
 `;
 
 interface StatusCardIconContainerProps {

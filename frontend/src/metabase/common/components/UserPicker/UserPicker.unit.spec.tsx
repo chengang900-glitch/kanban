@@ -93,14 +93,14 @@ describe("UserPicker", () => {
 
     await userEvent.click(screen.getByPlaceholderText("Select a user"));
     await userEvent.click(
-      await screen.findByRole("option", { name: "DoeJane" }),
+      await screen.findByRole("option", { name: "Jane Doe" }),
     );
     flushDebounce();
 
     await waitFor(() => {
       expect(getUserQueries().at(-1)).toBe("");
     });
-    expect(getUserQueries()).not.toContain("DoeJane");
+    expect(getUserQueries()).not.toContain("Jane Doe");
   });
 
   it("ignores trailing whitespace typed after the selected label", async () => {
@@ -112,7 +112,7 @@ describe("UserPicker", () => {
     const input = screen.getByPlaceholderText("Select a user");
     await userEvent.click(input);
     await userEvent.click(
-      await screen.findByRole("option", { name: "DoeJane" }),
+      await screen.findByRole("option", { name: "Jane Doe" }),
     );
     flushDebounce();
 
@@ -122,8 +122,8 @@ describe("UserPicker", () => {
     await waitFor(() => {
       expect(getUserQueries().at(-1)).toBe("");
     });
-    expect(getUserQueries()).not.toContain("DoeJane ");
-    expect(getUserQueries()).not.toContain("DoeJane");
+    expect(getUserQueries()).not.toContain("Jane Doe ");
+    expect(getUserQueries()).not.toContain("Jane Doe");
   });
 
   it("trims whitespace before sending the typed text to the BE", async () => {
@@ -152,7 +152,7 @@ describe("UserPicker", () => {
     const input = screen.getByPlaceholderText("Select a user");
     await userEvent.click(input);
     await userEvent.click(
-      await screen.findByRole("option", { name: "DoeJane" }),
+      await screen.findByRole("option", { name: "Jane Doe" }),
     );
     flushDebounce();
 

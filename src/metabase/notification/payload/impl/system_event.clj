@@ -1,15 +1,18 @@
 (ns metabase.notification.payload.impl.system-event
   (:require
    [clojure.string :as str]
+   [metabase.appearance.core :as appearance]
    [metabase.auth-identity.core :as auth-identity]
+   [metabase.channel.email.messages :as messages]
    [metabase.channel.urls :as urls]
+   [metabase.notification.db :as notification.db]
    [metabase.notification.payload.core :as notification.payload]
    [metabase.session.core :as session]
    [metabase.sso.core :as sso]
    [metabase.system.core :as system]
    [metabase.users.models.user :as user]
-   [metabase.util.malli :as mu]
-   [toucan2.core :as t2]))
+   [metabase.util.i18n :refer [trs]]
+   [metabase.util.malli :as mu]))
 
 (defn- join-url
   [user-id redirect]
@@ -17,7 +20,7 @@
   (let [reset-token               (auth-identity/create-password-reset! user-id)
         should-link-to-login-page (and (sso/sso-enabled?)
                                        (not (session/enable-password-login)))
-        email (t2/select-one-fn :email [:model/User :email] user-id)]
+        email (notification.db/user-email user-id)]
     (if should-link-to-login-page
       (cond-> (str (system/site-url) "/auth/login")
         redirect (str "?redirect=" redirect))
@@ -45,11 +48,11 @@
                            (when from-setup "/admin/databases/create"))
             subject    (cond
                          (and invite-target dashboard?)
-                         (format "邀请你查看看板“%s”" (:name invite-target))
+                         (trs "You''re invited to view the dashboard {0}" (:name invite-target))
                          invite-target
-                         (format "邀请你查看问题“%s”" (:name invite-target))
+                         (trs "You''re invited to view the question {0}" (:name invite-target))
                          :else
-                         "邀请你加入数据看板")]
+                         (trs "You''re invited to join {0}''s {1}" (appearance/site-name) (messages/app-name-trs)))]
         (cond-> {:user_invited_email_subject subject
                  :user_invited_join_url      (join-url user-id redirect)}
           invite-target (assoc :invite_target_name         (:name invite-target)
@@ -57,18 +60,18 @@
       :event/security-advisory-match
       (let [{:keys [severity match_status]} (:object event-info)]
         {:severity_label     (case severity
-                               :critical "严重"
-                               :high     "高"
-                               :medium   "中"
-                               :low      "低")
+                               :critical (trs "Critical")
+                               :high     (trs "High")
+                               :medium   (trs "Medium")
+                               :low      (trs "Low"))
          :severity_color     (case severity
                                :critical "#E65050"
                                :high     "#F0830E"
                                :medium   "#F0C431"
                                :low      "#509EE3")
          :status_label       (case match_status
-                               :active "生效中"
-                               :error  "错误")
+                               :active (trs "Active")
+                               :error  (trs "Error"))
          :security_center_url (urls/security-center-url)})
       {})))
 

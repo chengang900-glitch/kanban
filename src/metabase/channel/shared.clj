@@ -5,11 +5,11 @@
    [malli.error :as me]
    [medley.core :as m]
    [metabase.driver :as driver]
+   [metabase.util :as u]
    [metabase.util.i18n :refer [tru]]
    [metabase.util.log :as log]
    [metabase.util.malli.registry :as mr])
   (:import
-   (java.util Locale)
    (net.redhogs.cronparser CronExpressionDescriptor Options)))
 
 (set! *warn-on-reflection* true)
@@ -57,19 +57,26 @@
   (or (driver/report-timezone) "UTC"))
 
 (defn- format-time
-  "Format hour and minute into a 24-hour time string."
+  "Format hour and minute into a 12-hour time string with AM/PM."
   [hour minute]
-  (format "%02d:%02d" hour minute))
+  (let [hour-12 (cond
+                  (zero? hour) 12
+                  (> hour 12) (- hour 12)
+                  :else hour)
+        am-pm (if (< hour 12) "AM" "PM")]
+    (if-not (zero? minute)
+      (format "%d:%02d %s" hour-12 minute am-pm)
+      (format "%d %s" hour-12 am-pm))))
 
 (defn- cron-description
   [cron-string]
   (try
-    (let [description (CronExpressionDescriptor/getDescription
-                       ^String cron-string
-                       (doto (Options/twentyFourHour)
-                         (.setZeroBasedDayOfWeek false))
-                       Locale/CHINESE)]
-      (format "运行%s（%s）" description (schedule-timezone)))
+    (let [s (CronExpressionDescriptor/getDescription ^String cron-string
+                                                     (doto (Options.)
+                                                       (.setZeroBasedDayOfWeek false)))
+          s (str (u/lower-case-en (subs s 0 1))
+                 (subs s 1))]
+      (format "Run %s %s" s (schedule-timezone)))
     (catch Exception e
       (log/errorf "Failed to parse cron expression %s: %s" cron-string (ex-message e))
       nil)))
@@ -88,7 +95,7 @@
        (or (nil? year) (= year "*"))
        (not= day-of-month "?")
        (not= month "?"))
-      (format "每小时运行一次（%s）" timezone)
+      (format "Run hourly %s" timezone)
 
       ;; Hourly pattern with specific minutes
       (and
@@ -98,7 +105,7 @@
        (or (nil? year) (= year "*"))
        (not= day-of-month "?")
        (not= month "?"))
-      (format "每小时第 %d 分钟运行（%s）"
+      (format "Run hourly at %d minutes past the hour %s"
               (Integer/parseInt minutes)
               timezone)
 
@@ -110,7 +117,7 @@
        (or (nil? year) (= year "*"))
        (= day-of-month "*")
        (= month "*"))
-      (format "每天 %s 运行（%s）"
+      (format "Run daily at %s %s"
               (format-time (Integer/parseInt hours) (Integer/parseInt minutes))
               timezone)
 
@@ -123,9 +130,9 @@
        (= day-of-month "?")
        (= month "*")
        (re-matches #"\d+" day-of-week))
-      (let [day-name (["日" "一" "二" "三" "四" "五" "六"]
+      (let [day-name (["Sunday" "Monday" "Tuesday" "Wednesday" "Thursday" "Friday" "Saturday"]
                       (dec (Integer/parseInt day-of-week)))]
-        (format "每周%s %s 运行（%s）"
+        (format "Run weekly on %s at %s %s"
                 day-name
                 (format-time (Integer/parseInt hours) (Integer/parseInt minutes))
                 timezone))

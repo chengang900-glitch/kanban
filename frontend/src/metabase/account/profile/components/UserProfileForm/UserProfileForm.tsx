@@ -4,6 +4,7 @@ import _ from "underscore";
 import * as Yup from "yup";
 
 import { ColorSchemeSelect } from "metabase/common/components/ColorScheme";
+import { CommunityLocalizationNotice } from "metabase/common/components/CommunityLocalizationNotice";
 import {
   Form,
   FormErrorMessage,
@@ -79,25 +80,25 @@ const UserProfileForm = ({
             {!isSsoUser && (
               <>
                 <FormTextInput
-                  name="last_name"
-                  label={t`Last name`}
-                  placeholder={t`Appleseed`}
-                  nullable
-                  mb="md"
-                />
-                <FormTextInput
                   name="first_name"
                   label={t`First name`}
                   placeholder={t`Johnny`}
                   nullable
-                  mb="md"
+                  mb="lg"
+                />
+                <FormTextInput
+                  name="last_name"
+                  label={t`Last name`}
+                  placeholder={t`Appleseed`}
+                  nullable
+                  mb="lg"
                 />
                 <FormTextInput
                   name="email"
                   type="email"
                   label={t`Email`}
                   placeholder="nicetoseeyou@email.com"
-                  mb="md"
+                  mb="lg"
                 />
               </>
             )}
@@ -107,13 +108,16 @@ const UserProfileForm = ({
                 label={t`Language`}
                 data={localeOptions}
                 searchable
-                mb="md"
+                description={
+                  <CommunityLocalizationNotice isAdminView={false} />
+                }
+                mb="lg"
               />
             </div>
             <FormSubmitButton
               label={t`Update`}
               disabled={!dirty}
-              variant="primary"
+              variant="filled"
             />
             <FormErrorMessage />
           </Form>
@@ -134,8 +138,8 @@ const getLocaleOptions = (locales: LocaleData[] | null) => {
 
 const ColorSchemeSwitcher = () => {
   return (
-    <Box mb="md">
-      <Text mt="xs" fw="bold">
+    <Box mb="lg">
+      <Text mt="xxs" fw="bold">
         {t`Theme`}
       </Text>
 

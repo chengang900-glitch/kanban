@@ -15,7 +15,6 @@ export type EmbedHomepageViewProps = {
   exampleDashboardId: number | null;
   variant: "oss" | "ee";
   hasEmbeddingFeature: boolean;
-  showMetabaseLinks: boolean;
   onDismiss: (reason: EmbeddingHomepageDismissReason) => void;
   // links
   learnMoreInteractiveEmbedUrl: string;
@@ -39,7 +38,6 @@ export const EmbedHomepageView = (props: EmbedHomepageViewProps) => {
     analyticsDocsUrl,
     variant,
     hasEmbeddingFeature,
-    showMetabaseLinks,
   } = props;
 
   const exampleDashboardLink = exampleDashboardId
@@ -53,7 +51,6 @@ export const EmbedHomepageView = (props: EmbedHomepageViewProps) => {
           <StaticEmbedContent
             exampleDashboardLink={exampleDashboardLink}
             learnMoreStaticEmbedUrl={learnMoreStaticEmbedUrl}
-            showMetabaseLinks={showMetabaseLinks}
             showImage
           />
 
@@ -61,13 +58,11 @@ export const EmbedHomepageView = (props: EmbedHomepageViewProps) => {
             variant={variant}
             embedJsDocsUrl={embedJsDocsUrl}
             hasEmbeddingFeature={hasEmbeddingFeature}
-            showMetabaseLinks={showMetabaseLinks}
           />
 
           <SDKContent
             sdkQuickstartUrl={sdkQuickstartUrl}
             sdkDocsUrl={sdkDocsUrl}
-            showMetabaseLinks={showMetabaseLinks}
           />
         </>
       );
@@ -79,20 +74,17 @@ export const EmbedHomepageView = (props: EmbedHomepageViewProps) => {
             variant={variant}
             embedJsDocsUrl={embedJsDocsUrl}
             hasEmbeddingFeature={hasEmbeddingFeature}
-            showMetabaseLinks={showMetabaseLinks}
             showImage
           />
 
           <SDKContent
             sdkQuickstartUrl={sdkQuickstartUrl}
             sdkDocsUrl={sdkDocsUrl}
-            showMetabaseLinks={showMetabaseLinks}
           />
 
           <StaticEmbedContent
             exampleDashboardLink={exampleDashboardLink}
             learnMoreStaticEmbedUrl={learnMoreStaticEmbedUrl}
-            showMetabaseLinks={showMetabaseLinks}
           />
         </>
       );
@@ -100,15 +92,15 @@ export const EmbedHomepageView = (props: EmbedHomepageViewProps) => {
     .exhaustive();
 
   return (
-    <Flex gap="lg" align="flex-start" maw={1000}>
+    <Flex gap="xl" align="flex-start" maw={1000}>
       <Stack maw={550}>
         <HeaderWithDismiss onDismiss={onDismiss} />
 
-        <Card px="xl" py="lg">
-          <Stack gap="xl">
+        <Card px="xxl" py="xl">
+          <Stack gap="xxl">
             <Box>
               {/* eslint-disable-next-line metabase/no-literal-metabase-strings -- only visible to admins */}
-              <Title order={2} mb="md">{t`Embedding Metabase`}</Title>
+              <Title order={2} mb="lg">{t`Embedding Metabase`}</Title>
               <Text>
                 {/* eslint-disable-next-line metabase/no-literal-metabase-strings -- only visible to admins */}
                 {t`Give your customers secure, multi-tenant access to their data with as much (or as little) interactivity and tools to explore data as you want, with as much customization as you need. Embed dashboards, charts—even Metabase's query editor—with iframes or as individual React components.`}
@@ -118,12 +110,10 @@ export const EmbedHomepageView = (props: EmbedHomepageViewProps) => {
           </Stack>
         </Card>
 
-        {showMetabaseLinks && (
-          <NeedMoreInfoCard
-            embeddingDocsUrl={embeddingDocsUrl}
-            analyticsDocsUrl={analyticsDocsUrl}
-          />
-        )}
+        <NeedMoreInfoCard
+          embeddingDocsUrl={embeddingDocsUrl}
+          analyticsDocsUrl={analyticsDocsUrl}
+        />
       </Stack>
 
       {variant === "oss" && (

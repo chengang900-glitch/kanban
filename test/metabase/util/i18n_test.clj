@@ -73,13 +73,13 @@
              "deferred-trun"
              (fn [n] (str (i18n/deferred-trun "{0} table" "{0} tables" n)))}]
       (testing message
-        (testing "should use the default Chinese locale if user locale & system locale are unset"
-          (mt/with-temporary-setting-values [site-locale nil]
-            (is (= "0 table"
+        (testing "should use English source plural forms when site locale is English"
+          (mt/with-temporary-setting-values [site-locale "en"]
+            (is (= "0 tables"
                    (f 0)))
             (is (= "1 table"
                    (f 1)))
-            (is (= "2 table"
+            (is (= "2 tables"
                    (f 2)))))
         (testing "should use user locale if set"
           (mt/with-user-locale "es"
@@ -106,13 +106,13 @@
              "deferred-trsn - plural"
              (fn [n] (str (i18n/deferred-trsn "{0} table" "{0} tables" n)))}]
       (testing message
-        (testing "Should use the default Chinese locale if user locale & system locale are unset"
-          (mt/with-temporary-setting-values [site-locale nil]
-            (is (= "0 table"
+        (testing "Should use English source plural forms when site locale is English"
+          (mt/with-temporary-setting-values [site-locale "en"]
+            (is (= "0 tables"
                    (f 0)))
             (is (= "1 table"
                    (f 1)))
-            (is (= "2 table"
+            (is (= "2 tables"
                    (f 2)))))
         (testing "Should use system locale if set"
           (mt/with-temporary-setting-values [site-locale "es"]
@@ -192,19 +192,9 @@
          #"only supports a single \{0\} placeholder"
          (#'i18n/validate-n "{0} {1}" "{0} {1}")))))
 
-(deftest ^:parallel brand-visible-product-name-test
-  (is (= "登录数据看板"
-         (#'i18n/brand-visible-product-name
-          (i18n/locale "zh-CN")
-          "Log in to Metabase"
-          "登录系统")))
-  (is (= "Welcome to Dashboard"
-         (#'i18n/brand-visible-product-name
-          (i18n/locale "en")
-          "Welcome to Metabase"
-          "Welcome to Metabase")))
-  (is (= "Metabase is a Trademark of Metabase, Inc"
-         (#'i18n/brand-visible-product-name
-          (i18n/locale "en")
-          "Metabase is a Trademark of Metabase, Inc"
-          "Metabase is a Trademark of Metabase, Inc"))))
+(deftest chinese-default-and-user-override-test
+  (mt/with-mock-i18n-bundles! {"zh_CN" {:messages {"Language check" "语言检查"}}}
+    (mt/with-temporary-setting-values [site-locale nil]
+      (is (= "语言检查" (i18n/trs "Language check")))
+      (mt/with-user-locale "en"
+        (is (= "Language check" (i18n/tru "Language check")))))))

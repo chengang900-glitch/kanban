@@ -5,7 +5,7 @@ import { getBrokenUpTextMatcher, waitFor } from "__support__/ui";
 import { setup } from "./setup";
 
 describe("HelpText (OSS)", () => {
-  it("should render expression function info and example without a documentation link", async () => {
+  it("keeps expression info and examples while hiding Learn more", async () => {
     await setup({
       enclosingFunction: {
         name: "concat",
@@ -23,16 +23,6 @@ describe("HelpText (OSS)", () => {
     expect(
       screen.getByText("Combine two or more strings of text together."),
     ).toBeInTheDocument();
-
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
-  });
-
-  it("does not expose a documentation link that can take focus from the editor", async () => {
-    await setup({
-      enclosingFunction: {
-        name: "case",
-      },
-    });
 
     expect(
       screen.queryByRole("link", { name: /Learn more/ }),
@@ -112,7 +102,7 @@ describe("HelpText (OSS)", () => {
   });
 
   describe("Metabase links", () => {
-    it("should hide the external help link when `show-metabase-links: true`", async () => {
+    it("should hide the help link when `show-metabase-links: true`", async () => {
       await setup({
         enclosingFunction: {
           name: "concat",
@@ -130,7 +120,7 @@ describe("HelpText (OSS)", () => {
       expect(screen.queryByText("Learn more")).not.toBeInTheDocument();
     });
 
-    it("should hide the external help link when `show-metabase-links: false`", async () => {
+    it("should hide the help link when `show-metabase-links: false`", async () => {
       await setup({
         enclosingFunction: {
           name: "concat",

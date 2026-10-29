@@ -85,7 +85,6 @@
          (mapcat (fn [entry]
                    (case (:type entry)
                      "text"        [{:type "text" :text (:text entry)}]
-                     "reasoning"   [{:type "reasoning" :text (:text entry)}]
                      "tool-input"  (let [output (get outputs (:id entry))
                                          error  (:error output)]
                                      [(cond-> {:type       (str "tool-" (:function entry))
@@ -95,9 +94,6 @@
                                                              (some? output) "output-available"
                                                              :else          "input-available")
                                                :input      (:arguments entry)}
-                                        ;; errored tool-outputs do co-occur with `:result`, but only because
-                                        ;; `persistence/strip-tool-output-bloat` rewrites the absent result of an
-                                        ;; errored call to `{}` — there is never a real result to preserve
                                         (and (some? output) (nil? error))
                                         ;; the result map passes through verbatim: its keys (`:output`,
                                         ;; `:structured-output`/`:structured_output`) keep their v1 spelling

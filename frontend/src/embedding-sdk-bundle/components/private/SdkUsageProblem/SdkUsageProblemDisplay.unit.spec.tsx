@@ -6,6 +6,7 @@ import {
   setupSettingsEndpoints,
 } from "__support__/server-mocks";
 import { mockSettings } from "__support__/settings";
+import { createMockState } from "__support__/state";
 import { act, screen, waitFor, within } from "__support__/ui";
 import { SdkUsageProblemDisplay } from "embedding-sdk-bundle/components/private/SdkUsageProblem";
 import * as IsLocalhostModule from "embedding-sdk-bundle/lib/get-is-localhost";
@@ -24,7 +25,6 @@ import {
 import type { MetabaseAuthConfig } from "embedding-sdk-bundle/types";
 import type { LoginStatus } from "embedding-sdk-bundle/types/user";
 import * as IsHostAppInDevModeModule from "embedding-sdk-shared/lib/is-host-app-in-dev-mode";
-import { createMockState } from "metabase/redux/store/mocks";
 import {
   createMockSettings,
   createMockTokenFeatures,
@@ -39,7 +39,11 @@ jest.mock("metabase/visualizations/register", () => ({
 
 // Jest runs React 18 on localhost, which shows the React 18 warning banner.
 // Each test sets the host React major version instead.
+// Without the real module behind it, isHostReactVersionSupported is undefined
+// here, and anything that loads the SDK hooks throws: each of them calls that
+// check when its module loads.
 jest.mock("embedding-sdk-bundle/lib/host-react-version", () => ({
+  ...jest.requireActual("embedding-sdk-bundle/lib/host-react-version"),
   getHostReactMajorVersion: jest.fn(),
 }));
 

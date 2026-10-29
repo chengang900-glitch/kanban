@@ -10,12 +10,14 @@
    [metabase.analytics.core :as analytics.core]
    [metabase.channel.core :as channel]
    [metabase.channel.email :as email]
+   [metabase.channel.email.logo :as email.logo]
    [metabase.channel.email.messages :as messages]
    [metabase.channel.email.result-attachment :as email.result-attachment]
    [metabase.channel.impl.util :as impl.util]
    [metabase.channel.models.channel :as models.channel]
    [metabase.channel.params :as channel.params]
    [metabase.channel.render.core :as channel.render]
+   [metabase.channel.render.markdown :as markdown]
    [metabase.channel.render.style :as style]
    [metabase.channel.render.util :as render.util]
    [metabase.channel.settings :as channel.settings]
@@ -23,11 +25,12 @@
    [metabase.channel.template.handlebars :as handlebars]
    [metabase.channel.urls :as urls]
    [metabase.notification.models :as models.notification]
+   [metabase.system.core :as system]
    [metabase.util :as u]
+   [metabase.util.i18n :refer [trs]]
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
    [metabase.util.malli.schema :as ms]
-   [metabase.util.markdown :as markdown]
    [metabase.util.ui-logic :as ui-logic]
    [ring.util.codec :as codec])
   (:import
@@ -39,11 +42,6 @@
   (for [template-type [:email/handlebars-text :email/handlebars-resource]]
     {:template-type template-type
      :channel-type  :channel/email}))
-
-(def EmailDetails
-  "Schema for the connection `:details` of a `:channel/email` channel. Email channels reference the globally
-  configured SMTP integration and carry no details of their own."
-  [:map {:closed true}])
 
 (def ^:private EmailMessage
   [:map
@@ -113,7 +111,7 @@
     :text
     (let [inline-params   (:inline_parameters part)
           rendered-params (when (seq inline-params) (render.util/render-parameters inline-params))]
-      {:content (str (markdown/process-markdown (:text part) :html)
+      {:content (str (markdown/process-markdown (:text part) :html (system/site-url))
                      rendered-params)})
 
     :heading
@@ -125,7 +123,7 @@
       {:content (str (html [:h2 {:style style} (h heading-text)])
                      rendered-params)})
     :tab-title
-    {:content (markdown/process-markdown (format "# %s\n---" (:text part)) :html)}))
+    {:content (markdown/process-markdown (format "# %s\n---" (:text part)) :html (system/site-url))}))
 
 (defn- render-body
   [{:keys [details] :as _template} payload]
@@ -223,7 +221,7 @@
 (def ^:private payload-type->default-template
   {:notification/dashboard {:channel_type :channel/email
                             :details      {:type    :email/handlebars-resource
-                                           :subject "{{payload.dashboard.name}}"
+                                           :subject "{{computed.subject}}"
                                            :path    "dashboard_subscription"}}
    :notification/card      {:channel_type :channel/email
                             :details      {:type    :email/handlebars-resource
@@ -257,17 +255,17 @@
         message-context-fn (fn [non-user-email]
                              (assoc notification-payload
                                     :computed {:subject         (case (keyword (:send_condition notification_card))
-                                                                  :goal_above (format "预警：%s 已达到目标值" (:name card))
-                                                                  :goal_below (format "预警：%s 已低于目标值" (:name card))
-                                                                  :has_result (format "预警：%s 有结果" (:name card)))
+                                                                  :goal_above (trs "Alert: {0} has reached its goal" (:name card))
+                                                                  :goal_below (trs "Alert: {0} has gone below its goal" (:name card))
+                                                                  :has_result (trs "Alert: {0} has results" (:name card)))
                                                :icon_cid        (:content-id icon-attachment)
                                                :content         html-content
                                                ;; UI only allow one subscription per card notification
                                                :alert_schedule  (some-> subscriptions first :cron_schedule channel.shared/friendly-cron-description)
                                                :goal_value      goal
                                                :management_text (if (nil? non-user-email)
-                                                                  "管理订阅"
-                                                                  "取消订阅")
+                                                                  "Manage your subscriptions"
+                                                                  "Unsubscribe")
                                                :management_url  (if (nil? non-user-email)
                                                                   (urls/notification-management-url)
                                                                   (let [email-handler-id (:notification_handler_id
@@ -298,13 +296,13 @@
                          (or "dashboard")
                          (str ".pdf"))
        :content      (.. temp-file toURI toURL)
-       :description  (format "看板“%s”的 PDF" (or dashboard-name "看板"))})
+       :description  (format "PDF of dashboard '%s'" (or dashboard-name "dashboard"))})
     (catch Throwable e
       (log/errorf "Error rendering dashboard subscription PDF; skipping PDF attachment: %s" (ex-message e))
       nil)))
 
 (mu/defmethod channel/render-notification [:channel/email :notification/dashboard] :- [:sequential EmailMessage]
-  [_channel-type {:keys [payload payload_type creator_id] :as notification-payload} {:keys [template recipients attachment_only include_pdf]}]
+  [_channel-type {:keys [payload payload_type creator_id] :as notification-payload} {:keys [template recipients attachment_only include_pdf subject]}]
   (let [{:keys [dashboard_parts
                 dashboard_subscription
                 parameters
@@ -348,15 +346,16 @@
                               pdf-attachment        (concat [pdf-attachment]))
         dashboard-content   (if-not attachment_only
                               (str "<div>" (str/join html-contents) "</div>")
-                              "<p>看板内容请查看附件</p>")
+                              "<p>Dashboard content available in attached files</p>")
         message-context-fn  (fn [non-user-email]
                               (-> notification-payload
-                                  (assoc :computed {:dashboard_content  dashboard-content
+                                  (assoc :computed {:subject            (or subject (:name dashboard))
+                                                    :dashboard_content  dashboard-content
                                                     :icon_cid           (:content-id icon-attachment)
                                                     :dashboard_has_tabs (some-> dashboard :tabs seq)
                                                     :management_text    (if (nil? non-user-email)
-                                                                          "管理订阅"
-                                                                          "取消订阅")
+                                                                          "Manage your subscriptions"
+                                                                          "Unsubscribe")
                                                     :management_url     (if (nil? non-user-email)
                                                                           (urls/notification-management-url)
                                                                           (pulse-unsubscribe-url-for-non-user (:id dashboard_subscription) non-user-email))
@@ -364,7 +363,7 @@
                                                                           (some-> (seq parameters)
                                                                                   (impl.util/remove-inline-parameters dashboard_parts)
                                                                                   (render.util/render-parameters)))})
-                                  (m/update-existing-in [:payload :dashboard :description] #(markdown/process-markdown % :html))))]
+                                  (m/update-existing-in [:payload :dashboard :description] #(markdown/process-markdown % :html (system/site-url)))))]
     (construct-emails template message-context-fn attachments recipients)))
 
 ;; ------------------------------------------------------------------------------------------------;;
@@ -400,8 +399,16 @@
                                      [:template ::models.channel/ChannelTemplate]
                                      [:recipients [:sequential ::models.notification/NotificationRecipient]]]]
   (assert (some? template) "Template is required for system event notifications")
-  (let [attachments nil]
-    [(construct-email (channel.params/substitute-params (-> template :details :subject) notification-payload)
-                      (notification-recipients->emails recipients notification-payload)
-                      (render-message-body template notification-payload attachments)
+  (let [logo-url              (get-in notification-payload [:context :application_logo_url])
+        logo                  (email.logo/logo-bundle logo-url)
+        ;; Update context with the processed logo URL (cid: reference if data URI was converted)
+        updated-payload       (if (:image-src logo)
+                                (assoc-in notification-payload [:context :application_logo_url] (:image-src logo))
+                                notification-payload)
+        logo-attachment       (when (:attachment logo)
+                                [(make-message-attachment (first (:attachment logo)))])
+        attachments           logo-attachment]
+    [(construct-email (channel.params/substitute-params (-> template :details :subject) updated-payload)
+                      (notification-recipients->emails recipients updated-payload)
+                      (render-message-body template updated-payload attachments)
                       (-> template :details :recipient-type keyword))]))

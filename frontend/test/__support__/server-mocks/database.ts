@@ -8,6 +8,7 @@ import type {
   Database,
   DatabaseId,
   DatabaseUsageInfo,
+  Engine,
   SchemaName,
 } from "metabase-types/api";
 
@@ -51,6 +52,27 @@ export function setupUpdateDatabaseEndpointError(databaseId: Database["id"]) {
   fetchMock.put(`path:/api/database/${databaseId}`, { status: 500 });
 }
 
+export function setupDatabaseNotFoundEndpoint(databaseId: DatabaseId) {
+  fetchMock.get(`path:/api/database/${databaseId}`, {
+    status: 404,
+    body: "Not found.",
+  });
+}
+
+export function setupCreateDatabaseEndpointError({
+  status,
+  body,
+}: {
+  status: number;
+  body: string | Record<string, unknown>;
+}) {
+  fetchMock.post(
+    "path:/api/database",
+    { status, body },
+    { name: "create-database" },
+  );
+}
+
 export function setupDatabaseHealthcheckEndpoint(databaseId: Database["id"]) {
   fetchMock.get(`path:/api/database/${databaseId}/healthcheck`, {
     body: { status: "ok" },
@@ -64,10 +86,28 @@ export function setupDatabaseUsageInfoEndpoint(
   fetchMock.get(`path:/api/database/${db.id}/usage_info`, usageInfo);
 }
 
+export function setupEnginesEndpoint(engines: Record<string, Engine>) {
+  fetchMock.get("path:/api/setting/engines", engines);
+}
+
 export function setupDatabaseListEndpoint(databases: Database[]) {
   fetchMock.get(
     "path:/api/database",
     { data: databases, total: databases.length },
+    { name: "database-list" },
+  );
+}
+
+export function setupDatabaseListEndpointError({
+  status,
+  body,
+}: {
+  status: number;
+  body: Record<string, unknown>;
+}) {
+  fetchMock.get(
+    "path:/api/database",
+    { status, body },
     { name: "database-list" },
   );
 }

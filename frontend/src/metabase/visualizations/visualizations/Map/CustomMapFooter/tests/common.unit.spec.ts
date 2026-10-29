@@ -32,20 +32,30 @@ describe("CustomMapFooter (OSS)", () => {
   });
 
   describe("non admin users", () => {
-    it("should hide a help link when `show-metabase-links: true`", () => {
+    it("should show a help link when `show-metabase-links: true`", () => {
       setup({ isAdmin: false, showMetabaseLinks: true });
 
-      expect(
-        screen.queryByRole("link", { name: "Custom map" }),
-      ).not.toBeInTheDocument();
+      const customMapOption = screen.getByRole("link", {
+        name: "Custom map",
+      });
+      expect(customMapOption).toBeInTheDocument();
+      expect(customMapOption).toHaveProperty(
+        "href",
+        "https://www.metabase.com/docs/latest/configuring-metabase/custom-maps.html",
+      );
     });
 
-    it("should hide a help link when `show-metabase-links: false`", () => {
+    it("should show a help link when `show-metabase-links: false`", () => {
       setup({ isAdmin: false, showMetabaseLinks: false });
 
-      expect(
-        screen.queryByRole("link", { name: "Custom map" }),
-      ).not.toBeInTheDocument();
+      const customMapOption = screen.getByRole("link", {
+        name: "Custom map",
+      });
+      expect(customMapOption).toBeInTheDocument();
+      expect(customMapOption).toHaveProperty(
+        "href",
+        "https://www.metabase.com/docs/latest/configuring-metabase/custom-maps.html",
+      );
     });
   });
 });

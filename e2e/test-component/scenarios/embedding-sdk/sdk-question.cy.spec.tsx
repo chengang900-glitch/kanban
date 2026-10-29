@@ -66,6 +66,30 @@ describe("scenarios > embedding-sdk > interactive-question", () => {
     });
   });
 
+  it("should not request a collection the current user does not have", () => {
+    // The question's Save affordance asks whether the user can write to the
+    // target collection. With no `targetCollection` that resolves to
+    // "personal" — which resolves to nothing for a user without a personal
+    // collection, and building a URL from that hits `/api/collection/undefined`.
+    cy.intercept("GET", "/api/user/current", (req) => {
+      req.continue((res) => {
+        delete res.body.personal_collection_id;
+      });
+    });
+    cy.intercept("GET", "/api/collection/undefined*").as(
+      "unresolvedCollection",
+    );
+
+    mountInteractiveQuestion();
+
+    getSdkRoot().within(() => {
+      cy.findByText("Product ID").should("be.visible");
+      cy.findByText("Max of Quantity").should("be.visible");
+    });
+
+    cy.get("@unresolvedCollection.all").should("have.length", 0);
+  });
+
   it("should not show the expand button (metabase#68975)", () => {
     mountInteractiveQuestion();
 
@@ -650,21 +674,21 @@ describe("scenarios > embedding-sdk > interactive-question", () => {
     getSdkRoot().within(() => {
       cy.findByText(`id = ${FIRST_COLLECTION_ENTITY_ID}`).should("be.visible");
 
+      // The data picker auto-opens once it mounts, because a new question has
+      // no source table. Wait for that, then close it with its own trigger, so
+      // every later step starts from a known picker state.
+      cy.log("wait for the data picker to auto-open, then close it");
+      H.popover().findByRole("link", { name: "Orders" }).should("be.visible");
+      cy.findByText("Pick your starting data").click();
+      cy.get(H.POPOVER_ELEMENT).should("not.exist");
+
       cy.log("click on the button to switch target collection");
       cy.findByText("use second collection").click();
       cy.findByText(`id = ${SECOND_COLLECTION_ENTITY_ID}`).should("be.visible");
-    });
-
-    getSdkRoot().within(() => {
-      cy.log(
-        "the data picker auto-opens after the target-collection re-render because no source table is selected; interact with the already-open popover directly instead of toggling it, which races the async auto-open",
-      );
-      H.popover()
-        .findByRole("link", { name: "Orders" })
-        .should("be.visible")
-        .click();
 
       cy.log("ensure that the interactive question still works");
+      cy.findByText("Pick your starting data").click();
+      H.popover().findByRole("link", { name: "Orders" }).click();
       cy.findByRole("button", { name: "Visualize" }).should("be.visible");
     });
   });
@@ -686,71 +710,6 @@ describe("scenarios > embedding-sdk > interactive-question", () => {
         });
 
         cy.log("should show the question's visualization");
-        cy.findByText("Product ID").should("be.visible");
-        cy.findByText("Max of Quantity").should("be.visible");
-      });
-    });
-  });
-
-  it("should show a loader instead of the empty results state until `questionId` resolves (EMB-2390)", () => {
-    // Hosts often mount the question before its id is known (e.g. while an
-    // async lookup is pending). The SDK must keep showing its loader for that
-    // window and never fall through to the "run your code" empty state that
-    // belongs to a blank question.
-    const EMPTY_STATE_SELECTOR = 'img[alt="Code prompt icon"]';
-    const PENDING_ID_HOLD_MS = 1500;
-
-    const DeferredQuestion = ({ resolvedId }: { resolvedId: number }) => {
-      const [questionId, setQuestionId] = useState<number | null>(null);
-
-      return (
-        <div>
-          <InteractiveQuestion questionId={questionId} />
-          <button onClick={() => setQuestionId(resolvedId)}>Resolve id</button>
-        </div>
-      );
-    };
-
-    cy.get<number>("@questionId").then((questionId) => {
-      mountSdkContent(<DeferredQuestion resolvedId={questionId} />);
-
-      cy.log("keeps the loader up while the id is still null");
-      cy.window().then((win) => {
-        return new Cypress.Promise((resolve, reject) => {
-          const startedAt = Date.now();
-
-          const checkInterval = setInterval(() => {
-            if (win.document.querySelector(EMPTY_STATE_SELECTOR)) {
-              clearInterval(checkInterval);
-              reject(
-                new Error(
-                  "the empty results state must not show while `questionId` is null",
-                ),
-              );
-            } else if (Date.now() - startedAt >= PENDING_ID_HOLD_MS) {
-              clearInterval(checkInterval);
-              resolve();
-            }
-          }, 20);
-        });
-      });
-      getSdkRoot().within(() => {
-        cy.findByTestId("loading-indicator").should("be.visible");
-      });
-
-      cy.findByRole("button", { name: "Resolve id" }).click();
-
-      cy.log("no flash between the id resolving and the results rendering");
-      H.assertElementNeverExists({
-        shouldNotExistSelector: EMPTY_STATE_SELECTOR,
-        successSelector: "[data-testid='table-header']",
-        rejectionMessage:
-          "the empty results state must not flash between the id resolving and the results rendering",
-        pollInterval: 20,
-        timeout: 15000,
-      });
-
-      getSdkRoot().within(() => {
         cy.findByText("Product ID").should("be.visible");
         cy.findByText("Max of Quantity").should("be.visible");
       });

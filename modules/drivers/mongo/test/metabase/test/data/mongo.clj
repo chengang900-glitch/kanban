@@ -9,6 +9,7 @@
    [metabase.driver.mongo.connection :as mongo.connection]
    [metabase.driver.mongo.util :as mongo.util]
    [metabase.test.data.interface :as tx]
+   [metabase.util :as u]
    [metabase.util.json :as json])
   (:import
    (com.mongodb.client MongoDatabase)))
@@ -103,7 +104,7 @@
 
 (defmethod tx/count-with-template-tag-query :mongo
   [_driver table-name field-name _param-type]
-  {:projections [:count]
+  {:projections ["count"]
    :query       (json/encode
                  [{:$match {(name field-name) (json/raw-json-generator (format "{{%s}}" (name field-name)))}}
                   {:$group {"_id" nil, "count" {:$sum 1}}}
@@ -113,7 +114,7 @@
 
 (defmethod tx/count-with-field-filter-query :mongo
   [_driver table-name field-name]
-  {:projections [:count]
+  {:projections ["count"]
    :query       (json/encode
                  [{:$match (json/raw-json-generator (format "{{%s}}" (name field-name)))}
                   {:$group {"_id" nil, "count" {:$sum 1}}}
@@ -140,12 +141,12 @@
   [_driver database view-name table-name {:keys [materialized?]}]
   (when materialized?
     (throw (Exception. "Material Views not supported.")))
-  (mongo.connection/with-mongo-database [^MongoDatabase db database]
+  (mongo.connection/with-mongo-database [^MongoDatabase db (u/the-id database)]
     (.createView db view-name table-name [])))
 
 (defmethod tx/drop-view! :mongo
   [_driver database view-name {:keys [materialized?]}]
   (when materialized?
     (throw (Exception. "Material Views not supported.")))
-  (mongo.connection/with-mongo-database [^MongoDatabase db database]
+  (mongo.connection/with-mongo-database [^MongoDatabase db (u/the-id database)]
     (some-> db (mongo.util/collection view-name) .drop)))

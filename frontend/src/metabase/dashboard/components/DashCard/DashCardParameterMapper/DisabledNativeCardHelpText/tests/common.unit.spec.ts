@@ -44,7 +44,7 @@ describe("DashCardParameterMapper > DisabledNativeCardHelpText (OSS)", () => {
   );
 
   it.each([{ showMetabaseLinks: false }, { showMetabaseLinks: true }])(
-    "should hide the parameter help link regardless of `show-metabase-links`: %s",
+    "should keep parameter help text while hiding the documentation link regardless of `show-metabase-links`: %s",
     ({ showMetabaseLinks }) => {
       setup({ showMetabaseLinks });
       expect(

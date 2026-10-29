@@ -13,7 +13,7 @@
 (def ^:private chinese-locales #{"zh-CN" "zh-HK" "zh-TW"})
 
 (def ^:private product-name-exclusions
-  #{"Metabase is a Trademark of Metabase, Inc"})
+  #{"Metabase is a Trademark of Metabase, Inc" "Metabase AI service"})
 
 (defn- replace-product-name [locale message-id translated-string]
   (if (or (not (str/includes? message-id "Metabase"))
@@ -22,8 +22,7 @@
     (let [product-name (if (contains? chinese-locales locale)
                          "数据看板"
                          "Dashboard")]
-      (cond-> (str/replace translated-string #"Metabase\p{Ll}*" product-name)
-        (= locale "zh-CN") (str/replace "系统" product-name)))))
+      (str/replace translated-string #"(?<![\p{L}\p{N}_/.])Metabase(?:s)?(?![\p{L}\p{N}_]|\.[a-z])" product-name))))
 
 (defn- brand-message [locale {:keys [id] :as message}]
   (cond-> message

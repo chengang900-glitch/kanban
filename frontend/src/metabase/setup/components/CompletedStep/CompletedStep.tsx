@@ -1,15 +1,15 @@
-import cx from "classnames";
 import { t } from "ttag";
 
-import ButtonsS from "metabase/css/components/buttons.module.css";
-import { useSelector } from "metabase/redux";
-import { Switch, Title } from "metabase/ui";
+import { useDispatch, useSelector } from "metabase/redux";
+import { Box, Button, Flex, Stack, Switch, Text, Title } from "metabase/ui";
 
-import { getIsStepActive } from "../../selectors";
-
-import { StepBody, StepFooter, StepRoot } from "./CompletedStep.styled";
+import { startAiConfig } from "../../actions";
+import { getIsStepActive, getShouldOfferAiConfig } from "../../selectors";
 
 export const CompletedStep = (): JSX.Element | null => {
+  const shouldOfferAiConfig = useSelector(getShouldOfferAiConfig);
+  const dispatch = useDispatch();
+
   const isStepActive = useSelector((state) =>
     getIsStepActive(state, "completed"),
   );
@@ -20,27 +20,49 @@ export const CompletedStep = (): JSX.Element | null => {
   const baseUrl = window.MetabaseRoot ?? "/";
 
   return (
-    <StepRoot>
+    <Stack
+      component="section"
+      p="xxxl"
+      gap="xxl"
+      mb="xl"
+      bd="1px solid var(--mb-color-border-neutral)"
+      bdrs="sm"
+      bg="background_page-primary"
+    >
       <Title order={2}>{t`You're all set up!`}</Title>
-      <StepBody>
+      {shouldOfferAiConfig && (
+        <Flex
+          align="center"
+          justify="space-between"
+          gap="xl"
+          bd="1px solid var(--mb-color-border-neutral)"
+          bdrs="xxs"
+          p="xl"
+        >
+          <Box>
+            <Text fw="bold">{t`Want to use AI in Metabase?`}</Text>
+            <Text c="text-secondary">
+              {t`Connect an AI provider to use AI explorations, SQL generation and Metabot.`}
+            </Text>
+          </Box>
+          <Button
+            flex="0 0 auto"
+            onClick={() => dispatch(startAiConfig())}
+          >{t`Set up AI`}</Button>
+        </Flex>
+      )}
+      <Box bd="1px solid var(--mb-color-border-neutral)" bdrs="xxs" p="xl">
         <Switch
           checked={false}
           disabled
           label={t`Get infrequent emails about new releases and feature updates.`}
         />
-      </StepBody>
-      <StepFooter>
-        <a
-          className={cx(
-            ButtonsS.Button,
-            ButtonsS.ButtonPrimary,
-            ButtonsS.ButtonLarge,
-          )}
-          href={baseUrl}
-        >
-          {t`进入数据看板`}
-        </a>
-      </StepFooter>
-    </StepRoot>
+      </Box>
+      <Flex justify="flex-end">
+        <Button component="a" href={baseUrl} variant="filled" size="lg">
+          {t`Take me to Metabase`}
+        </Button>
+      </Flex>
+    </Stack>
   );
 };

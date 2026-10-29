@@ -27,11 +27,13 @@
   normalized-locale-string
   translate])
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:dynamic *user-locale*
   "Bind this to a string, keyword, or `Locale` to set the locale for the current User. To get the locale we should
   *use*, use the `user-locale` function instead."
   nil)
 
+#_{:clj-kondo/ignore [:metabase/discourage-dynamic-vars]}
 (def ^:dynamic *site-locale-override*
   "Bind this to a string, keyword to override the value returned by `site-locale`. For testing purposes,
   such as when swapping out an application database temporarily, when the setting table may not even exist."
@@ -102,24 +104,10 @@
   [locale]
   (contains? @included-locales locale))
 
-(defn- brand-visible-product-name [^Locale locale format-string translated]
-  (if (and (string? translated)
-           (str/includes? format-string "Metabase")
-           (not= format-string "Metabase is a Trademark of Metabase, Inc"))
-    (let [chinese? (= "zh" (.getLanguage locale))
-          product-name (if chinese? "数据看板" "Dashboard")]
-      (cond-> (str/replace translated #"Metabase\p{Ll}*" product-name)
-        chinese? (str/replace "系统" product-name)))
-    translated))
-
 (defn- translate-site-locale
   "Translate a string with the System locale."
   [format-string args pluralization-opts]
-  (let [locale     (site-locale)
-        translated (brand-visible-product-name
-                    locale
-                    format-string
-                    (translate locale format-string args pluralization-opts))]
+  (let [translated (translate (site-locale) format-string args pluralization-opts)]
     (log/tracef "Translated %s for site locale %s -> %s"
                 (pr-str format-string) (pr-str (site-locale-string)) (pr-str translated))
     translated))
@@ -127,11 +115,7 @@
 (defn- translate-user-locale
   "Translate a string with the current User's locale."
   [format-string args pluralization-opts]
-  (let [locale     (user-locale)
-        translated (brand-visible-product-name
-                    locale
-                    format-string
-                    (translate locale format-string args pluralization-opts))]
+  (let [translated (translate (user-locale) format-string args pluralization-opts)]
     (log/tracef "Translating %s for user locale %s (site locale %s) -> %s"
                 (pr-str format-string) (pr-str (user-locale-string))
                 (pr-str (site-locale-string)) (pr-str translated))

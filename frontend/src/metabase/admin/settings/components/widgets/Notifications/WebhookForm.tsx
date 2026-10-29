@@ -1,9 +1,11 @@
 import type { FormikHelpers } from "formik";
-import { useMemo } from "react";
-import { c, t } from "ttag";
+import { useMemo, useState } from "react";
+import { c, jt, t } from "ttag";
 import * as Yup from "yup";
 
 import { useTestChannelMutation } from "metabase/api/channel";
+import { findErrorMessage } from "metabase/api/utils/errors";
+import { ExternalLink } from "metabase/common/components/ExternalLink";
 import { useActionButtonLabel } from "metabase/common/hooks/use-action-button-label";
 import {
   Form,
@@ -12,6 +14,8 @@ import {
   FormSubmitButton,
   FormTextInput,
 } from "metabase/forms";
+import { useSelector } from "metabase/redux";
+import { getDocsUrl } from "metabase/selectors/settings";
 import {
   Alert,
   Box,
@@ -21,10 +25,8 @@ import {
   Group,
   Icon,
   ScrollArea,
-  Text,
   Title,
 } from "metabase/ui";
-import { getResponseErrorMessage } from "metabase/utils/errors";
 import {
   type NotificationAuthMethods,
   type NotificationAuthType,
@@ -33,24 +35,43 @@ import {
 
 import { buildAuthInfo } from "./utils";
 
-const validationSchema = Yup.object({
-  url: Yup.string()
-    // eslint-disable-next-line ttag/no-module-declaration -- see metabase#55045
-    .url(t`Please enter a correctly formatted URL`)
-    // eslint-disable-next-line ttag/no-module-declaration -- see metabase#55045
-    .required(t`Please enter a correctly formatted URL`),
-  // eslint-disable-next-line ttag/no-module-declaration -- see metabase#55045
-  name: Yup.string().required(t`Please add a name`),
-  // eslint-disable-next-line ttag/no-module-declaration -- see metabase#55045
-  description: Yup.string().required(t`Please add a description`),
-  "auth-method": Yup.string()
-    .required()
-    .equals(["none", "header", "query-param", "request-body"]),
-  "fe-form-type": Yup.string()
-    .required()
-    .equals(["none", "basic", "bearer", "api-key"]),
-  "auth-info": Yup.object(),
-});
+function getValidationSchema() {
+  return Yup.object({
+    url: Yup.string()
+      .required(t`Please enter a correctly formatted URL`)
+      .test(
+        "is-http-url",
+        t`Please enter a correctly formatted URL`,
+        (value) => value != null && isValidWebhookUrl(value),
+      ),
+    name: Yup.string().required(t`Please add a name`),
+    description: Yup.string().required(t`Please add a description`),
+    "auth-method": Yup.string()
+      .required()
+      .equals(["none", "header", "query-param", "request-body"]),
+    "fe-form-type": Yup.string()
+      .required()
+      .equals(["none", "basic", "bearer", "api-key"]),
+    "auth-info": Yup.object(),
+  });
+}
+
+/**
+ * Approximates the backend validator (metabase.util/url?), which unlike Yup's
+ * .url() accepts bare hostnames such as http://webhook-tester:8080/
+ */
+function isValidWebhookUrl(value: string): boolean {
+  if (value !== value.trim() || !value.includes("://")) {
+    return false;
+  }
+
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 const styles = {
   wrapperProps: {
@@ -175,12 +196,17 @@ export const WebhookForm = ({
   const { label: testButtonLabel, setLabel: setTestButtonLabel } =
     useActionButtonLabel({ defaultLabel: t`Send a test` });
   const [testChannel, { error }] = useTestChannelMutation();
+  const [validationSchema] = useState(getValidationSchema());
 
   const errorData = useMemo(() => {
     if (isNotificationChannelTestErrorResponse(error)) {
       return error.data.data;
     }
   }, [error]);
+
+  const docsUrl = useSelector((state) =>
+    getDocsUrl(state, { page: "questions/sharing/alerts" }),
+  );
 
   const handleTest = async (
     values: WebhookFormProps,
@@ -201,8 +227,7 @@ export const WebhookForm = ({
         },
         (e) => {
           setTestButtonLabel(t`Test failed`);
-          const message =
-            typeof e === "string" ? e : getResponseErrorMessage(e);
+          const message = findErrorMessage(e);
 
           setFieldError("url", message);
         },
@@ -217,19 +242,12 @@ export const WebhookForm = ({
     >
       {({ dirty, values, setFieldError, setFieldValue }) => (
         <Form>
-          <Alert
-            variant="light"
-            mb="1.5rem"
-            style={{
-              backgroundColor: "var(--mb-color-background_page-secondary)",
-            }}
-            px="1.5rem"
-            py="1rem"
-            radius="0.5rem"
-          >
-            <Text>
-              {t`You can send the payload of any Alert to this destination whenever the Alert is triggered.`}
-            </Text>
+          <Alert size="compact" variant="light" mb="1.5rem">
+            {jt`You can send the payload of any Alert to this destination whenever the Alert is triggered. ${(
+              <ExternalLink key="link" href={docsUrl}>
+                {t`Learn about Alerts`}
+              </ExternalLink>
+            )}`}
           </Alert>
           <Box mb="1.5rem">
             <Flex align="end" gap="1rem">
@@ -242,7 +260,7 @@ export const WebhookForm = ({
                 maw="21rem"
               />
               <Button
-                h="2.5rem"
+                size="lg"
                 onClick={() => handleTest(values, setFieldError)}
               >
                 {testButtonLabel}
@@ -323,14 +341,13 @@ export const WebhookForm = ({
           <Flex
             mt="1.5rem"
             justify={onDelete ? "space-between" : "end"}
+            align="center"
             gap="0.75rem"
           >
             {onDelete && (
               <Button
-                variant="subtle"
-                c="text-secondary"
+                variant="transparent"
                 size="compact-md"
-                pl="0"
                 leftSection={<Icon name="trash" />}
                 onClick={onDelete}
               >{t`Delete this destination`}</Button>
@@ -340,7 +357,7 @@ export const WebhookForm = ({
               <FormSubmitButton
                 disabled={!dirty}
                 label={submitLabel}
-                variant="brand"
+                variant="filled"
               />
             </Group>
           </Flex>

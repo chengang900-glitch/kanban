@@ -1,21 +1,8 @@
 import { useMemo } from "react";
 import { jt, t } from "ttag";
 
-import {
-  SettingsPageWrapper,
-  SettingsSection,
-} from "metabase/admin/components/SettingsSection";
-import {
-  useGetAdminSettingsDetailsQuery,
-  useGetSettingsQuery,
-  useUpdateGoogleAuthMutation,
-} from "metabase/api";
 import { ExternalLink } from "metabase/common/components/ExternalLink";
-import {
-  useDocsUrl,
-  useHasTokenFeature,
-  useSetting,
-} from "metabase/common/hooks";
+import { useDocsUrl, useHasTokenFeature } from "metabase/common/hooks";
 import {
   Form,
   FormErrorMessage,
@@ -23,9 +10,19 @@ import {
   FormSubmitButton,
   FormTextInput,
 } from "metabase/forms";
+import {
+  useGetAdminSettingsDetailsQuery,
+  useGetSettingsQuery,
+  useSetting,
+} from "metabase/settings";
+import {
+  SettingsPageWrapper,
+  SettingsSection,
+} from "metabase/settings-components";
 import { Flex, Stack, Text, Title } from "metabase/ui";
 import type { SettingDefinition, Settings } from "metabase-types/api";
 
+import { useUpdateGoogleAuthMutation } from "../../../api/google";
 import { GOOGLE_SCHEMA } from "../../constants";
 
 const ENABLED_KEY = "google-auth-enabled";
@@ -57,12 +54,9 @@ export const GoogleAuthForm = (): JSX.Element => {
     return { ...values, [ENABLED_KEY]: true };
   }, [settingValues]);
 
-  const { url: docsUrl, showMetabaseLinks } = useDocsUrl(
-    "people-and-groups/google-and-ldap",
-    {
-      anchor: "enabling-google-sign-in",
-    },
-  );
+  const { url: docsUrl } = useDocsUrl("people-and-groups/google-and-ldap", {
+    anchor: "enabling-google-sign-in",
+  });
 
   const onSubmit = (values: GoogleAuthSettings) => {
     return updateGoogleAuthSettings(values).unwrap();
@@ -83,19 +77,17 @@ export const GoogleAuthForm = (): JSX.Element => {
         >
           {({ dirty }) => (
             <Form disabled={!dirty}>
-              <Stack gap="md">
+              <Stack gap="lg">
                 <Title order={2}>{t`Sign in with Google`}</Title>
                 <Text c="text-secondary">
                   {t`Allows users with existing Metabase accounts to login with a Google account that matches their email address in addition to their Metabase username and password.`}
                 </Text>
                 <Text c="text-secondary">
-                  {showMetabaseLinks
-                    ? jt`To allow users to sign in with Google you'll need to give Metabase a Google Developers console application client ID. It only takes a few steps and instructions on how to create a key can be found ${(
-                        <ExternalLink key="link" href={docsUrl}>
-                          {t`here`}
-                        </ExternalLink>
-                      )}.`
-                    : t`To allow users to sign in with Google you'll need to give Metabase a Google Developers console application client ID.`}
+                  {jt`To allow users to sign in with Google you'll need to give Metabase a Google Developers console application client ID. It only takes a few steps and instructions on how to create a key can be found ${(
+                    <ExternalLink key="link" href={docsUrl}>
+                      {t`here`}
+                    </ExternalLink>
+                  )}.`}
                 </Text>
                 <FormTextInput
                   name={CLIENT_ID_KEY}

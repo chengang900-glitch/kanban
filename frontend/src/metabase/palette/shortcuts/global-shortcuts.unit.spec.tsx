@@ -1,6 +1,5 @@
 import userEvent from "@testing-library/user-event";
 import fetchMock from "fetch-mock";
-import { Route } from "react-router";
 
 import {
   setupCollectionByIdEndpoint,
@@ -8,10 +7,12 @@ import {
   setupRecentViewsEndpoints,
   setupSearchEndpoints,
 } from "__support__/server-mocks";
+import { createMockState } from "__support__/state";
 import { renderWithProviders, waitFor } from "__support__/ui";
 import * as Analytics from "metabase/analytics";
 import { Palette } from "metabase/palette/components/Palette";
-import { createMockState } from "metabase/redux/store/mocks";
+import { PLUGIN_DATA_APPS } from "metabase/plugins";
+import { Route } from "metabase/router";
 import {
   createMockCollection,
   createMockUser,
@@ -32,7 +33,7 @@ const setup = async ({ isAdmin = true }: SetupOpts = {}) => {
     collections: [createMockCollection({ id: "root", can_write: true })],
   });
 
-  const view = renderWithProviders(<Route path="*" component={Palette} />, {
+  const view = renderWithProviders(<Route path="*" element={<Palette />} />, {
     withKBar: true,
     withRouter: true,
     storeInitialState: createMockState({
@@ -76,39 +77,55 @@ describe("global keyboard shortcuts", () => {
       ["g s", "gs", "/data-studio"],
       ["g p", "gp", `/collection/${PERSONAL_COLLECTION_ID}`],
     ])("%s navigates to %s", async (_name, keys, pathname) => {
-      const { history } = await setup();
+      const { router } = await setup();
 
       await userEvent.keyboard(keys);
 
-      await waitFor(() =>
-        expect(history?.getCurrentLocation().pathname).toBe(pathname),
-      );
+      await waitFor(() => expect(router?.location.pathname).toBe(pathname));
+    });
+
+    it("navigates to Data Studio's data apps when data apps are enabled", async () => {
+      jest.replaceProperty(PLUGIN_DATA_APPS, "isEnabled", true);
+      const { router } = await setup();
+
+      await waitFor(async () => {
+        if (router?.location.pathname !== "/data-studio/apps") {
+          await userEvent.keyboard("g{Shift>}a{/Shift}");
+        }
+        expect(router?.location.pathname).toBe("/data-studio/apps");
+      });
+    });
+
+    it("does not navigate to data apps when they are not enabled", async () => {
+      const { router } = await setup();
+
+      await userEvent.keyboard("g{Shift>}a{/Shift}");
+      expect(router?.location.pathname).toBe("/");
+      await userEvent.keyboard("gt");
+
+      await waitFor(() => expect(router?.location.pathname).toBe("/trash"));
     });
 
     it("does not navigate to Data Studio for users without access", async () => {
-      const { history } = await setup({ isAdmin: false });
+      const { router } = await setup({ isAdmin: false });
 
       await userEvent.keyboard("gs");
-      expect(history?.getCurrentLocation().pathname).toBe("/");
+      expect(router?.location.pathname).toBe("/");
       // Prove the keyboard pipeline is live for this user before asserting the
       // absence — otherwise the assertion passes for the wrong reason.
       await userEvent.keyboard("gt");
 
-      await waitFor(() =>
-        expect(history?.getCurrentLocation().pathname).toBe("/trash"),
-      );
+      await waitFor(() => expect(router?.location.pathname).toBe("/trash"));
     });
 
     it("does not navigate to admin settings for non-admins", async () => {
-      const { history } = await setup({ isAdmin: false });
+      const { router } = await setup({ isAdmin: false });
 
       await userEvent.keyboard("ga");
-      expect(history?.getCurrentLocation().pathname).toBe("/");
+      expect(router?.location.pathname).toBe("/");
       await userEvent.keyboard("gt");
 
-      await waitFor(() =>
-        expect(history?.getCurrentLocation().pathname).toBe("/trash"),
-      );
+      await waitFor(() => expect(router?.location.pathname).toBe("/trash"));
     });
   });
 
@@ -127,22 +144,20 @@ describe("global keyboard shortcuts", () => {
 
   describe("suppression", () => {
     it("ignores shortcuts while a text input holds focus", async () => {
-      const { history } = await setup();
+      const { router } = await setup();
 
       const input = document.createElement("input");
       document.body.appendChild(input);
       input.focus();
 
       await userEvent.keyboard("gt");
-      expect(history?.getCurrentLocation().pathname).toBe("/");
+      expect(router?.location.pathname).toBe("/");
 
       input.remove();
       document.body.focus();
 
       await userEvent.keyboard("gt");
-      await waitFor(() =>
-        expect(history?.getCurrentLocation().pathname).toBe("/trash"),
-      );
+      await waitFor(() => expect(router?.location.pathname).toBe("/trash"));
     });
   });
 

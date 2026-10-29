@@ -30,7 +30,7 @@ RUN git config --global --add safe.directory /home/node
 RUN npm install -g bun
 
 # install frontend dependencies
-RUN CYPRESS_INSTALL_BINARY=0 bun install --frozen-lockfile
+RUN bun install --frozen-lockfile
 
 RUN INTERACTIVE=false CI=true MB_EDITION=$MB_EDITION bin/build.sh :version ${VERSION}
 
@@ -49,18 +49,20 @@ ENV FC_LANG=en-US LC_CTYPE=en_US.UTF-8
 COPY bin/docker/DigiCertGlobalRootG2.crt.pem /app/certs/DigiCertGlobalRootG2.crt.pem
 
 # dependencies
-RUN for attempt in 1 2 3; do \
-      apk add -U bash fontconfig curl font-noto font-noto-arabic font-noto-hebrew font-noto-cjk java-cacerts && break; \
-      [ "$attempt" -eq 3 ] && exit 1; \
-      sleep 5; \
-    done && \
+RUN apk add -U bash fontconfig curl font-noto font-noto-arabic font-noto-hebrew font-noto-cjk java-cacerts && \
     apk upgrade && \
     rm -rf /var/cache/apk/* && \
+    sed -i 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' /etc/ca-certificates.conf && \
+    update-ca-certificates && \
+    /opt/java/openjdk/bin/keytool -list -v -cacerts -storepass changeit | awk '/^Alias name:/{a=substr($0,13)} /^Owner: CN=emSign ECC Root CA - G3,/{print a}' | while read -r a; do /opt/java/openjdk/bin/keytool -delete -cacerts -storepass changeit -alias "$a"; done && \
     mkdir -p /app/certs && \
     curl https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -o /app/certs/rds-combined-ca-bundle.pem  && \
     /opt/java/openjdk/bin/keytool -noprompt -import -trustcacerts -alias aws-rds -file /app/certs/rds-combined-ca-bundle.pem -keystore /etc/ssl/certs/java/cacerts -keypass changeit -storepass changeit && \
     /opt/java/openjdk/bin/keytool -noprompt -import -trustcacerts -alias azure-cert -file /app/certs/DigiCertGlobalRootG2.crt.pem -keystore /etc/ssl/certs/java/cacerts -keypass changeit -storepass changeit && \
     mkdir -p /plugins && chmod a+rwx /plugins
+
+COPY bin/docker/blocked.certs /app/certs/
+RUN cat /app/certs/blocked.certs >> /opt/java/openjdk/lib/security/blocked.certs
 
 # add Metabase script and uberjar
 COPY --from=builder /home/node/target/uberjar/metabase.jar /app/

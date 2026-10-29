@@ -21,7 +21,7 @@ const setup = async ({ isAdmin = true, initialRoute = "" } = {}) => {
 const routes = routeObjtoArray({
   ...ossRoutes,
   ...enterpriseRoutes, // different license component
-}).filter(({ path }) => path !== "/license");
+});
 
 const notFoundRoutes = routeObjtoArray(premiumRoutes);
 const upsells = routeObjtoArray(upsellRoutes);
@@ -50,21 +50,14 @@ describe("Admin Settings Routing - Enterprise without features", () => {
     );
   });
 
-  describe("hides commercial upsells", () => {
-    it("hides the direct license route", async () => {
-      await setup({ isAdmin: true, initialRoute: "/license" });
-      expect(
-        screen.queryByRole("heading", { name: /License/i }),
-      ).not.toBeInTheDocument();
-    });
-
+  describe("should show an upsell on the $name route", () => {
     it.each(upsells)(
-      "hides the upsell on the $name route",
+      "should show an upsell on the $name route",
       async ({ path }) => {
         await setup({ isAdmin: true, initialRoute: path });
         expect(
-          screen.queryByText("Make Metabase look like you"),
-        ).not.toBeInTheDocument();
+          await screen.findByText("Make Metabase look like you"),
+        ).toBeInTheDocument();
       },
     );
   });

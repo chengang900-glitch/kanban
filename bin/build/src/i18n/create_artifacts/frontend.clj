@@ -1,5 +1,6 @@
 (ns i18n.create-artifacts.frontend
   (:require
+   ;; build tooling never loads app namespaces, so the metabase.util.json facade isn't usable here
    ^{:clj-kondo/ignore [:discouraged-namespace]}
    [cheshire.core :as json]
    [clojure.java.io :as io]
@@ -25,7 +26,7 @@
 (def ^:private chinese-locales #{"zh-CN" "zh-HK" "zh-TW"})
 
 (def ^:private product-name-exclusions
-  #{"Metabase is a Trademark of Metabase, Inc"})
+  #{"Metabase is a Trademark of Metabase, Inc" "Metabase AI service"})
 
 (defn- replace-product-name [locale message-id translated-string]
   (if (or (not (str/includes? message-id "Metabase"))
@@ -34,8 +35,7 @@
     (let [product-name (if (contains? chinese-locales locale)
                          "数据看板"
                          "Dashboard")]
-      (cond-> (str/replace translated-string #"Metabase\p{Ll}*" product-name)
-        (= locale "zh-CN") (str/replace "系统" product-name)))))
+      (str/replace translated-string #"(?<![\p{L}\p{N}_/.])Metabase(?:s)?(?![\p{L}\p{N}_]|\.[a-z])" product-name))))
 
 (defn- brand-message [locale {:keys [id] :as message}]
   (cond-> message
@@ -47,21 +47,35 @@
             (fn [translations]
               (map #(replace-product-name locale id %) translations)))))
 
-(defn- ->translations-map [locale messages drop-msgids]
-  {"" (into {}
-            (comp
-             ;; filter out i18n messages that aren't used on the FE client
-             (filter frontend-message?)
-             (remove (fn [{:keys [id]}] (contains? drop-msgids id)))
-             (map #(brand-message locale %))
-             i18n/print-message-count-xform
-             (map (fn [message]
-                    [(->ttag-reference (:id message))
-                     (if (:plural? message)
-                       {:msgid_plural (:id-plural message)
-                        :msgstr       (map ->ttag-reference (:str-plural message))}
-                       {:msgstr [(->ttag-reference (:str message))]})])))
-            messages)})
+(defn- ->translation-entry [message]
+  [(->ttag-reference (:id message))
+   (if (:plural? message)
+     {:msgid_plural (:id-plural message)
+      :msgstr       (map ->ttag-reference (:str-plural message))}
+     {:msgstr [(->ttag-reference (:str message))]})])
+
+(defn- ->translations-map
+  "ttag looks a translation up by (context, msgid), so the top level of the map is keyed by the
+  message's `msgctxt` — `\"\"` for the messages that declare none.
+
+  Two messages may share a `msgid` as long as their contexts differ, e.g. `Year` exists both as a
+  pluralized unit (`ngettext(\"Year\", \"Years\", n)`) and as a granularity option
+  (``c(\"Date granularity option\").t`Year` ``). Keying by `msgid` alone collapsed them onto one
+  entry, so the last one won and the other's translation was lost — including, for the pair above,
+  the plural form that `ngettext` then failed to find."
+  [locale messages drop-msgids]
+  (let [frontend-messages (into []
+                                (comp
+                                 ;; filter out i18n messages that aren't used on the FE client
+                                 (filter frontend-message?)
+                                 (remove (fn [{:keys [id]}] (contains? drop-msgids id)))
+                                 (map #(brand-message locale %))
+                                 i18n/print-message-count-xform)
+                                messages)]
+    (into {}
+          (map (fn [[context messages]]
+                 [context (into {} (map ->translation-entry) messages)]))
+          (group-by #(or (:context %) "") frontend-messages))))
 
 (defn- ->i18n-map
   "Convert the contents of a `.po` file to map format used in the frontend client."

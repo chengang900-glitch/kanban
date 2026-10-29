@@ -1,21 +1,32 @@
+import userEvent from "@testing-library/user-event";
+
+import { mockSettings } from "__support__/settings";
+import { createMockSetupState, createMockState } from "__support__/state";
 import { renderWithProviders, screen } from "__support__/ui";
-import type { SetupStep } from "metabase/redux/store";
-import {
-  createMockSetupState,
-  createMockState,
-} from "metabase/redux/store/mocks";
+import type { SetupState, SetupStep } from "metabase/redux/store";
+import * as setupUtils from "metabase/setup/utils";
+import type { EnterpriseSettings } from "metabase-types/api";
+import { createMockSettings } from "metabase-types/api/mocks";
 
 import { CompletedStep } from "./CompletedStep";
 
 interface SetupOpts {
   step?: SetupStep;
+  setupState?: Partial<SetupState>;
+  settings?: Partial<EnterpriseSettings>;
 }
 
-const setup = ({ step = "completed" }: SetupOpts = {}) => {
+const setup = ({
+  step = "completed",
+  setupState = {},
+  settings = {},
+}: SetupOpts = {}) => {
   const state = createMockState({
     setup: createMockSetupState({
       step,
+      ...setupState,
     }),
+    settings: mockSettings(createMockSettings(settings)),
   });
 
   renderWithProviders(<CompletedStep />, { storeInitialState: state });
@@ -28,15 +39,53 @@ describe("CompletedStep", () => {
     expect(screen.queryByText("You're all set up!")).not.toBeInTheDocument();
   });
 
-  it("should show a disabled newsletter switch and a link to the app", () => {
+  it("should show a newsletter form and a link to the app", () => {
     setup({ step: "completed" });
 
-    const newsletterSwitch = screen.getByRole("switch", {
-      name: "Get infrequent emails about new releases and feature updates.",
-    });
+    expect(
+      screen.getByText(
+        "Get infrequent emails about new releases and feature updates.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Take me to Metabase")).toBeInTheDocument();
+  });
 
-    expect(newsletterSwitch).not.toBeChecked();
-    expect(newsletterSwitch).toBeDisabled();
-    expect(screen.getByText("进入数据看板")).toBeInTheDocument();
+  it("should offer to set up AI", () => {
+    setup();
+
+    expect(screen.getByText("Want to use AI in Metabase?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Set up AI" })).toBeEnabled();
+  });
+
+  it("should not offer to set up AI once it has been requested", () => {
+    setup({ setupState: { isAiConfigRequested: true } });
+
+    expect(
+      screen.queryByRole("button", { name: "Set up AI" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should not offer to set up AI when AI features are disabled", () => {
+    setup({ settings: { "ai-features-enabled?": false } });
+
+    expect(
+      screen.queryByRole("button", { name: "Set up AI" }),
+    ).not.toBeInTheDocument();
+  });
+  it("locks newsletter subscription off and never subscribes when entering the app", async () => {
+    const subscribe = jest.spyOn(setupUtils, "subscribeToNewsletter");
+    setup();
+    const toggle = screen.getByRole("switch", {
+      name: /Get infrequent emails/,
+    });
+    expect(toggle).toBeDisabled();
+    expect(toggle).not.toBeChecked();
+    await userEvent.click(toggle);
+    await userEvent.click(
+      screen.getByRole("link", { name: "Take me to Metabase" }),
+    );
+    expect(toggle).not.toBeChecked();
+    expect(subscribe).not.toHaveBeenCalled();
+    subscribe.mockRestore();
   });
 });

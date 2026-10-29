@@ -20,12 +20,10 @@ export const MetabaseAccountCard = () => {
 
   const isGuestEmbed = !!settings.isGuest;
 
-  const { url: setupSsoUrl, showMetabaseLinks } = useDocsUrl(
-    "embedding/sdk/authentication",
-    {
-      utm: utmTags,
-    },
-  );
+  // eslint-disable-next-line metabase/no-unconditional-metabase-links-render -- Only for admins
+  const { url: setupSsoUrl } = useDocsUrl("embedding/sdk/authentication", {
+    utm: utmTags,
+  });
 
   if (isGuestEmbed) {
     return null;
@@ -40,8 +38,8 @@ export const MetabaseAccountCard = () => {
   };
 
   return (
-    <Card p="md">
-      <Stack gap="md">
+    <Card p="lg">
+      <Stack gap="lg">
         <Text size="lg" fw="bold">
           {
             // eslint-disable-next-line metabase/no-literal-metabase-strings -- Public Facing string
@@ -66,30 +64,21 @@ export const MetabaseAccountCard = () => {
 
         {!isSsoEnabledAndConfigured && !!settings.useExistingUserSession && (
           <Alert
-            icon={
-              <Icon
-                name="warning_triangle_filled"
-                c="text-secondary"
-                size={16}
-              />
-            }
+            size="compact"
+            icon={<Icon name="warning_triangle_filled" />}
             color="warning"
           >
-            <Text size="md" lh="lg">
-              {showMetabaseLinks
-                ? jt`The code below will only work for local testing. To get production ready code, configure ${(
-                    <Anchor
-                      key="configure-sso"
-                      href={setupSsoUrl}
-                      target="_blank"
-                      size="md"
-                      lh="lg"
-                    >
-                      {t`JWT SSO or SAML`}
-                    </Anchor>
-                  )}.`
-                : t`The code below will only work for local testing. To get production ready code, configure JWT SSO or SAML.`}
-            </Text>
+            {jt`The code below will only work for local testing. To get production ready code, configure ${(
+              <Anchor
+                key="configure-sso"
+                href={setupSsoUrl}
+                target="_blank"
+                size="md"
+                lh="lg"
+              >
+                {t`JWT SSO or SAML`}
+              </Anchor>
+            )}.`}
           </Alert>
         )}
       </Stack>

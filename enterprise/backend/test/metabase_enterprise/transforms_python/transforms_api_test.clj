@@ -7,6 +7,7 @@
    [metabase-enterprise.transforms-python.init]
    [metabase-enterprise.transforms-python.python-runner :as transforms-python.python-runner]
    [metabase.driver :as driver]
+   [metabase.lib.metadata :as lib.metadata]
    [metabase.permissions.models.permissions-group :as perms-group]
    [metabase.test :as mt]
    [metabase.transforms.test-dataset :as transforms-dataset]
@@ -69,7 +70,7 @@
                                                          :name     "gadget_products"
                                                          :database (mt/id)}}))))))
             (testing "with transforms-python feature flag"
-              (mt/with-premium-features #{:transforms-basic :transforms-python}
+              (mt/with-premium-features #{:advanced-permissions :transforms-basic :transforms-python :hosting}
                 (with-transform-cleanup! [table-name "gadget_products"]
                   (let [transform         (create-transform!)]
                     (is (= "print('hello chris')"
@@ -107,10 +108,10 @@
                   "Should return 403 without any features"))))))))
 
 (deftest run-python-transform-feature-flag-test
-  (mt/with-premium-features #{:transforms-basic :transforms-python}
+  (mt/with-premium-features #{:transforms-basic :transforms-python :hosting}
     (mt/test-drivers (mt/normal-drivers-with-feature :transforms/table)
       (testing "Running a python transform requires both :transforms-basic and :transforms-python features"
-        (mt/with-premium-features #{:transforms-basic :transforms-python}
+        (mt/with-premium-features #{:transforms-basic :transforms-python :hosting}
           (mt/dataset transforms-dataset/transforms-test
             (with-transform-cleanup! [table-name "test_run_python"]
               (let [schema (get-test-schema)
@@ -137,7 +138,7 @@
 (deftest execute-python-transform-test
   (testing "transform execution with :transforms/table target"
     (mt/test-drivers (mt/normal-drivers-with-feature :transforms/table)
-      (mt/with-premium-features #{:transforms-basic :transforms-python}
+      (mt/with-premium-features #{:transforms-basic :transforms-python :hosting}
         (mt/dataset transforms-dataset/transforms-test
           (let [schema (t2/select-one-fn :schema :model/Table (mt/id :transforms_products))]
             (with-transform-cleanup! [{table-name :name :as target} {:type   "table"
@@ -155,7 +156,7 @@
                     {transform-id :id} (mt/user-http-request :crowberto :post 200 "transform" original)]
                 (transforms.tu/test-run transform-id)
                 (transforms.tu/wait-for-table table-name 10000)
-                (is (true? (driver/table-exists? driver/*driver* (mt/db) target)))
+                (is (true? (driver/table-exists? driver/*driver* (lib.metadata/database (mt/metadata-provider)) target)))
                 (is (= [["Alice" 25] ["Bob" 30]] (sort-by first (transforms.tu/table-rows table-name))))))))))))
 
 (defn- subsequence?
@@ -211,7 +212,7 @@
           (assert exited? "Observation thread did not exit!"))))))
 
 (deftest python-transform-logging-test
-  (mt/with-premium-features #{:transforms-basic}
+  (mt/with-premium-features #{:transforms-basic :hosting}
     (letfn [(program->source [program]
               (->> (concat ["import pandas as pd"
                             "def transform():"]
@@ -290,7 +291,7 @@
         (mt/test-drivers (-> (mt/normal-drivers-with-feature :transforms/table)
                              ;; certain drivers are slow/unpredictable enough that the generous timings in this test are not enough
                              (disj :snowflake :redshift :bigquery-cloud-sdk))
-          (mt/with-premium-features #{:transforms-basic :transforms-python}
+          (mt/with-premium-features #{:transforms-basic :transforms-python :hosting}
             (mt/dataset transforms-dataset/transforms-test
               (let [schema (t2/select-one-fn :schema :model/Table (mt/id :transforms_products))]
                 (doseq [{:keys [expected
@@ -319,7 +320,7 @@
 
 (deftest get-python-transform-with-different-target-database-test
   (testing "GET /api/transform/:id correctly fetches target table from different database"
-    (mt/with-premium-features #{:transforms-basic :transforms-python}
+    (mt/with-premium-features #{:transforms-basic :transforms-python :hosting}
       (mt/with-temp [:model/Database target-db {:engine :h2
                                                 :details {:db "mem:target-db"}}
                      :model/Table target-table {:db_id (:id target-db)
@@ -462,7 +463,7 @@
         (mt/test-drivers (-> (mt/normal-drivers-with-feature :transforms/python)
                              ; these drivers cause timing issues, could be fixed if we change timeout / time variables in test
                              (disj :snowflake :bigquery-cloud-sdk :redshift :mongo))
-          (mt/with-premium-features #{:transforms-basic :transforms-python}
+          (mt/with-premium-features #{:transforms-basic :transforms-python :hosting}
             (mt/dataset transforms-dataset/transforms-test
               (let [schema (t2/select-one-fn :schema :model/Table (mt/id :transforms_products))]
                 (with-redefs [transforms-python.execute/python-message-loop-sleep-duration (Duration/ofMillis fast-log-polling-ms)]
@@ -483,7 +484,7 @@
                                 (is (not (str/includes? (str (:message last-run)) "script started"))))))
                           (when (some? expect-write)
                             (testing "table existence"
-                              (is (= expect-write (driver/table-exists? driver/*driver* (mt/db) target)))))))))
+                              (is (= expect-write (driver/table-exists? driver/*driver* (lib.metadata/database (mt/metadata-provider)) target)))))))))
                   ; todo We have not yet covered the case where we rerun the same transform while there might be some hangover.
                   ;      Cancellation addresses the transform and not the run, there is shared mutable state and races on it are possible
                   (testing "the runner is not blocked for a new run"
@@ -507,7 +508,7 @@
     (mt/test-drivers (disj (mt/normal-drivers-with-feature :transforms/python)
                            ;; takes too long on CI
                            :bigquery-cloud-sdk)
-      (mt/with-premium-features #{:transforms-basic :transforms-python}
+      (mt/with-premium-features #{:transforms-basic :transforms-python :hosting}
         (mt/dataset transforms-dataset/transforms-test
           (let [schema (get-test-schema)]
             (with-transform-cleanup! [{table-name :name :as target} {:type   "table"
@@ -557,7 +558,7 @@
 (deftest create-python-transform-with-table-ref-source-test
   (testing "Creating a Python transform with name-based source table refs is allowed"
     (mt/test-drivers (mt/normal-drivers-with-feature :transforms/table)
-      (mt/with-premium-features #{:transforms-basic :transforms-python}
+      (mt/with-premium-features #{:transforms-basic :transforms-python :hosting}
         (mt/dataset transforms-dataset/transforms-test
           (with-transform-cleanup! [target {:type   "table"
                                             :schema (get-test-schema)

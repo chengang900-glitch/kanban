@@ -1,7 +1,9 @@
 (ns metabase.server.routes.index-test
   (:require
    [clojure.test :refer :all]
+   [metabase.appearance.core :as appearance]
    [metabase.server.routes.index :as index]
+   [metabase.settings.core :as setting]
    [metabase.test :as mt]
    [metabase.util.i18n :as i18n]
    [metabase.util.json :as json]))
@@ -40,21 +42,12 @@
             json/decode)))))
 
 (deftest ^:parallel english-test
-  (testing "english should load the branded English catalog"
-    (is (= {"charset"      "utf-8"
-            "headers"      {"language" "en"}
-            "translations" {"" {"Metabase account" {"msgstr" ["Dashboard account"]}
-                                "Metabase is a Trademark of Metabase, Inc"
-                                {"msgstr" ["Metabase is a Trademark of Metabase, Inc"]}}}}
-           (some->
-            (binding [i18n/*user-locale* "en"]
-              (#'index/load-localization nil))
-            json/decode
-            (update "headers" select-keys ["language"])
-            (update "translations" select-keys [""])
-            (update-in ["translations" ""]
-                       select-keys
-                       ["Metabase account" "Metabase is a Trademark of Metabase, Inc"]))))))
+  (testing "English loads the branded catalogue"
+    (is (= ["Dashboard account"]
+           (some-> (binding [i18n/*user-locale* "en"]
+                     (#'index/load-localization nil))
+                   json/decode
+                   (get-in ["translations" "" "Metabase account" "msgstr"]))))))
 
 (deftest ^:parallel override-localization-test
   (testing "a valid override is honored no matter what the user locale is"
@@ -93,19 +86,17 @@
     (binding [i18n/*user-locale* "fr"]
       (is (= "fr" (:language (#'index/template-parameters false {})))))))
 
-(deftest login-bootstrap-includes-site-name-test
-  (mt/with-temporary-setting-values [site-name "国能数据看板"]
-    (is (= "国能数据看板"
-           (get (json/decode (:bootstrapJSON (#'index/template-parameters false {})))
-                "site-name")))))
-
 (deftest display-application-name-test
-  (mt/with-temporary-setting-values [application-name "Metabase"]
-    (binding [i18n/*user-locale* "zh-CN"]
-      (is (= "数据看板" (:applicationName (#'index/template-parameters false {})))))
+  (with-redefs [appearance/application-name (constantly "Metabase")
+                appearance/site-name (constantly "UhooAI")]
+    (is (= "UhooAI" (#'index/display-application-name))))
+  (with-redefs [appearance/application-name (constantly "Metabase")
+                appearance/site-name (constantly "Metabase")]
+    (binding [i18n/*user-locale* "zh_CN"]
+      (is (= "数据看板" (#'index/display-application-name))))
     (binding [i18n/*user-locale* "en"]
-      (is (= "Dashboard" (:applicationName (#'index/template-parameters false {}))))))
-  (mt/with-temporary-setting-values [application-name "自定义名称"]
-    (binding [i18n/*user-locale* "zh-CN"]
-      ;; The OSS getter remains feature-gated and returns its default value.
-      (is (= "数据看板" (:applicationName (#'index/template-parameters false {})))))))
+      (is (= "Dashboard" (#'index/display-application-name))))))
+
+(deftest public-site-name-survives-properties-refresh-test
+  (mt/with-temporary-setting-values [site-name "UhooAI"]
+    (is (= "UhooAI" (:site-name (setting/user-readable-values-map #{:public}))))))

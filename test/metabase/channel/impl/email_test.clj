@@ -2,6 +2,7 @@
   (:require
    [clojure.string :as str]
    [clojure.test :refer :all]
+   [java-time.api :as t]
    [metabase.channel.core :as channel]
    [metabase.channel.email :as email]
    [metabase.channel.impl.email :as email.impl]
@@ -85,6 +86,29 @@
         (is (true? (-> result first :card :format_rows))
             "Should include format_rows setting using the fallback match")))))
 
+(defn- test-dashcard
+  "A DashboardCard row for card `card-id` on dashboard `dashboard-id`, as a Dashboard Subscription part carries it."
+  [id dashboard-id card-id]
+  {:id                     id
+   :dashboard_id           dashboard-id
+   :card_id                card-id
+   :created_at             (t/offset-date-time)
+   :updated_at             (t/offset-date-time)
+   :size_x                 4
+   :size_y                 4
+   :row                    0
+   :col                    0
+   :parameter_mappings     []
+   :visualization_settings {}
+   :entity_id              "test-dashcard-entity"
+   :action_id              nil
+   :dashboard_tab_id       nil
+   :inline_parameters      nil})
+
+(def ^:private empty-result
+  "A QP result with no rows."
+  {:data {:cols [] :rows []} :row_count 0})
+
 (deftest dashboard-notification-dashcard-links-test
   (testing "Dashboard notification renders dashcard links with parameters like Slack implementation"
     (let [dashboard-id 42
@@ -103,8 +127,8 @@
                                   :dashboard_parts [{:type :card
                                                      :card {:id card-id
                                                             :name "Test Card"}
-                                                     :dashcard {:id dashcard-id
-                                                                :dashboard_id dashboard-id}}]
+                                                     :dashcard (test-dashcard dashcard-id dashboard-id card-id)
+                                                     :result empty-result}]
                                   :dashboard_subscription {:id 789
                                                            :dashboard_subscription_dashcards []}}}
           recipients [{:type :notification-recipient/user
@@ -142,7 +166,7 @@
             (testing "the healthy card still renders"
               (is (str/includes? content "GOOD-CARD-BODY")))
             (testing "the failed card degrades to the error placeholder"
-              (is (str/includes? content "显示此卡片时发生错误。")))))))))
+              (is (str/includes? content "An error occurred while displaying this card.")))))))))
 
 (deftest render-body-prometheus-metric-test
   (testing "rendering a user-provided template increments the template-render counter"
@@ -194,28 +218,30 @@
                            (re-find #"Hello" message))
                          (messages)))))))))
 
-(deftest notification-card-email-is-localized-without-branding-test
-  (testing "notification card emails hide branding, use Chinese labels, and preserve destination links"
+(deftest email-branding-hidden-when-whitelabel-test
+  (testing "the 'Made with Metabase' footer respects the :whitelabel premium feature"
     (notification.tu/with-notification-testing-setup!
-      (mt/with-temporary-setting-values [site-url "https://testmb.com"]
-        (notification.tu/with-card-notification
-          [notification {:card         {:name          "Orders question"
-                                        :dataset_query (let [mp (mt/metadata-provider)]
-                                                         (-> (lib/query mp (lib.metadata/table mp (mt/id :orders)))
-                                                             (lib/limit 1)))}
-                         :subscriptions [{:type          :notification-subscription/cron
-                                          :cron_schedule "0 0 0 * * ? *"}]
-                         :handlers      [{:channel_type :channel/email
-                                          :recipients   [{:type    :notification-recipient/user
-                                                          :user_id (mt/user->id :crowberto)}]}]}]
-          (mt/with-premium-features #{}
-            (let [content (-> (notification.tu/with-captured-channel-send!
-                                (#'notification.send/send-notification-sync! notification))
-                              :channel/email first :message first :content)]
-              (is (not (str/includes? content "Made with")))
-              (is (not (str/includes? content "exports_branding")))
-              (is (str/includes? content "每天 00:00 运行（"))
-              (is (str/includes? content "发送人："))
-              (is (str/includes? content "发送自 <a href=\"https://testmb.com\""))
-              (is (str/includes? content "href=\"https://testmb.com/account/notifications\""))
-              (is (str/includes? content "管理订阅")))))))))
+      (notification.tu/with-card-notification
+        [notification {:card         {:name          "Orders question"
+                                      :dataset_query (let [mp (mt/metadata-provider)]
+                                                       (-> (lib/query mp (lib.metadata/table mp (mt/id :orders)))
+                                                           (lib/limit 1)))}
+                       :subscriptions [{:type          :notification-subscription/cron
+                                        :cron_schedule "0 0 0 * * ? *"}]
+                       :handlers      [{:channel_type :channel/email
+                                        :recipients   [{:type    :notification-recipient/user
+                                                        :user_id (mt/user->id :crowberto)}]}]}]
+        (let [render! (fn []
+                        (-> (notification.tu/with-captured-channel-send!
+                              (#'notification.send/send-notification-sync! notification))
+                            :channel/email first :message first :content))]
+          (testing "branding link is present without whitelabel"
+            (mt/with-premium-features #{}
+              (is (str/includes? (render!) "Made with"))))
+          ;; Whitelabeling is only wired up in EE builds (`enable-whitelabeling?` is gated on
+          ;; `config/ee-available?`), so `:whitelabel` can never hide the footer on OSS builds.
+          ;; The EE app-db jobs run this same file with EE on the classpath and cover the hidden case.
+          (mt/when-ee-evailable
+           (testing "branding link is hidden with whitelabel"
+             (mt/with-premium-features #{:whitelabel}
+               (is (not (str/includes? (render!) "Made with")))))))))))

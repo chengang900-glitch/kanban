@@ -85,7 +85,7 @@
                                [:map {:closed true}
                                 [:from ms/Email]
                                 [:to [:= [email]]]
-                                [:subject [:= (format "数据看板新设备登录提醒：%s" first-name)]]
+                                [:subject [:= (format "We've Noticed a New Metabase Login, %s" first-name)]]
                                 [:body [:sequential [:map
                                                      [:type [:= "text/html; charset=utf-8"]]
                                                      [:content :string]]]]]]
@@ -95,8 +95,8 @@
                     (testing (format "\nMessage = %s\nsite-url = %s" (pr-str message) (pr-str site-url))
                       (is (string? message))
                       (when (string? message)
-                        (doseq [expected-str ["检测到你的数据看板账号有一次新设备登录"
-                                              (format "你好，%s。你的数据看板账号刚刚从一台新设备登录。"
+                        (doseq [expected-str ["We've noticed a new login on your Metabase account."
+                                              (format "Hi, %s. We noticed a login on your Metabase account from a new device."
                                                       first-name)
                                               "Browser (Chrome/Windows) - San Francisco, California, United States"
                                               ;; `format-human-readable` has slightly different output on different JVMs
@@ -150,17 +150,17 @@
         (mt/with-temp [:model/User {user-id :id
                                     email :email} {:first_name "Ngoc"
                                                    :last_name  "Khuat"}]
-          (is (contains? (new-login-email user-id email) "数据看板新设备登录提醒：Ngoc"))))
+          (is (contains? (new-login-email user-id email) "We've Noticed a New Metabase Login, Ngoc"))))
       (testing "fallback to last name if user has no first_name"
         (mt/with-temp [:model/User {user-id :id email :email} {:first_name nil :last_name  "Khuat"}]
           (is (contains? (new-login-email user-id email)
-                         "数据看板新设备登录提醒：Khuat"))))
+                         "We've Noticed a New Metabase Login, Khuat"))))
       (testing "Else Use email if both first_name and last_name are null"
         (mt/with-temp [:model/User {user-id :id email :email} {:first_name nil
                                                                :last_name  nil
                                                                :email      "cto@metabase.com"}]
           (is (contains? (new-login-email user-id email)
-                         "数据看板新设备登录提醒：cto@metabase.com")))))))
+                         "We've Noticed a New Metabase Login, cto@metabase.com")))))))
 
 (deftest create-session-test
   (mt/with-temp [:model/User {user-id :id}]
@@ -195,3 +195,29 @@
           (is (not= (codecs/bytes->hex (buddy-hash/sha512 key-bytes))
                     (session/hash-session-key session-key))
               "keyed hash must differ from the unsalted SHA-512 an attacker can compute"))))))
+
+(deftest before-update-only-allows-an-ending-test
+  (mt/with-temp [:model/User {user-id :id}]
+    (mt/with-model-cleanup [:model/Session]
+      (let [session-id (session/generate-session-id)]
+        (t2/insert! :model/Session {:id session-id :user_id user-id :session_key (session/generate-session-key)})
+        (testing "no column outside the four an ending writes can be updated"
+          (doseq [changes [{:expires_at (t/instant)}
+                           {:user_id (mt/user->id :rasta)}
+                           {:last_active_at (t/instant)}
+                           {:ended_at (t/instant), :expires_at (t/instant)}]]
+            (is (thrown-with-msg? RuntimeException #"You cannot update a Session"
+                                  (t2/update! :model/Session session-id changes)))))
+        (testing "recording an ending is allowed"
+          (is (= 1 (t2/update! :model/Session session-id {:ended_at         (t/instant)
+                                                          :end_reason       "admin"
+                                                          :ended_by_user_id (mt/user->id :crowberto)
+                                                          :key_hashed       nil}))))
+        (testing "an ending is final: nothing an ending writes can be changed once it is recorded"
+          (doseq [changes [{:ended_at nil}
+                           {:ended_at (t/instant)}
+                           {:end_reason "timed-out"}
+                           {:ended_by_user_id (mt/user->id :rasta)}
+                           {:key_hashed (session/hash-session-key (session/generate-session-key))}]]
+            (is (thrown-with-msg? RuntimeException #"You cannot change a Session that has ended"
+                                  (t2/update! :model/Session session-id changes)))))))))

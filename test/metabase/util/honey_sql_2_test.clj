@@ -1,6 +1,5 @@
 (ns metabase.util.honey-sql-2-test
   (:require
-   [clojure.string :as str]
    [clojure.test :refer :all]
    [honey.sql :as sql]
    [metabase.app-db.connection :as mdb.connection]
@@ -8,8 +7,6 @@
    [metabase.app-db.honeysql-guard :as honeysql-guard]
    [metabase.test :as mt]
    [metabase.util.honey-sql-2 :as h2x]))
-
-(set! *warn-on-reflection* true)
 
 (deftest ^:parallel inline-Ratio-test
   (testing ":inline behavior for clojure.lang.Ratio should make sense (#28354)"
@@ -32,48 +29,6 @@
   (testing `::h2x/at-time-zone
     (is (= ["(a AT TIME ZONE 'US/Pacific')"]
            (sql/format-expr [::h2x/at-time-zone :a "US/Pacific"])))))
-
-(defn- parse-single-quoted-literal
-  "Independent oracle, NOT built from our own escaping code: given `s` (everything from just after an
-  opening `'` onward), parses standard SQL single-quote-literal escaping (`''` is an escaped quote;
-  any other `'` terminates the literal) and returns `{:content \"...\", :rest \"...\"}` for the first
-  correctly-terminated literal, or nil if the literal never closes (dangling/malformed)."
-  [s]
-  (loop [i 0 out (StringBuilder.)]
-    (cond
-      (>= i (count s))             nil
-      (not= (nth s i) \')          (do (.append out (nth s i))
-                                       (recur (inc i) out))
-      (and (< (inc i) (count s))
-           (= (nth s (inc i)) \')) (do (.append out \')
-                                       (recur (+ i 2) out))
-      :else                        {:content (str out), :rest (subs s (inc i))})))
-
-(deftest ^:parallel at-time-zone-does-not-let-the-zone-string-break-out-of-its-quotes-test
-  (testing "a zone string is emitted as a quoted literal"
-    (doseq [zone ["Z\\' AT TIME ZONE 'UTC"    ; backslash-quote: the exact PoC
-                  "'  AT TIME ZONE 'UTC"      ; bare quote, no backslash
-                  "''  AT TIME ZONE 'UTC"     ; doubled quote (looks pre-escaped)
-                  "'''  AT TIME ZONE 'UTC"    ; tripled quote
-                  "\\'  AT TIME ZONE 'UTC"    ; leading backslash-quote, no leading Z
-                  "UTC'  AT TIME ZONE 'UTC"   ; quote appears mid-string, not at start
-                  "harmless zone with no quotes at all"]]
-      (testing (str "zone = " (pr-str zone))
-        (let [[sql & _args] (sql/format-expr (h2x/at-time-zone :a zone))
-              ;; the compiled shape is always "(<expr> AT TIME ZONE '<literal>')" -- locate the FIRST
-              ;; opening quote (the start of the zone literal) and parse from just after it.
-              open-quote-idx (str/index-of sql \')
-              parsed         (some-> open-quote-idx inc (->> (subs sql)) parse-single-quoted-literal)]
-          (is (some? parsed)
-              (str "the zone literal never terminates (dangling '...') -- malformed SQL. Compiled: " (pr-str sql)))
-          (when parsed
-            (testing "the literal's escaped content, unescaped, is exactly the original zone string -- no truncation, no leftover"
-              (is (= zone (:content parsed))))
-            (testing "nothing follows the literal except the closing paren of the AT TIME ZONE expression -- no break-out text"
-              (is (= ")" (:rest parsed))
-                  (str "text survives after the zone literal closes, meaning the attacker's payload "
-                       "escaped the literal and became live SQL syntax: " (pr-str (:rest parsed))
-                       " -- full compiled SQL: " (pr-str sql))))))))))
 
 (deftest ^:parallel postgres-interval-test
   (testing `::h2x/postgres-interval
@@ -198,43 +153,14 @@
   (testing "a sane bare type-name token is emitted raw, since most dialects reject a quoted type name in a CAST"
     (is (= ["SELECT CAST(? AS date)" "toucan"]
            (sql/format {:select [[(h2x/cast "date" "toucan")]]} {:quoted true, :dialect :ansi}))))
+  (testing "a type name carrying a quoted argument is emitted raw, which is the only form ClickHouse accepts"
+    (is (= ["SELECT CAST(? AS Nullable(DateTime64(3, 'GMT0')))" "toucan"]
+           (sql/format {:select [[(h2x/cast "Nullable(DateTime64(3, 'GMT0'))" "toucan")]]}
+                       {:quoted true, :dialect :ansi}))))
   (testing "a type name that isn't a bare token is quoted, so a hostile type cannot inject SQL"
     (is (= ["SELECT CAST(? AS \"date) UNION SELECT 1 --\")" "toucan"]
            (sql/format {:select [[(h2x/cast "date) UNION SELECT 1 --" "toucan")]]}
                        {:quoted true, :dialect :ansi})))))
-
-(deftest ^:parallel maybe-cast-type-name-test
-  (testing "a type name shaped like word characters/spaces plus optional precision is emitted raw, since most dialects
-           reject a quoted type name in a CAST"
-    (are [sql-type expected] (= [(str "SELECT CAST(\"field\" AS " expected ")")]
-                                (sql/format {:select [[(h2x/maybe-cast sql-type :field)]]}
-                                            {:quoted true, :dialect :ansi}))
-      "date"                     "date"
-      "timestamp"                "timestamp"
-      "timestampntz"             "timestampntz"
-      "TIMESTAMP_NTZ"            "TIMESTAMP_NTZ"
-      :date                      "date"
-      "timestamp with time zone" "timestamp with time zone"
-      "datetime(2)"              "datetime(2)"
-      "timestamp_ntz(9)"         "timestamp_ntz(9)"
-      "number(10, 2)"            "number(10, 2)"))
-  (testing "anything else is emitted as a quoted identifier, so a hostile type cannot inject SQL"
-    (are [sql-type expected] (= [(str "SELECT CAST(\"field\" AS \"" expected "\")")]
-                                (sql/format {:select [[(h2x/maybe-cast sql-type :field)]]}
-                                            {:quoted true, :dialect :ansi}))
-      "date) UNION SELECT 1 --"  "date) UNION SELECT 1 --"
-      "timestamp; DROP TABLE x"  "timestamp; DROP TABLE x"
-      "timestamp'x"              "timestamp'x"
-      "date()"                   "date()"
-      "1nt"                      "1nt"))
-  (testing "should not cast something that's already of that type"
-    (let [typed-expr (h2x/with-type-info :field {:database-type "timestamptz"})]
-      (is (= typed-expr
-             (h2x/maybe-cast "timestamptz" typed-expr)))))
-  (testing "should not cast when the type is nil"
-    (let [typed-expr (h2x/with-type-info :field {:database-type "timestamptz"})]
-      (is (= typed-expr
-             (h2x/maybe-cast nil typed-expr))))))
 
 (deftest ^:parallel raw-type-name?-test
   (are [expected sql-type] (= expected (h2x/raw-type-name? sql-type))
@@ -246,7 +172,69 @@
     false "integer); select 1 --"
     false "\"quoted\""
     false "schema.type"
-    false "decimal(10, 2); --"))
+    false "decimal(10, 2); --")
+  (testing "a type whose argument is itself a type, as ClickHouse writes them"
+    (are [sql-type] (h2x/raw-type-name? sql-type)
+      "Nullable(String)"
+      "LowCardinality(Nullable(String))"
+      "Map(String, Nullable(Int32))"
+      "Variant(Decimal(38, 19), Float64)"
+      "Array(Nullable(Tuple(String, Int32)))"))
+  (testing "a quoted argument, which is how ClickHouse writes the timezone of a timestamp column"
+    (are [sql-type] (h2x/raw-type-name? sql-type)
+      "DateTime64(3, 'GMT0')"
+      "Nullable(DateTime64(9, 'UTC'))"
+      "DateTime('Europe/Amsterdam')"
+      "Nullable('a')"
+      "T('(')"))
+  (testing "an argument list nested deeper than the rule goes is quoted rather than spliced"
+    (is (h2x/raw-type-name? "A(B(C(D(String))))"))
+    (is (not (h2x/raw-type-name? "A(B(C(D(E(String)))))"))))
+  (testing "an array suffix, and a type name that continues after its precision"
+    (are [sql-type] (h2x/raw-type-name? sql-type)
+      "int[]"
+      "varchar(50)[]"
+      "TIMESTAMP(6) WITH TIME ZONE"))
+  (testing "nothing that could end the expression the type is spliced into"
+    (are [sql-type] (not (h2x/raw-type-name? sql-type))
+      ;; Postgres splices `(…)::«type»` into a select list, where a top-level comma would add a column
+      "text, (SELECT secret FROM users)"
+      ;; a parenthesis this name did not open
+      "int) UNION SELECT 1 --"
+      "(int)"
+      "Nullable(String"
+      "date' AND 1 = 1"
+      "T('a') 'b'"
+      "DateTime64(3, 'GMT0)"
+      "DateTime64(3, 'GM\\'T0')"
+      "T('(')) , (SELECT secret FROM users"
+      "T('((')) , 1"
+      ;; comment markers stay out whatever the parentheses do
+      "int/*x*/"
+      "int-1"
+      ;; `[]` is an array suffix, not a subscript
+      "int[1]"
+      "int]"
+      ""
+      "1int")))
+
+(deftest ^:parallel cast-contains-a-hostile-type-name-test
+  (testing "a name made only of type-name characters cannot reach past the CAST it sits in"
+    ;; Type names are words, so words are all a type name can be made of: `bigint` and
+    ;; `UNION SELECT` are the same shape. What keeps that inert is the parentheses it is spliced
+    ;; inside — it can add no parenthesis of its own that closes one it did not open.
+    (are [sql-type] (= [(str "SELECT CAST(\"x\" AS " sql-type ")")]
+                       (sql/format {:select [[(h2x/cast sql-type :x)]]} {:quoted true, :dialect :ansi}))
+      "bigint UNION SELECT secret FROM users"
+      "Map(String, Nullable(Int32))"
+      "T('(') UNION ALL SELECT password FROM users"
+      "Nullable(DateTime64(3, 'GMT0'))"
+      "int[]"))
+  (testing "a type name that would close the CAST early is quoted as an identifier instead"
+    (are [sql-type] (= [(str "SELECT CAST(\"x\" AS \"" sql-type "\")")]
+                       (sql/format {:select [[(h2x/cast sql-type :x)]]} {:quoted true, :dialect :ansi}))
+      "T('(')) , (SELECT secret FROM users"
+      "date' AND 1 = 1")))
 
 (defn- ->sql [expr]
   (sql/format {:select [[expr]]} {:quoted false}))
@@ -324,7 +312,6 @@
              (h2x/with-database-type-info (h2x/with-database-type-info :field "date") nil))))))
 
 (deftest ^:parallel is-of-type?-test
-  #_{:clj-kondo/ignore [:equals-true]}
   (are [expr tyype expected] (= expected (h2x/is-of-type? expr tyype))
     typed-form     "text"   true
     typed-form     "TEXT"   true

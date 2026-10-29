@@ -42,18 +42,16 @@ This metric supports grouping and filtering by the following fields, categorized
 
 ## Instructions
 
-1. Write every generated question in natural Simplified Chinese. Do not output an English question.
-2. Translate metric and dimension names into natural Simplified Chinese when possible. Keep proper nouns, established acronyms, and identifiers in their original language only when translating them would reduce clarity.
-3. Generate 5 diverse, natural-sounding example questions using the metric and its dimensions.
-4. Use the metric as the central measure in every question.
-5. Choose dimensions that make sense based on their names and types:
+1. Generate 5 diverse, natural-sounding example questions using the metric and its dimensions.
+2. Use the metric as the central measure in every question.
+3. Choose dimensions that make sense based on their names and types:
    - Categorical → dimension
    - Date/Datetime → time_dimension
    - Boolean → status
-6. Avoid exact values (like specific customer names or hardcoded dates).
-7. Rewrite field names into natural language where helpful (e.g., "is_active" → "活跃").
-8. Use a variety of template types to show different ways of analyzing the metric.
-9. Make sure each question is semantically valid and safe to run in a simplified query tool.
+4. Avoid exact values (like specific customer names or hardcoded dates).
+5. Rewrite field names into natural language where helpful (e.g., "is_active" → "active").
+6. Use a variety of template types to show different ways of analyzing the metric.
+7. Make sure each question is semantically valid and safe to run in a simplified query tool.
 
 ## Response format
 Respond with a valid JSON object containing the following fields:
@@ -93,11 +91,11 @@ Response:
 ```json
 {
     "questions": [
-        "各营销渠道的平均客户获取成本是多少？",
-        "过去 6 个月的客户获取成本趋势如何？",
-        "比较不同地区的客户获取成本。",
-        "按客户细分查看客户获取成本趋势。",
-        "新客户的客户获取成本环比变化如何？"
+        "What is the average Customer Acquisition Cost by Marketing Channel?",
+        "How has the Customer Acquisition Cost trended over the past 6 months?",
+        "Compare Customer Acquisition Cost across different regions.",
+        "Show trends in Customer Acquisition Cost by Customer Segment.",
+        "What is the month-over-month change in Customer Acquisition Cost for new customers?"
     ]
 }
 ```

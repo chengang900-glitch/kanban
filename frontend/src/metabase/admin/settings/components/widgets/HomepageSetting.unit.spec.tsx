@@ -13,6 +13,7 @@ import {
   setupSettingsEndpoints,
   setupUpdateSettingsEndpoint,
 } from "__support__/server-mocks";
+import { createMockSettingsState } from "__support__/state";
 import {
   mockGetBoundingClientRect,
   renderWithProviders,
@@ -20,6 +21,7 @@ import {
   waitFor,
 } from "__support__/ui";
 import { UndoListing } from "metabase/common/components/UndoListing";
+import { useGetCurrentUserQuery } from "metabase/current-user";
 import { PLUGIN_HOMEPAGE_SETTING } from "metabase/plugins";
 import {
   createMockCollection,
@@ -115,17 +117,26 @@ const setup = ({
     ? { label: "Custom URL", Control: FakeUrlControl }
     : null;
 
+  // Mount a subscriber here to test invalidation
+  const UserSubscriber = () => {
+    useGetCurrentUserQuery();
+    return null;
+  };
+
   return renderWithProviders(
     <div>
+      <UserSubscriber />
       <HomepageSetting />
       <UndoListing />
     </div>,
+    { storeInitialState: { settings: createMockSettingsState(settings) } },
   );
 };
 
 const findBulkPutBody = async () => {
   const requests = await findRequests("PUT");
   const bulk = requests.find(({ url }) => url.endsWith("/api/setting"));
+  // Unjustified type cast. FIXME
   return bulk?.body as Record<string, unknown> | undefined;
 };
 
@@ -160,7 +171,9 @@ describe("HomepageSetting", () => {
   it("renders the radio with default option selected when nothing is set", async () => {
     setup();
     expect(await screen.findByText("Homepage")).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Default home" })).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: "Default Metabase home" }),
+    ).toBeChecked();
     expect(screen.getByRole("radio", { name: "Dashboard" })).not.toBeChecked();
     expect(screen.queryByText("Pick a dashboard")).not.toBeInTheDocument();
   });
@@ -203,7 +216,7 @@ describe("HomepageSetting", () => {
   it("treats a bare-slash landing page as Default", async () => {
     setup({ withCustomUrlPlugin: true, "landing-page": "/" });
     expect(
-      await screen.findByRole("radio", { name: "Default home" }),
+      await screen.findByRole("radio", { name: "Default Metabase home" }),
     ).toBeChecked();
   });
 
@@ -224,7 +237,7 @@ describe("HomepageSetting", () => {
     setup({ withCustomUrlPlugin: true, "landing-page": "/some/url" });
 
     await userEvent.click(
-      await screen.findByRole("radio", { name: "Default home" }),
+      await screen.findByRole("radio", { name: "Default Metabase home" }),
     );
 
     await waitFor(async () => {
@@ -257,7 +270,9 @@ describe("HomepageSetting", () => {
 
     expect(await screen.findByText("My dashboard")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("radio", { name: "Default home" }));
+    await userEvent.click(
+      screen.getByRole("radio", { name: "Default Metabase home" }),
+    );
     expect(screen.queryByText("My dashboard")).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("radio", { name: "Dashboard" }));
@@ -268,7 +283,9 @@ describe("HomepageSetting", () => {
     setup({ "custom-homepage": true, "custom-homepage-dashboard": 4242 });
 
     await screen.findByText("My dashboard");
-    await userEvent.click(screen.getByRole("radio", { name: "Default home" }));
+    await userEvent.click(
+      screen.getByRole("radio", { name: "Default Metabase home" }),
+    );
 
     await waitFor(async () => {
       const body = await findBulkPutBody();

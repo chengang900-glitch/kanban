@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
-import "embedding-sdk-bundle";
 
+import "embedding-sdk-bundle";
 import { EMBEDDING_SDK_BUNDLE_UNKNOWN_VERSION } from "build-configs/embedding-sdk/constants/versions";
 import { useLogVersionInfo } from "embedding-sdk-bundle/hooks/private/use-log-version-info";
 import { getIsLocalhost } from "embedding-sdk-bundle/lib/get-is-localhost";
@@ -9,9 +9,6 @@ import { USAGE_PROBLEM_MESSAGES } from "embedding-sdk-bundle/lib/usage-problem";
 import { getBuildInfo } from "embedding-sdk-shared/lib/get-build-info";
 import { isHostAppInDevMode } from "embedding-sdk-shared/lib/is-host-app-in-dev-mode";
 
-jest.mock("embedding-sdk-shared/hooks/use-lazy-selector", () => ({
-  useLazySelector: jest.fn((selector) => selector()),
-}));
 jest.mock("embedding-sdk-shared/lib/get-build-info", () => ({
   getBuildInfo: jest.fn(),
 }));
@@ -21,6 +18,7 @@ jest.mock("embedding-sdk-bundle/lib/get-is-localhost", () => ({
 }));
 
 jest.mock("embedding-sdk-bundle/lib/host-react-version", () => ({
+  ...jest.requireActual("embedding-sdk-bundle/lib/host-react-version"),
   getHostReactMajorVersion: jest.fn(),
 }));
 
@@ -35,9 +33,11 @@ const setup = async ({
   sdkPackageVersion: string;
   sdkBundleVersion: string;
 }) => {
+  // Unjustified type cast. FIXME
   (getBuildInfo as jest.Mock).mockReturnValueOnce({
     version: sdkPackageVersion,
   });
+  // Unjustified type cast. FIXME
   (getBuildInfo as jest.Mock).mockReturnValueOnce({
     version: sdkBundleVersion,
   });

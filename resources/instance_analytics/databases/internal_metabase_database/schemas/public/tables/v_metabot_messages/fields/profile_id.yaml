@@ -1,6 +1,6 @@
 name: profile_id
 display_name: Profile ID
-description: AI机器人 profile (e.g. default, embedded) that produced the message.
+description: Metabot profile (e.g. default, embedded) that produced the message.
 created_at: '2026-04-21T23:16:38.089896Z'
 visibility_type: normal
 table_id:
@@ -13,7 +13,6 @@ effective_type: type/Text
 semantic_type: type/Category
 dimensions: []
 position: 4
-custom_position: 0
 database_position: 4
 has_field_values: auto-list
 serdes/meta:

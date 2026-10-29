@@ -92,9 +92,14 @@ describe("Static Embed Setup phase", () => {
           ),
         ).toBeVisible();
 
-        expect(
-          screen.queryByRole("link", { name: "documentation" }),
-        ).not.toBeInTheDocument();
+        const link = screen.getByRole("link", {
+          name: "documentation",
+        });
+        expect(link).toBeVisible();
+        expect(link).toHaveAttribute(
+          "href",
+          "https://www.metabase.com/docs/latest/embedding/static-embedding.html?utm_source=product&utm_medium=docs&utm_campaign=embedding-static&utm_content=static-embed-settings-overview&source_plan=oss",
+        );
 
         expect(
           screen.getByText(
@@ -374,7 +379,7 @@ describe("Static Embed Setup phase", () => {
     });
 
     describe("Look and Feel tab", () => {
-      it("should hide link to documentation", async () => {
+      it("should render link to documentation", async () => {
         await setup({
           props: {
             resourceType,
@@ -384,9 +389,14 @@ describe("Static Embed Setup phase", () => {
 
         expect(screen.getByText("Customizing look and feel")).toBeVisible();
 
-        expect(
-          screen.queryByRole("link", { name: "documentation" }),
-        ).not.toBeInTheDocument();
+        const link = screen.getByRole("link", {
+          name: "documentation",
+        });
+        expect(link).toBeVisible();
+        expect(link).toHaveAttribute(
+          "href",
+          "https://www.metabase.com/docs/latest/embedding/static-embedding.html?utm_source=product&utm_medium=docs&utm_campaign=embedding-static&utm_content=static-embed-settings-look-and-feel&source_plan=oss#customizing-the-appearance-of-static-embeds",
+        );
       });
 
       it("should render Code mode by default", async () => {
@@ -448,7 +458,7 @@ describe("Static Embed Setup phase", () => {
         );
       });
 
-      it("should not render Font selector or upgrade link", async () => {
+      it("should not render Font selector", async () => {
         await setup({
           props: {
             resourceType,
@@ -457,29 +467,47 @@ describe("Static Embed Setup phase", () => {
         });
 
         expect(
-          screen.queryByText(
+          screen.getByText(
             getBrokenUpTextMatcher("You can change the font with a paid plan."),
           ),
-        ).not.toBeInTheDocument();
-        expect(
-          screen.queryByRole("link", { name: "a paid plan" }),
-        ).not.toBeInTheDocument();
+        ).toBeVisible();
+
+        const link = within(
+          screen.getByLabelText("Customizing look and feel"),
+        ).getByRole("link", {
+          name: "a paid plan",
+        });
+        expect(link).toBeVisible();
+        expect(link).toHaveAttribute(
+          "href",
+          "https://www.metabase.com/upgrade?utm_source=product&utm_medium=upsell&utm_campaign=embedding-static-font&utm_content=static-embed-settings-look-and-feel&source_plan=oss",
+        );
       });
 
-      it('should not render the "Powered by Metabase" upsell', async () => {
+      it('should render "Powered by Metabase" banner caption', async () => {
         await setup({
           props: {},
           activeTab: "Look and Feel",
         });
 
+        expect(screen.getByText("Removing the banner")).toBeVisible();
+
         expect(
-          screen.queryByText(
+          screen.getByText(
             "The “Powered by Metabase” banner appears on all guest embeds created with your current version. Upgrade to remove it (and customize a lot more)",
           ),
-        ).not.toBeInTheDocument();
-        expect(
-          screen.queryByRole("link", { name: "Upgrade plan" }),
-        ).not.toBeInTheDocument();
+        ).toBeVisible();
+
+        const link = within(
+          screen.getByLabelText("Removing the banner"),
+        ).getByRole("link", {
+          name: "Upgrade plan",
+        });
+        expect(link).toBeVisible();
+        expect(link).toHaveAttribute(
+          "href",
+          "https://www.metabase.com/upgrade?utm_source=product&utm_medium=upsell&utm_campaign=remove-mb-branding&utm_content=static-embed-settings-look-and-feel&source_plan=oss",
+        );
       });
     });
   });

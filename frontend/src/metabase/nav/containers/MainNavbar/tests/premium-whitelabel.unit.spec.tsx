@@ -11,16 +11,16 @@ function setupWhitelabelled(opts: SetupOpts) {
   });
 }
 
-describe("nav > containers > MainNavbar (EE with token)", () => {
-  it("does not render Getting Started even when the application name is unchanged", async () => {
+describe("nav > containers > MainNavbar (EE with token) > Getting Started section", () => {
+  it("should render if the instance has the `whitelabel` token feature but didn't change the application name", async () => {
     await setupWhitelabelled({
       user: createMockUser({ is_superuser: true }),
       applicationName: "Metabase",
     });
-    const section = screen.queryByRole("tab", {
+    const section = screen.getByRole("tab", {
       name: /^Getting Started/i,
     });
-    expect(section).not.toBeInTheDocument();
+    expect(section).toBeInTheDocument();
   });
 
   it("should not render if the instance application name has changed", async () => {

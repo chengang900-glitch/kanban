@@ -25,7 +25,7 @@ describe("setup (EE build, only `hosting` feature to simulate starter plan on cl
     await setupPremium();
     await skipWelcomeScreen();
     expectSectionToHaveLabel("What should we call you?", "1");
-    expectSectionToHaveLabel("What will you use Dashboard for?", "2");
+    expectSectionToHaveLabel("What will you use Metabase for?", "2");
     expectSectionToHaveLabel("Add your data", "3");
     // no "Activate your commercial license" as this has token-features
     // no "Usage data preferences" as this is a hosted instance

@@ -12,7 +12,7 @@ function setup(opts: SetupOpts) {
 }
 
 describe("ExplainerText (EE with token)", () => {
-  it("should hide the external help link when `show-metabase-links: true`", () => {
+  it("should render help link when `show-metabase-links: true`", () => {
     setup({ showMetabaseLinks: true });
 
     expect(

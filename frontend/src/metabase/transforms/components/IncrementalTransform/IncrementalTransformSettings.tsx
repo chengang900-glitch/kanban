@@ -1,14 +1,23 @@
 import { useFormikContext } from "formik";
 import { t } from "ttag";
 
+import { ExternalLink } from "metabase/common/components/ExternalLink";
 import { TitleSection } from "metabase/common/data-studio/components/TitleSection";
+import { useDocsUrl } from "metabase/common/hooks";
 import { FormSelect } from "metabase/forms";
-import { PLUGIN_REMOTE_SYNC } from "metabase/plugins";
-import { useSelector } from "metabase/redux";
-import { getMetadata } from "metabase/selectors/metadata";
+import { useMetadataProviderFactory } from "metabase/metadata-store";
 import { SOURCE_STRATEGY_OPTIONS } from "metabase/transforms/constants";
 import { getLibQuery } from "metabase/transforms/utils";
-import { Box, Divider, Group, Stack, Switch, Text, Tooltip } from "metabase/ui";
+import {
+  Anchor,
+  Box,
+  Divider,
+  Group,
+  Stack,
+  Switch,
+  Text,
+  Tooltip,
+} from "metabase/ui";
 import * as Lib from "metabase-lib";
 import type { TableId, TransformSource } from "metabase-types/api";
 import type { TransformType } from "metabase-types/api/transform";
@@ -18,6 +27,7 @@ import {
   NativeQueryTableTagFieldSelect,
   PythonKeysetColumnSelect,
 } from "./KeysetColumnSelect";
+import { LookbackField } from "./LookbackField";
 import { UniqueKeyField } from "./UniqueKeyField";
 import type { IncrementalSettingsFormValues } from "./form";
 import { useHasCheckpointOptions } from "./useHasCheckpointOptions";
@@ -28,6 +38,7 @@ type IncrementalTransformSettingsProps = {
   onIncrementalChange: (value: boolean) => void;
   variant?: "embedded" | "standalone";
   readOnly?: boolean;
+  remoteSyncReadOnly?: boolean;
   extraActions?: React.ReactNode;
   // When the target table already exists, its id powers a column picker for the unique key.
   targetTableId?: TableId;
@@ -39,14 +50,12 @@ export const IncrementalTransformSettings = ({
   onIncrementalChange,
   variant = "embedded",
   readOnly,
+  remoteSyncReadOnly,
   extraActions,
   targetTableId,
 }: IncrementalTransformSettingsProps) => {
-  const metadata = useSelector(getMetadata);
-  const libQuery = getLibQuery(source, metadata);
-  const isRemoteSyncReadOnly = useSelector(
-    PLUGIN_REMOTE_SYNC.getIsRemoteSyncReadOnly,
-  );
+  const getMetadataProvider = useMetadataProviderFactory();
+  const libQuery = getLibQuery(source, getMetadataProvider);
 
   const { hasCheckpointOptions, transformType } =
     useHasCheckpointOptions(source);
@@ -56,6 +65,12 @@ export const IncrementalTransformSettings = ({
   const isNativeWithoutTableTags = getIsNativeWithoutTableVariables(
     libQuery,
     transformType,
+  );
+
+  const { url: incrementalTransformsDocsUrl, showMetabaseLinks } = useDocsUrl(
+    transformType === "python"
+      ? "data-studio/transforms/python-transforms#incremental-python-transforms"
+      : "data-studio/transforms/query-transforms#incremental-query-transforms",
   );
 
   const renderIncrementalSwitch = () => {
@@ -79,13 +94,8 @@ export const IncrementalTransformSettings = ({
 
     const switchContent = (
       <Switch
-        disabled={
-          readOnly ||
-          isRemoteSyncReadOnly ||
-          (!incremental && transformHasIssues)
-        }
+        disabled={readOnly || (!incremental && transformHasIssues)}
         checked={incremental}
-        size="sm"
         label={getLabel()}
         wrapperProps={{
           "data-testid": "incremental-switch",
@@ -94,7 +104,7 @@ export const IncrementalTransformSettings = ({
       />
     );
 
-    if (isRemoteSyncReadOnly) {
+    if (remoteSyncReadOnly) {
       return (
         <Tooltip
           label={t`You can't edit this setting since Remote Sync is currently in read-only mode.`}
@@ -111,16 +121,33 @@ export const IncrementalTransformSettings = ({
   const label = t`Incremental transformation`;
   const renderDescription = () => {
     const description = t`If you don’t need to reprocess all the data, incremental transforms can be faster. To use this, your transform definition should have a stable schema.`;
-    return <>{description} </>;
+    return (
+      <>
+        {description}
+        {showMetabaseLinks && (
+          <>
+            {" "}
+            <Anchor
+              component={ExternalLink}
+              href={incrementalTransformsDocsUrl}
+              target="_blank"
+              td="underline"
+              c="inherit"
+              size="sm"
+            >{t`Learn more.`}</Anchor>
+          </>
+        )}{" "}
+      </>
+    );
   };
   if (variant === "standalone") {
     return (
       <TitleSection label={label} description={renderDescription()}>
-        <Group p="lg">{renderIncrementalSwitch()}</Group>
+        <Group p="xl">{renderIncrementalSwitch()}</Group>
         {incremental && (
           <>
             <Divider />
-            <Group p="lg">
+            <Group p="xl">
               <SourceStrategyFields
                 source={source}
                 query={libQuery}
@@ -131,7 +158,7 @@ export const IncrementalTransformSettings = ({
             {extraActions && (
               <>
                 <Divider />
-                <Group p="lg">{extraActions}</Group>
+                <Group p="xl">{extraActions}</Group>
               </>
             )}
             <TargetStrategyFields
@@ -146,7 +173,7 @@ export const IncrementalTransformSettings = ({
   }
 
   return (
-    <Stack gap="lg">
+    <Stack gap="xl">
       <Box>
         <Text fw="bold">{label}</Text>
         <Text size="sm" lh="1rem" mb="sm">
@@ -196,7 +223,7 @@ function TargetStrategyFields({
   return (
     <>
       <Divider />
-      <Group p="lg">{content}</Group>
+      <Group p="xl">{content}</Group>
     </>
   );
 }
@@ -263,6 +290,7 @@ function SourceStrategyFields({
               disabled={readOnly}
             />
           )}
+          <LookbackField readOnly={readOnly} />
         </>
       )}
     </>

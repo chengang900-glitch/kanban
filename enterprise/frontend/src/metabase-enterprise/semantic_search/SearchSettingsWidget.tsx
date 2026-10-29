@@ -2,13 +2,20 @@ import { useEffect, useState } from "react";
 import { t } from "ttag";
 import _ from "underscore";
 
-import { SettingHeader } from "metabase/admin/settings/components/SettingHeader";
-import { BasicAdminSettingInput } from "metabase/admin/settings/components/widgets/AdminSettingInput";
-import { getErrorMessage, useAdminSetting } from "metabase/api/utils";
-import { getPlan, isProPlan } from "metabase/common/utils/plan";
+import { UpsellSemanticSearchPill } from "metabase/admin/upsells/UpsellSemanticSearch";
+import { getErrorMessage } from "metabase/api/utils";
 import type { SearchSettingsWidgetProps } from "metabase/plugins";
 import { useSelector } from "metabase/redux";
-import { getSetting } from "metabase/selectors/settings";
+import {
+  getPlan,
+  getSetting,
+  isProPlan,
+  useAdminSetting,
+} from "metabase/settings";
+import {
+  BasicAdminSettingInput,
+  SettingHeader,
+} from "metabase/settings-components";
 import { Box, Progress, Stack, Text, Tooltip } from "metabase/ui";
 import { useGetSemanticSearchStatusQuery } from "metabase-enterprise/api/search";
 
@@ -58,10 +65,6 @@ export function SearchSettingsWidget({
 
   const isIndexing = useLatch(response.data !== undefined && progress !== 100);
 
-  if (shouldUpsell) {
-    return null;
-  }
-
   return (
     <Stack data-testid="search-engine-setting">
       <Stack gap="0">
@@ -70,48 +73,56 @@ export function SearchSettingsWidget({
           title={t`Advanced semantic search`}
           description={t`Provides more relevant search results.`}
         />
+
+        {shouldUpsell && (
+          <div>
+            <UpsellSemanticSearchPill source="settings-general" />
+          </div>
+        )}
       </Stack>
 
-      <>
-        <Box>
-          <Tooltip label={t`Contact support to change this setting.`}>
-            <Box display="inline-flex">
-              <BasicAdminSettingInput
-                name="search-engine"
-                inputType="boolean"
-                value={semanticSearchEnabled}
-                disabled
-                onChange={_.noop}
-              />
-            </Box>
-          </Tooltip>
-        </Box>
+      {!shouldUpsell && (
+        <>
+          <Box>
+            <Tooltip label={t`Contact support to change this setting.`}>
+              <Box display="inline-flex">
+                <BasicAdminSettingInput
+                  name="search-engine"
+                  inputType="boolean"
+                  value={semanticSearchEnabled}
+                  disabled
+                  onChange={_.noop}
+                />
+              </Box>
+            </Tooltip>
+          </Box>
 
-        {response.error && (
-          <Text c="feedback-negative">
-            {getErrorMessage(
-              response,
-              t`Unable to fetch health status of search index.`,
-            )}
-          </Text>
-        )}
-
-        {!response.error && isIndexing && (
-          <Stack gap="xs">
-            <Progress
-              size="md"
-              value={progress}
-              maw="25rem"
-              animated={progress < 100}
-            />
-            <Text c="text-disabled" size="md">
-              {progress === 100
-                ? t`Initialized search index`
-                : t`Initializing search index...`}
+          {response.error && (
+            <Text c="feedback-negative">
+              {getErrorMessage(
+                response,
+                t`Unable to fetch health status of search index.`,
+              )}
             </Text>
-          </Stack>
-        )}
-      </>
+          )}
+
+          {!response.error && isIndexing && (
+            <Stack gap="xxs">
+              <Progress
+                size="md"
+                value={progress}
+                maw="25rem"
+                animated={progress < 100}
+              />
+              <Text c="text-disabled" size="md">
+                {progress === 100
+                  ? t`Initialized search index`
+                  : t`Initializing search index...`}
+              </Text>
+            </Stack>
+          )}
+        </>
+      )}
     </Stack>
   );
 }

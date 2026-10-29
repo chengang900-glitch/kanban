@@ -1,13 +1,9 @@
 import userEvent from "@testing-library/user-event";
-import { Route } from "react-router";
 
 import { setupSettingEndpoint } from "__support__/server-mocks";
+import { createMockSettingsState } from "__support__/state";
 import { renderWithProviders, screen } from "__support__/ui";
-import {
-  createMockLocation,
-  createMockRoutingState,
-  createMockSettingsState,
-} from "metabase/redux/store/mocks";
+import { Route } from "metabase/router";
 import type { TokenFeatures } from "metabase-types/api";
 import {
   createMockSettings,
@@ -46,16 +42,11 @@ const setup = async ({
     settingValue: versionInfo,
   });
 
-  renderWithProviders(<Route path="*" component={SettingsNav} />, {
+  renderWithProviders(<Route path="*" element={<SettingsNav />} />, {
     withRouter: true,
     initialRoute,
     storeInitialState: {
       currentUser: createMockUser({ is_superuser: true }),
-      routing: createMockRoutingState({
-        locationBeforeTransitions: createMockLocation({
-          pathname: initialRoute,
-        }),
-      }),
       settings: createMockSettingsState(settings),
     },
   });
@@ -69,22 +60,17 @@ describe("SettingsNav", () => {
     expect(await screen.findByText("Authentication")).toBeInTheDocument();
   });
 
-  it("should hide commercial and removed settings nav items", async () => {
-    await setup({
-      initialRoute: "/admin/settings/general",
-      tokenFeatures: {
-        "custom-viz": false,
-        "custom-viz-available": false,
-      },
-    });
+  it("should hide Remote sync upsell nav item for non-pro plans", async () => {
+    await setup({ initialRoute: "/admin/settings/general", tokenFeatures: {} });
+    expect(
+      screen.queryByRole("link", { name: /Remote sync/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should hide Remote sync upsell nav item for pro plans", async () => {
+    await setup({ initialRoute: "/admin/settings/general" });
 
     expect(screen.queryByText("Remote sync")).not.toBeInTheDocument();
-    expect(screen.queryByText("Updates")).not.toBeInTheDocument();
-    expect(screen.queryByText("Custom visualizations")).not.toBeInTheDocument();
-    expect(screen.queryByText("Appearance")).not.toBeInTheDocument();
-    expect(screen.queryByText("License")).not.toBeInTheDocument();
-    expect(screen.queryByText("Cloud")).not.toBeInTheDocument();
-    expect(screen.queryByText("Google auth")).not.toBeInTheDocument();
   });
 
   it("should highlight the active nav item", async () => {
@@ -104,14 +90,16 @@ describe("SettingsNav", () => {
   });
 
   it("should open a section by default if the page loads on a child route", async () => {
-    await setup({ initialRoute: "/admin/settings/authentication/ldap" });
+    await setup({ initialRoute: "/admin/settings/authentication/google" });
 
     const authNavItem = await screen.findByRole("link", {
       name: /Authentication/,
     });
     expect(authNavItem).toHaveAttribute("data-expanded", "true");
-    const ldapAuthItem = await screen.findByRole("link", { name: "LDAP" });
-    expect(ldapAuthItem).toHaveAttribute("data-active", "true");
+    const googleAuthItem = await screen.findByRole("link", {
+      name: /Google auth/,
+    });
+    expect(googleAuthItem).toHaveAttribute("data-active", "true");
   });
 
   it("should expand and collapse a section", async () => {
@@ -129,44 +117,42 @@ describe("SettingsNav", () => {
   });
 
   it("should highlight a collapsed parent when a child is active", async () => {
-    await setup({ initialRoute: "/admin/settings/authentication/ldap" });
+    await setup({ initialRoute: "/admin/settings/authentication/google" });
 
     const authNavItem = await screen.findByRole("link", {
       name: /Authentication/,
     });
-    const ldapAuthItem = await screen.findByRole("link", { name: "LDAP" });
+    const googleAuthItem = await screen.findByRole("link", {
+      name: /Google auth/,
+    });
     expect(authNavItem).toHaveAttribute("data-expanded", "true");
     expect(authNavItem).not.toHaveAttribute("data-active");
-    expect(ldapAuthItem).toHaveAttribute("data-active", "true");
+    expect(googleAuthItem).toHaveAttribute("data-active", "true");
 
     await userEvent.click(authNavItem);
     expect(authNavItem).not.toHaveAttribute("data-expanded");
     expect(authNavItem).toHaveAttribute("data-active", "true");
   });
 
-  it("should hide Updates nav item when hosted", async () => {
-    await setup({ initialRoute: "/admin/settings/general", isHosted: true });
+  it.each([false, true])("hides Updates for hosted=%s", async (isHosted) => {
+    await setup({ initialRoute: "/admin/settings/general", isHosted });
     expect(screen.queryByText("Updates")).not.toBeInTheDocument();
   });
 
-  it("should hide custom visualization nav items when dev mode is enabled", async () => {
-    await setup({
-      initialRoute: "/admin/settings/custom-visualizations",
-      customVizDevModeEnabled: true,
-    });
-
-    expect(screen.queryByText("Custom visualizations")).not.toBeInTheDocument();
-    expect(screen.queryByText("Development")).not.toBeInTheDocument();
-  });
-
-  it("should hide Development nav item when custom viz dev mode is disabled", async () => {
-    await setup({
-      initialRoute: "/admin/settings/custom-visualizations",
-      customVizDevModeEnabled: false,
-    });
-
-    expect(screen.queryByText("Custom visualizations")).not.toBeInTheDocument();
-    expect(screen.queryByText("Manage visualizations")).not.toBeInTheDocument();
-    expect(screen.queryByText("Development")).not.toBeInTheDocument();
-  });
+  it.each([false, true])(
+    "hides Custom visualizations with development mode=%s",
+    async (customVizDevModeEnabled) => {
+      await setup({
+        initialRoute: "/admin/settings/custom-visualizations",
+        customVizDevModeEnabled,
+      });
+      expect(
+        screen.queryByText("Custom visualizations"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Development")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: /Localization/ }),
+      ).toBeInTheDocument();
+    },
+  );
 });

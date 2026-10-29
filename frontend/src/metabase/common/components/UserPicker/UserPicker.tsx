@@ -5,7 +5,6 @@ import { useListUsersQuery } from "metabase/api";
 import { useDebouncedValue } from "metabase/common/hooks/use-debounced-value";
 import { Select } from "metabase/ui";
 import { SEARCH_DEBOUNCE_DURATION } from "metabase/utils/constants";
-import { getUserName } from "metabase/utils/user";
 
 import type { UserOption } from "./types";
 
@@ -42,7 +41,7 @@ export const UserPicker = ({
 
   const fetchedOptions = (data?.data ?? []).map((user) => ({
     value: String(user.id),
-    label: getUserName(user),
+    label: user.common_name,
   }));
 
   const selectedOption = value && {

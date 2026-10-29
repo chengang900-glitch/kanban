@@ -1,14 +1,13 @@
 import { useClickOutside } from "@mantine/hooks";
 import { useState } from "react";
-import { push } from "react-router-redux";
 import { t } from "ttag";
 
 import { Link } from "metabase/common/components/Link";
-import { useSetting } from "metabase/common/hooks";
 import { useRegisterShortcut } from "metabase/palette/hooks/useRegisterShortcut";
 import { PLUGIN_SECURITY_CENTER } from "metabase/plugins";
-import { useDispatch } from "metabase/redux";
 import type { AdminPath } from "metabase/redux/store";
+import { useNavigate } from "metabase/router";
+import { useSetting } from "metabase/settings";
 import { Box, Button, Flex, Group, Icon, Text } from "metabase/ui";
 import { getDisplaySiteName } from "metabase/utils/branding";
 
@@ -28,8 +27,8 @@ export const AdminNavbar = ({
   path: currentPath,
   adminPaths,
 }: AdminNavbarProps) => {
-  const dispatch = useDispatch();
   const siteName = getDisplaySiteName(useSetting("site-name"));
+  const navigate = useNavigate();
 
   useRegisterShortcut(
     [
@@ -43,7 +42,7 @@ export const AdminNavbar = ({
           const path = adminPaths[key - 1]?.path;
 
           if (path) {
-            dispatch(push(path));
+            navigate(path);
           }
         },
       },
@@ -97,9 +96,9 @@ export const AdminNavbar = ({
           gap="0.25rem"
           miw={0}
         >
-          {adminPaths.map(({ name, key, path }) => (
+          {adminPaths.map(({ getName, key, path }) => (
             <AdminNavItem
-              name={name}
+              name={getName()}
               path={path}
               key={key}
               currentPath={currentPath}
@@ -134,12 +133,13 @@ const MobileNavbar = ({ adminPaths, currentPath }: AdminMobileNavbarProps) => {
 
   return (
     <Group ref={ref} hiddenFrom="md" gap="0.5rem" align="center">
+      {/* TODO: replace with ActionIcon (GDGT-2457) */}
       <Button
         onClick={() => setMobileNavOpen((prev) => !prev)}
-        variant="subtle"
-        p="0.25rem"
+        variant="transparent"
+        size="compact-md"
         leftSection={
-          <Icon name="burger" size={32} color="text-primary-inverse" />
+          <Icon name="burger" size={24} color="text-primary-inverse" />
         }
       />
 
@@ -149,7 +149,7 @@ const MobileNavbar = ({ adminPaths, currentPath }: AdminMobileNavbarProps) => {
           aria-label={t`Navigation links`}
           direction="column"
           ta="right"
-          p="md"
+          p="lg"
           gap="sm"
           miw="12rem"
           pos="fixed"
@@ -160,14 +160,14 @@ const MobileNavbar = ({ adminPaths, currentPath }: AdminMobileNavbarProps) => {
           bdrs="0 0 0 0.5rem"
           style={{ overflowY: "auto" }}
         >
-          {adminPaths.map(({ name, key, path }) => (
+          {adminPaths.map(({ getName, key, path }) => (
             <AdminNavLink
               to={path}
               key={key}
               isSelected={currentPath.startsWith(path)}
               isInMobileNav
             >
-              {name}
+              {getName()}
             </AdminNavLink>
           ))}
           {/* Security Center is rendered outside adminPaths because it

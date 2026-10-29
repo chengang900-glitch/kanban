@@ -1,10 +1,12 @@
 import { match } from "ts-pattern";
 import { c, t } from "ttag";
 
-import { useSetting } from "metabase/common/hooks";
-import type { ExportFormat } from "metabase/common/types/export";
 import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
+import { useSelector } from "metabase/redux";
+import { getApplicationName } from "metabase/selectors/whitelabel";
+import { useSetting } from "metabase/settings";
 import { Checkbox, SegmentedControl, Stack } from "metabase/ui";
+import type { ExportFormat } from "metabase-types/api";
 
 interface ExportSettingsWidgetProps {
   formats: ExportFormat[];
@@ -23,6 +25,8 @@ const useFormattingLabel = ({
 }: {
   isFormattingEnabled: boolean;
 }) => {
+  const applicationName = useSelector(getApplicationName);
+
   return match({ isFormattingEnabled, isEmbeddingSdk: isEmbeddingSdk() })
     .with(
       { isEmbeddingSdk: true, isFormattingEnabled: true },
@@ -42,8 +46,9 @@ const useFormattingLabel = ({
       { isEmbeddingSdk: false, isFormattingEnabled: true },
       () =>
         c(
-          "Refers to formatting for a piece of data, like long or short form dates, or currency",
-        ).t`E.g. September 6, 2024 or $187.50`,
+          // eslint-disable-next-line metabase/no-literal-metabase-strings -- used for translation context
+          "Refers to formatting for a piece of data, like long or short form dates, or currency. {0} is the name of the application, typically Metabase.",
+        ).t`E.g. September 6, 2024 or $187.50, like in ${applicationName}`,
     )
     .with(
       { isEmbeddingSdk: false, isFormattingEnabled: false },
@@ -75,17 +80,12 @@ export const ExportSettingsWidget = ({
   }));
 
   return (
-    <Stack gap="lg">
+    <Stack gap="xl">
       <SegmentedControl
-        w="100%"
+        fullWidth
         data={formatOptions}
         value={selectedFormat}
         onChange={onChangeFormat}
-        styles={{
-          root: {
-            backgroundColor: "var(--mb-color-background_page-secondary)",
-          },
-        }}
       />
 
       {canConfigureFormatting ? (

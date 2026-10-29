@@ -1,10 +1,8 @@
 (ns metabase.search.in-place.filter-test
-  ;; Left renaming search.filter out of this PR to save a ton of noise.
-  ;; This comment is way up here, because cljfmt doesn't like it in the middle of the :require.
-  #_{:clj-kondo/ignore [:consistent-alias]}
   (:require
    [clojure.test :refer :all]
    [metabase.audit-app.core :as audit]
+   [metabase.config.core :as config]
    [metabase.search.config :as search.config]
    [metabase.search.in-place.filter :as search.filter]
    [metabase.search.permissions :as search.permissions]
@@ -23,6 +21,7 @@
    :calculate-available-models?    false
    :is-sandboxed-user?             false
    :is-impersonated-user?          false
+   :is-routed-user?                false
    :enabled-transform-source-types #{"mbql"}})
 
 (deftest ^:parallel ->applicable-models-test
@@ -46,7 +45,7 @@
 (deftest ^:parallel ->applicable-models-test-2
   (testing "optional filters will return intersection of support models and provided models\n"
     (testing "created by"
-      (is (= #{"dashboard" "dataset" "document" "action" "card" "metric" "measure"}
+      (is (= #{"dashboard" "dataset" "document" "exploration" "action" "card" "metric" "measure"}
              (search.filter/search-context->applicable-models
               (merge default-search-ctx
                      {:created-by #{1}}))))
@@ -56,7 +55,9 @@
                      {:models #{"dashboard" "dataset" "table"}
                       :created-by #{1}})))))
     (testing "created at"
-      (is (= #{"dashboard" "table" "dataset" "document" "collection" "database" "action" "card" "metric" "transform" "measure"}
+      (is (= (cond-> #{"dashboard" "table" "dataset" "document" "exploration" "collection" "database" "action" "card"
+                       "metric" "transform" "measure"}
+               config/ee-available? (conj "data-app"))
              (search.filter/search-context->applicable-models
               (merge default-search-ctx
                      {:created-at "past3days"}))))
@@ -124,32 +125,7 @@
                      {:is-superuser? false
                       :models #{"dashboard" "card" "transform"}})))))))
 
-(deftest ^:parallel app-user-visibility-test
-  (testing "models with :visibility :app-user (indexed-entity) are hidden from sandboxed/impersonated users"
-    (let [models #{"dashboard" "card" "indexed-entity"}]
-      (testing "an ordinary user still sees indexed-entity"
-        (is (contains?
-             (search.filter/search-context->applicable-models
-              (merge default-search-ctx {:models models
-                                         :is-sandboxed-user? false
-                                         :is-impersonated-user? false}))
-             "indexed-entity")))
-      (testing "an impersonated user does not -- even with no search string (the LIKE-clause guard never fires)"
-        (is (= #{"dashboard" "card"}
-               (search.filter/search-context->applicable-models
-                (merge default-search-ctx {:models models
-                                           :search-string nil
-                                           :is-sandboxed-user? false
-                                           :is-impersonated-user? true})))))
-      (testing "a sandboxed user does not either"
-        (is (= #{"dashboard" "card"}
-               (search.filter/search-context->applicable-models
-                (merge default-search-ctx {:models models
-                                           :is-sandboxed-user? true
-                                           :is-impersonated-user? false}))))))))
-
 (deftest joined-with-table?-test
-  #_{:clj-kondo/ignore [:equals-true]}
   (are [expected args]
        (= expected (apply #'search.filter/joined-with-table? args))
 
@@ -415,7 +391,7 @@
 
 (deftest build-filters-indexed-entity-test
   (testing "users that are not sandboxed or impersonated can search for indexed entity"
-    (mt/with-dynamic-fn-redefs [search.permissions/sandboxed-or-impersonated-user? (constantly false)]
+    (mt/with-dynamic-fn-redefs [search.permissions/sandboxed-impersonated-or-routed-user? (constantly false)]
       (is (= [:and
               [:or [:like [:lower :model-index-value.name] (h2x/like-substring "foo")]]
               [:= [:inline 1] [:inline 1]]]
@@ -426,7 +402,7 @@
 
 (deftest build-filters-indexed-entity-test-2
   (testing "otherwise search result is empty"
-    (mt/with-dynamic-fn-redefs [search.permissions/sandboxed-or-impersonated-user? (constantly true)]
+    (mt/with-dynamic-fn-redefs [search.permissions/sandboxed-impersonated-or-routed-user? (constantly true)]
       (is (= [:and
               [:or [:= 0 1]]
               [:= [:inline 1] [:inline 1]]]

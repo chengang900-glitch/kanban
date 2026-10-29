@@ -11,6 +11,7 @@
    [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
    [metabase.driver.sql.query-processor :as sql.qp]
    [metabase.driver.sql.util :as sql.u]
+   [metabase.driver.util :as driver.u]
    [metabase.lib-be.core :as lib-be]
    [metabase.lib.core :as lib]
    [metabase.lib.metadata :as lib.metadata]
@@ -18,6 +19,7 @@
    [metabase.test :as mt]
    [metabase.transforms-base.util :as transforms-base.u]
    [metabase.transforms.execute :as transforms.execute]
+   [metabase.transforms.index-test-util :as index-util]
    [metabase.transforms.test-dataset :as transforms-dataset]
    [metabase.transforms.test-util :as transforms.tu :refer [with-transform-cleanup!]]
    [next.jdbc :as next.jdbc]
@@ -81,11 +83,11 @@
   (let [{:keys [field-name]} checkpoint-config
         table-id (mt/id :transforms_products)
         timestamp-sql (first (sql/format (sql.qp/current-datetime-honeysql-form driver/*driver*)))
-        query (format "SELECT *, %s AS %s FROM {{source_table}} AS %s ORDER BY %s"
-                      timestamp-sql
-                      (sql.u/quote-name driver/*driver* :field "load_timestamp")
-                      (sql.u/quote-name driver/*driver* :field "source_table")
-                      (sql.u/quote-name driver/*driver* :field field-name))]
+        quoted (fn [field] (sql.u/quote-name driver/*driver* :field field))
+        query (format "SELECT %s, %s, %s, %s, %s AS %s FROM {{source_table}} AS %s ORDER BY %s"
+                      (quoted "name") (quoted "category") (quoted "price") (quoted "created_at")
+                      timestamp-sql (quoted "load_timestamp") (quoted "source_table")
+                      (quoted field-name))]
     {:database (mt/id)
      :type :native
      :native {:query query
@@ -98,10 +100,13 @@
 
 (defn- make-incremental-mbql-query
   "Create an MBQL query for incremental transforms. "
+
   [checkpoint-config]
   (let [{:keys [field-name]} checkpoint-config]
-    (mt/mbql-query transforms_products {:expressions {"load_timestamp" [:now]}
-                                        :order-by [[:asc [:field (mt/id :transforms_products (keyword field-name))]]]})))
+    (mt/mbql-query transforms_products
+      {:expressions {"load_timestamp" [:now]}
+       :fields [$name $category $price $created_at [:expression "load_timestamp"]]
+       :order-by [[:asc [:field (mt/id :transforms_products (keyword field-name))]]]})))
 
 (def incremental-python-body
   (str "import pandas as pd\n"
@@ -182,7 +187,7 @@
   "Insert new products into the transforms_products table."
   [products]
   (let [[schema source-table-name] (t2/select-one-fn (juxt :schema :name) :model/Table (mt/id :transforms_products))
-        spec      (sql-jdbc.conn/db->pooled-connection-spec (mt/id))
+        spec      (sql-jdbc.conn/db->pooled-connection-spec (lib.metadata/database (mt/metadata-provider)))
         table-sql (sql.u/quote-name driver/*driver* :table schema source-table-name)
         field-sql #(sql.u/quote-name driver/*driver* :field %)]
     (if (#{:clickhouse :snowflake} driver/*driver*)
@@ -212,7 +217,7 @@
 (defn- delete-test-products!
   [products]
   (let [[schema source-table-name] (t2/select-one-fn (juxt :schema :name) :model/Table (mt/id :transforms_products))
-        spec (sql-jdbc.conn/db->pooled-connection-spec (mt/id))
+        spec (sql-jdbc.conn/db->pooled-connection-spec (lib.metadata/database (mt/metadata-provider)))
         delete-sql (format "DELETE FROM %s WHERE %s IN (%s)"
                            (sql.u/quote-name driver/*driver* :table schema source-table-name)
                            (sql.u/quote-name driver/*driver* :field "name")
@@ -230,7 +235,7 @@
 (set! *warn-on-reflection* true)
 
 (defn- test-drivers []
-  (disj (mt/normal-drivers-with-feature :transforms/table) :redshift :clickhouse :sqlserver))
+  (mt/normal-drivers-with-feature :transforms/table))
 
 (defn- target-table-gen [prefix]
   {:type     :table
@@ -244,7 +249,7 @@
             :let [transform-type :native]]
       (testing (format "with %s checkpoint on %s transform" (name checkpoint-type) (name transform-type))
         (mt/test-drivers (test-drivers)
-          (mt/with-premium-features #{:transforms-basic}
+          (mt/with-premium-features #{:transforms-basic :hosting}
             (mt/dataset transforms-dataset/transforms-test
               (with-transform-cleanup! [target-table (target-table-gen "incremental_test")]
                 (let [checkpoint-config (get checkpoint-configs checkpoint-type)
@@ -326,7 +331,7 @@
 (deftest reset-checkpoint-endpoint-test
   (testing "POST /api/transform/:id/reset-checkpoint clears the checkpoint and forces a full reprocess"
     (mt/test-drivers (test-drivers)
-      (mt/with-premium-features #{:transforms-basic}
+      (mt/with-premium-features #{:transforms-basic :hosting}
         (mt/dataset transforms-dataset/transforms-test
           (with-transform-cleanup! [target-table (target-table-gen "reset_checkpoint")]
             (let [checkpoint-config (get checkpoint-configs :integer)
@@ -355,7 +360,7 @@
             :when (valid-checkpoint-transform-combo? checkpoint-type transform-type)]
       (testing (format "with %s checkpoint on %s transform" (name checkpoint-type) (name transform-type))
         (mt/test-drivers (test-drivers)
-          (mt/with-premium-features #{:transforms-basic :transforms-python}
+          (mt/with-premium-features #{:transforms-basic :transforms-python :hosting}
             (mt/dataset transforms-dataset/transforms-test
               (with-transform-cleanup! [target-table (target-table-gen "switch_incr_to_non_incr")]
                 (let [checkpoint-config (get checkpoint-configs checkpoint-type)
@@ -408,7 +413,7 @@
             :when (valid-checkpoint-transform-combo? checkpoint-type transform-type)]
       (testing (format "with %s checkpoint on %s transform" (name checkpoint-type) (name transform-type))
         (mt/test-drivers (test-drivers)
-          (mt/with-premium-features #{:transforms-basic :transforms-python}
+          (mt/with-premium-features #{:transforms-basic :transforms-python :hosting}
             (mt/dataset transforms-dataset/transforms-test
               (with-transform-cleanup! [target-table (target-table-gen "switch_non_incr_to_incr")]
                 (let [checkpoint-config (get checkpoint-configs checkpoint-type)
@@ -469,7 +474,7 @@
 (deftest unsupported-checkpoint-column-type-test
   (testing "Transform fails at runtime with unsupported checkpoint column type"
     (mt/test-drivers #{:postgres}
-      (mt/with-premium-features #{:transforms-basic}
+      (mt/with-premium-features #{:transforms-basic :hosting}
         (mt/dataset transforms-dataset/transforms-test
           (with-transform-cleanup! [target-table "unsupported_type_test"]
             (let [name-field-id (mt/id :transforms_products :name)
@@ -507,7 +512,7 @@
       (mt/dataset transforms-dataset/transforms-test
         (with-transform-cleanup! [target-table "empty_table_target"]
           (let [db-id   (mt/id)
-                db-spec (sql-jdbc.conn/db->pooled-connection-spec db-id)
+                db-spec (sql-jdbc.conn/db->pooled-connection-spec (driver.u/lib-database db-id))
                 table-id (mt/id :transforms_products)
                 checkpoint-field-id (t2/select-one-pk :model/Field :name "id" :table_id table-id)
                 ;; Query that returns no rows but has the checkpoint column
@@ -617,7 +622,7 @@
       (mt/dataset transforms-dataset/transforms-test
         (with-transform-cleanup! [target-table "change_table_target"]
           (let [db-id   (mt/id)
-                db-spec (sql-jdbc.conn/db->pooled-connection-spec db-id)
+                db-spec (sql-jdbc.conn/db->pooled-connection-spec (driver.u/lib-database db-id))
                 table-id (mt/id :transforms_products)
                 checkpoint-field-id (t2/select-one-pk :model/Field :name "id" :table_id table-id)
                 make-source (fn [query-sql]
@@ -709,3 +714,79 @@
                                   checkpoint (get-checkpoint-value (:id transform))]
                               (is (= 17 row-count) "Should append 1 new row (16 + 1 = 17)")
                               (is (some? checkpoint) "Checkpoint should be updated"))))))))))))))))
+
+(defn- incremental-index-test-drivers
+  "Index-supporting drivers that also run incremental transforms"
+  []
+  (into #{} (filter (index-util/index-test-drivers)) (test-drivers)))
+
+(deftest ^:synchronized ^:mb/transforms-python-test declared-indexes-on-incremental-transform-test
+  (testing "incremental: the first (full) run creates the target's declared indexes; an append run preserves them"
+    ;; The first run has no watermark, so it's a full rebuild that creates the indexes. The append run keeps the
+    ;; live table, so `apply-target-indexes!`'s full-rebuild gate skips it (a broken gate would re-create them).
+    (mt/test-drivers (incremental-index-test-drivers)
+      (mt/with-premium-features #{:transforms-basic :transforms-python}
+        (mt/dataset transforms-dataset/transforms-test
+          (let [{:keys [indexes expected physical-indexes]} (index-util/driver-cases driver/*driver*)
+                checkpoint-config (:integer checkpoint-configs)
+                checkpoint-field  (:field-name checkpoint-config)]
+            (doseq [transform-type [:mbql :python]]
+              (testing (str "transform-type " transform-type)
+                (with-transform-cleanup! [{table-name :name :as target} (target-table-gen "incremental_index")]
+                  (let [payload (make-incremental-transform-payload "Incremental Index Transform"
+                                                                    target transform-type checkpoint-config)
+                        schema  (:schema target)]
+                    (mt/with-temp [:model/Transform transform payload]
+                      (t2/insert! :model/TableIndex (for [index indexes]
+                                                      {:transform_id (:id transform)
+                                                       :index_name   (or (:name index) (name (:kind index)))
+                                                       :structured   index}))
+                      (testing "first (full) run creates the declared indexes"
+                        (execute-transform-with-ordering! transform transform-type checkpoint-field
+                                                          {:run-method :manual})
+                        (transforms.tu/wait-for-table table-name 10000)
+                        (is (= expected (physical-indexes (mt/db) schema table-name))))
+                      (testing "append run preserves the indexes"
+                        (with-insert-test-products! [{:name "Incremental Index Product" :category "Gadget"
+                                                      :price 379.99 :created-at "2024-01-20T10:00:00"}]
+                          (let [transform (t2/select-one :model/Transform (:id transform))]
+                            (execute-transform-with-ordering! transform transform-type checkpoint-field
+                                                              {:run-method :manual})
+                            (is (= expected (physical-indexes (mt/db) schema table-name)))))))))))))))))
+
+(deftest ^:synchronized index-added-mid-lifecycle-forces-rebuild-test
+  (testing "an index request created after the watermark is set forces the next run to rebuild and apply it"
+    ;; Nothing resets the watermark here: the pending TableIndex row alone must flip `full-incremental-run?`, so a
+    ;; broken pending-changes gate would leave this run an append and the index would never reach the warehouse.
+    (mt/test-drivers (incremental-index-test-drivers)
+      (mt/with-premium-features #{:transforms-basic}
+        (mt/dataset transforms-dataset/transforms-test
+          (let [{:keys [expected physical-indexes indexes]} (index-util/driver-cases driver/*driver*)
+                checkpoint-config (:integer checkpoint-configs)
+                checkpoint-field  (:field-name checkpoint-config)]
+            ;; name-set catalogs only; other drivers report shapes this test can't extend generically
+            (when (set? expected)
+              (with-transform-cleanup! [{table-name :name :as target} (target-table-gen "incremental_midrun_idx")]
+                (mt/with-temp [:model/Transform transform (make-incremental-transform-payload
+                                                           "Mid-lifecycle Index Transform"
+                                                           target :mbql checkpoint-config)]
+                  (testing "a first run establishes the watermark"
+                    (execute-transform-with-ordering! transform :mbql checkpoint-field {:run-method :manual})
+                    (transforms.tu/wait-for-table table-name 10000)
+                    (is (some? (get-checkpoint-value (:id transform)))))
+                  ;; the driver's own first index kind: a kind it doesn't advertise is dropped before any DDL runs.
+                  (t2/insert! :model/TableIndex {:transform_id (:id transform)
+                                                 :index_name   "mid_run_idx"
+                                                 :structured   (assoc (first indexes) :name "mid_run_idx")})
+                  (testing "the watermark survives the request untouched"
+                    (is (some? (get-checkpoint-value (:id transform)))))
+                  (testing "the next run rebuilds and the index lands in the warehouse"
+                    (let [transform (t2/select-one :model/Transform (:id transform))]
+                      (execute-transform-with-ordering! transform :mbql checkpoint-field {:run-method :manual})
+                      (is (contains? (physical-indexes (mt/db) (:schema target) table-name) "mid_run_idx"))
+                      (is (= :succeeded (t2/select-one-fn :status :model/TableIndex
+                                                          :transform_id (:id transform)
+                                                          :index_name "mid_run_idx")))))
+                  (testing "once settled, the run after that appends again"
+                    (let [transform (t2/select-one :model/Transform (:id transform))]
+                      (is (not (transforms-base.u/full-incremental-run? transform))))))))))))))

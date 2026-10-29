@@ -1,6 +1,5 @@
-import dayjs from "dayjs";
 import fetchMock from "fetch-mock";
-import { Route } from "react-router";
+import type { ComponentProps } from "react";
 
 import { setupEnterpriseOnlyPlugin } from "__support__/enterprise";
 import {
@@ -14,19 +13,20 @@ import {
   setupUserMetabotPermissionsEndpoint,
 } from "__support__/server-mocks";
 import { mockSettings } from "__support__/settings";
-import { createMockEntitiesState } from "__support__/store";
+import {
+  createMockDashboardState,
+  createMockQueryBuilderState,
+  createMockState,
+} from "__support__/state";
 import {
   renderWithProviders,
   screen,
   waitForLoaderToBeRemoved,
 } from "__support__/ui";
 import { ROOT_COLLECTION } from "metabase/common/collections/constants";
+import { dayjs } from "metabase/dayjs";
 import type { DashboardState, StoreDashboard } from "metabase/redux/store";
-import {
-  createMockDashboardState,
-  createMockQueryBuilderState,
-  createMockState,
-} from "metabase/redux/store/mocks";
+import { Route, useLocation, useParams } from "metabase/router";
 import * as iframeUtils from "metabase/utils/iframe";
 import type {
   Card,
@@ -40,15 +40,26 @@ import {
   createMockDatabase,
   createMockTokenFeatures,
   createMockUser,
+  createMockUserMetabotPermissions,
 } from "metabase-types/api/mocks";
 
 import { MainNavbar } from "../MainNavbar";
+
+/** Feeds `MainNavbar` its route props the way `Navbar` does in the app. */
+function RoutedMainNavbar(
+  props: Omit<ComponentProps<typeof MainNavbar>, "location" | "params">,
+) {
+  const location = useLocation();
+  const params = useParams();
+  return <MainNavbar {...props} location={location} params={params} />;
+}
 
 export type SetupOpts = {
   pathname?: string;
   route?: string;
   user?: User | null;
   hasDataAccess?: boolean;
+  hasNlqAccess?: boolean;
   withAdditionalDatabase?: boolean;
   isUploadEnabled?: boolean;
   openQuestionCard?: Card;
@@ -90,6 +101,7 @@ export async function setup({
   user = createMockUser(),
   activeUsersCount = 2,
   hasDataAccess = true,
+  hasNlqAccess = false,
   openDashboard,
   openQuestionCard,
   models = [],
@@ -158,7 +170,15 @@ export async function setup({
     collections: [PERSONAL_COLLECTION_BASE, TEST_COLLECTION, NESTED_COLLECTION],
   });
   setupDatabasesEndpoints(databases);
-  setupUserMetabotPermissionsEndpoint();
+  const aiPermissions = createMockUserMetabotPermissions();
+  setupUserMetabotPermissionsEndpoint({
+    ...aiPermissions,
+    permissions: {
+      ...aiPermissions.permissions,
+      metabot: hasNlqAccess ? "yes" : "no",
+      "metabot-nlq": hasNlqAccess ? "yes" : "no",
+    },
+  });
   setupSearchEndpoints(models);
   setupCollectionItemsEndpoint({
     collection: createMockCollection(OUR_ANALYTICS),
@@ -178,7 +198,6 @@ export async function setup({
 
   let dashboardId: DashboardId | null = null;
   const dashboardsForState: DashboardState["dashboards"] = {};
-  const dashboardsForEntities: Dashboard[] = [];
   let storeDashboard: StoreDashboard | undefined;
   if (openDashboard) {
     dashboardId = openDashboard.id;
@@ -187,7 +206,6 @@ export async function setup({
       dashcards: openDashboard.dashcards.map((c) => c.id),
     };
     dashboardsForState[openDashboard.id] = storeDashboard;
-    dashboardsForEntities.push(openDashboard);
   }
 
   const storeInitialState = createMockState({
@@ -197,9 +215,9 @@ export async function setup({
       dashboards: dashboardsForState,
     }),
     qb: createMockQueryBuilderState({ card: openQuestionCard }),
-    entities: createMockEntitiesState({ dashboards: dashboardsForEntities }),
     settings: mockSettings({
       "application-name": applicationName,
+      "metabot-enabled?": hasNlqAccess,
       "uploads-settings": {
         db_id: hasDWHAttached || isUploadEnabled ? SAMPLE_DATABASE.id : null,
         schema_name: null,
@@ -227,9 +245,7 @@ export async function setup({
   renderWithProviders(
     <Route
       path={route}
-      component={(props) => (
-        <MainNavbar {...props} isOpen dashboard={storeDashboard} />
-      )}
+      element={<RoutedMainNavbar isOpen dashboard={storeDashboard} />}
     />,
     {
       storeInitialState,

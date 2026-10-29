@@ -8,7 +8,7 @@ function setup(opts: SetupOpts) {
 }
 
 describe("ExplainerText (EE without token)", () => {
-  it("should hide the external help link when `show-metabase-links: true`", () => {
+  it("should render help link when `show-metabase-links: true`", () => {
     setup({ showMetabaseLinks: true });
 
     expect(
@@ -19,7 +19,7 @@ describe("ExplainerText (EE without token)", () => {
     expect(screen.queryByText("Learn more.")).not.toBeInTheDocument();
   });
 
-  it("should hide the external help link when `show-metabase-links: false`", () => {
+  it("should render help link when `show-metabase-links: false`", () => {
     setup({ showMetabaseLinks: false });
 
     expect(

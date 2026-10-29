@@ -186,7 +186,7 @@ describe("command palette", () => {
     cy.wait(100); // pressing page down too fast does nothing
     H.pressPageDown();
     H.commandPalette()
-      .findByRole("option", { name: "New model" })
+      .findByRole("option", { name: "New collection" })
       .should("have.attr", "aria-selected", "true");
 
     H.pressPageDown();
@@ -196,7 +196,7 @@ describe("command palette", () => {
 
     H.pressPageUp();
     H.commandPalette()
-      .findByRole("option", { name: "New model" })
+      .findByRole("option", { name: "New collection" })
       .should("have.attr", "aria-selected", "true");
 
     H.pressPageUp();
@@ -262,9 +262,9 @@ describe("command palette", () => {
       H.commandPaletteAction("Settings - Setup").should("not.exist");
       H.commandPaletteInput().clear();
 
-      // Tools
+      // Monitor tools live outside the Admin command-palette links
       H.commandPaletteInput().clear().type("tool");
-      H.commandPaletteAction("Tools").should("be.visible");
+      H.commandPaletteAction("Tools").should("not.exist");
       H.commandPaletteInput().clear();
 
       //Database and table metadata

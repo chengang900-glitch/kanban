@@ -14,6 +14,12 @@
   background-color: var(--mb-color-background_page-primary);
 }
 
+.Decoy {
+  display: none;
+  visibility: hidden;
+  opacity: 0;
+}
+
 .PageBody {
   margin: 0 auto;
   padding-inline: 1rem;
@@ -23,5 +29,9 @@
   .PageBody {
     max-width: 47rem;
     padding-inline: 2rem;
+  }
+
+  .Decoy {
+    display: block;
   }
 }
