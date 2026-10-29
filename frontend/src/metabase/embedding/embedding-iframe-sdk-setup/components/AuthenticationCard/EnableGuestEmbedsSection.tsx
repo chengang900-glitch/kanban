@@ -36,6 +36,8 @@ export const EnableGuestEmbedsSection = ({
   // after the user enables the setting.
   const [showSection] = useState(!isAccepted);
   const initialDataRef = useRef({ isEnabled, termsAccepted });
+  const hideTermsTitle =
+    initialDataRef.current.isEnabled && !initialDataRef.current.termsAccepted;
 
   // Wording follows the admin settings page's labels for the same toggle
   // (EmbeddingMethodsCard.tsx).
@@ -100,15 +102,11 @@ export const EnableGuestEmbedsSection = ({
       mt="xxs"
       mb="sm"
     >
-      <Text fz="md" c="text-primary">
-        {title}
-
-        {!termsAccepted && (
-          <UsageConditionsInfoIcon>
-            <GuestEmbedsTooltipContent />
-          </UsageConditionsInfoIcon>
-        )}
-      </Text>
+      {!hideTermsTitle && (
+        <Text fz="md" c="text-primary">
+          {title}
+        </Text>
+      )}
 
       <Group justify="flex-start" mt="xxs">
         <Button
@@ -119,6 +117,11 @@ export const EnableGuestEmbedsSection = ({
         >
           {isAccepted ? "Enabled" : buttonCaption}
         </Button>
+        {!termsAccepted && (
+          <UsageConditionsInfoIcon>
+            <GuestEmbedsTooltipContent />
+          </UsageConditionsInfoIcon>
+        )}
       </Group>
     </Stack>
   );
@@ -134,6 +137,10 @@ const GuestEmbedsTooltipContent = () => (
         provided you keep the Metabase logo and the "Powered by
         Metabase" visible on those embeds.`}
     </Text>
+
+    <Anchor href="https://metabase.com/license/embedding" target="_blank">
+      {t`usage conditions`}
+    </Anchor>
 
     <Text fz="sm" lh="lg">
       {t`You should, however, read the license text linked above as that is the actual license that you will be agreeing to by enabling this feature.`}

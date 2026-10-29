@@ -76,3 +76,8 @@
     (testing "ordinary AI questions retain their meanings"
       (is (= "向 AI 提问..." (translation "Ask AI a question...")))
       (is (= "向 AI 提问。" (translation "Ask questions to AI."))))))
+
+(deftest customized-ai-prompt-table-headers-test
+  (let [translations (:translations (#'frontend/->i18n-map "zh-CN" (i18n/po-contents "zh-CN") #{}))]
+    (is (= ["提示词"] (get-in translations ["" "Prompt" :msgstr])))
+    (is (= ["模型或指标"] (get-in translations ["" "Model or metric" :msgstr])))))

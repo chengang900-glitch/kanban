@@ -4,9 +4,12 @@
    [metabase.analytics.snowplow-test :as snowplow-test]
    [metabase.llm.test-util :as llm.tu]
    [metabase.metabot.example-question-generator :as native-generator]
+   [metabase.metabot.self :as self]
    [metabase.metabot.self.openrouter :as openrouter]
+   [metabase.metabot.settings :as metabot.settings]
    [metabase.metabot.test-util :as test-util]
-   [metabase.test :as mt]))
+   [metabase.test :as mt]
+   [metabase.util.i18n :as i18n]))
 
 (set! *warn-on-reflection* true)
 
@@ -213,3 +216,35 @@
                                   "tag"                 "example-question-generation"}}]
                       (->> (snowplow-test/pop-event-data-and-user-id!)
                            (remove #(= "new_instance_created" (get-in % [:data "event"])))))))))))))
+
+(deftest suggested-question-language-test
+  (doseq [[site-locale expected] [[nil "Simplified Chinese (zh-CN)"]
+                                  ["zh_CN" "Simplified Chinese (zh-CN)"]
+                                  ["zh_TW" "Traditional Chinese (zh-TW)"]
+                                  ["en" "English (en)"]
+                                  ["fr" "French (fr)"]]]
+    (testing (str "shared prompt generation uses site locale " site-locale)
+      (let [calls (atom [])]
+        (binding [i18n/*site-locale-override* site-locale
+                  i18n/*user-locale* "de"]
+          (mt/with-dynamic-fn-redefs [i18n/site-locale-string (constantly (or site-locale "zh_CN"))
+                                      metabot.settings/llm-metabot-provider (constantly "openrouter/test-model")
+                                      self/call-llm-structured (fn [provider messages schema temperature max-tokens options]
+                                                                 (swap! calls conj {:provider provider :messages messages :schema schema
+                                                                                    :temperature temperature :max-tokens max-tokens :options options})
+                                                                 {:questions ["示例问题"]})]
+            (is (= {:table_questions [{:questions ["示例问题"]}]
+                    :metric_questions [{:questions ["示例问题"]}]}
+                   (native-generator/generate-example-questions
+                    {:tables [{:name "Orders" :fields [{:name "total" :type "number"}]}]
+                     :metrics [{:name "Revenue" :queryable-dimensions [{:name "region" :type "string"}]}]})))))
+        (is (= 2 (count @calls)))
+        (doseq [{:keys [provider messages schema temperature max-tokens options]} @calls]
+          (is (= "openrouter/test-model" provider))
+          (is (= ["user"] (mapv :role messages)))
+          (is (.contains ^String (:content (first messages)) (str "Output language: " expected)))
+          (is (.contains ^String (:content (first messages)) "Keep the JSON keys and response schema unchanged."))
+          (is (= ["questions"] (:required schema)))
+          (is (= 0.3 temperature))
+          (is (= 4096 max-tokens))
+          (is (= :permission/metabot-other-tools (:required-permission options))))))))

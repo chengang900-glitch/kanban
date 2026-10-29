@@ -14,8 +14,11 @@
    [clojure.string :as str]
    [metabase.metabot.self :as self]
    [metabase.metabot.settings :as metabot.settings]
+   [metabase.util.i18n :as i18n]
    [metabase.util.log :as log]
-   [selmer.parser :as selmer]))
+   [selmer.parser :as selmer])
+  (:import
+   (java.util Locale)))
 
 (set! *warn-on-reflection* true)
 
@@ -102,6 +105,20 @@
   returns no tool call.  Non-reasoning providers stop well under this, so the higher ceiling costs them nothing."
   4096)
 
+(defn- question-language-instruction
+  "Suggested questions are shared, so use the site locale rather than the invoking user's locale."
+  []
+  (let [^Locale locale (i18n/site-locale)
+        language (if (= "zh" (.getLanguage locale))
+                   (if (or (= "Hant" (.getScript locale))
+                           (#{"TW" "HK" "MO"} (.getCountry locale)))
+                     "Traditional Chinese"
+                     "Simplified Chinese")
+                   (.getDisplayName locale Locale/ENGLISH))]
+    (str "Output language: " language " (" (.toLanguageTag locale) "). "
+         "Write every example question in this language, even when the examples above are in English. "
+         "Keep the JSON keys and response schema unchanged.")))
+
 (defn- call-llm
   "Make a structured LLM call for example question generation.
   Delegates to the shared self/call-llm-structured infrastructure which provides
@@ -109,7 +126,7 @@
   [rendered-prompt]
   (self/call-llm-structured
    (metabot.settings/llm-metabot-provider)
-   [{:role "user" :content rendered-prompt}]
+   [{:role "user" :content (str rendered-prompt "\n\n" (question-language-instruction))}]
    questions-json-schema
    temperature
    max-tokens

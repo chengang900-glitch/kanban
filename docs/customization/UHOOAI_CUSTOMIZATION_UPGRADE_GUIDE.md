@@ -1,10 +1,10 @@
 # UhooAI 数据看板：完整定制与升级说明（v0.65.2）
 
-文档日期：2026-10-29。适用交付包：**Metabase OSS v0.65.2 / f8047ea**。
+文档日期：2026-10-29。适用交付包：**Metabase OSS v0.65.2 / 39088d6**。
 
 本文汇总从 v0.63.19 参考定制迁移至 v0.64.2.5、v0.64.3，再升级至 v0.65.2 的方案、现行定制、实现位置、验证结果与后续部署方法。它是当前定制版的总说明；阶段性记录和机器可读结果作为证据保留。
 
-**交付状态：本地源码、安装包和隔离验收已完成，源码已发布至 GitHub；本轮没有把 v0.65.2 部署到任何服务器，也没有执行生产数据迁移。** 本次说明文件更新不改变已生成安装包的版本和校验值。
+**交付状态：本地源码、安装包和隔离验收已完成，源码已发布至 GitHub；本轮没有把 v0.65.2 部署到任何服务器，也没有执行生产数据迁移。** 本轮重新构建安装包，新增嵌入页标题和 AI 推荐问题语言定制。
 
 ## 目录
 
@@ -34,7 +34,8 @@
 | v0.64.3 管理员定制交付 | `6bd491e` | 包含第一组九项管理员页面定制；历史服务器部署版本见各环境记录 |
 | v0.65.2 官方基线 | `86e10edfb72a553851c39ef73f53b5c0f09a38b3` | 本次官方目标版本 |
 | v0.65.2 首次迁移交付 | `e134ef6` | 完成版本迁移、旧定制兼容和隔离数据迁移验收 |
-| **v0.65.2 最新定制交付** | **`f8047ea`** | **增加 setup、帮助链接和“图表”中文术语定制；当前安装包** |
+| v0.65.2 setup 修订交付 | `f8047ea` | 增加 setup、帮助链接和“图表”中文术语定制；历史包 |
+| **v0.65.2 最新定制交付** | **`39088d6`** | **嵌入页指定标题隐藏、AI 推荐问题按站点语言生成；当前安装包** |
 
 官方基线是此次指定目标，不表示本文编写时对官方“最新版本”的实时判断。
 
@@ -43,18 +44,18 @@
 | 项目 | 值 |
 | --- | --- |
 | 官方目标 | v0.65.2，OSS 构建 |
-| 包内 `version.properties` | `tag=v0.65.2`、`hash=f8047ea`、`date=2026-10-29` |
-| 产品源码提交 | `f8047ea8e04b90c5d3f5ad6eeb8759da08b7c494` |
+| 包内 `version.properties` | `tag=v0.65.2`、`hash=39088d6`、`date=2026-10-29` |
+| 产品源码提交 | `39088d6a4ac4db6e0855c4bbb6ab04262a67a7d5` |
 | 本地开发分支 | `customization/uhooai-v0.65.2` |
-| 本地项目目录 | `/Users/chengang/Documents/UhooAI服务器/metabase-v0.64.2.5`，目录名沿用历史名称 |
-| 固定发布包（本机现名） | `target/releases/v0.65.2-f8047ea8/kanban.jar` |
-| 当前构建输出 | `target/uberjar/metabase.jar`，会被后续构建覆盖 |
-| JAR 大小 | 715,873,891 字节 |
-| JAR SHA-256 | `4fb420b5e0e7632ccfbc07e23b367635c97201bae162788d3965ade4c08bc0fe` |
-| ZIP 完整性 | 304,874 个条目 CRC 检查通过；不含 Enterprise 后端扩展 |
+| 本地项目目录 | `/Users/chengang/Documents/metabase/metabase-v0.65.2` |
+| 固定发布包 | `target/releases/v0.65.2-39088d6a/metabase.jar` |
+| 构建临时输出 | `target/uberjar/metabase.jar`，验收后清理；交付使用上行固定发布包 |
+| JAR 大小 | 715,861,852 字节 |
+| JAR SHA-256 | `2bb0761a7d4ec3ed40e29bef9cd278cfd3f65a4320ca725d0875161ee180f186` |
+| ZIP 完整性 | 304,875 个条目 CRC 检查通过；不含 Enterprise 后端扩展 |
 | 源码仓库 | [chengang900-glitch/kanban](https://github.com/chengang900-glitch/kanban) 的 `main` 分支 |
 
-本机固定发布包现名为 `kanban.jar`，历史制品记录中的 `metabase.jar` 是原交付名；已核对现名文件与构建输出的 SHA-256 一致。文件名不改变包内版本。
+本机仅保留本轮固定发布包 `metabase.jar`，旧发布包及可重建中间产物按用户要求清理。分发时可改名，文件名不改变包内版本；校验以本节 SHA-256 为准。
 
 后续仅补充文档的 Git 提交不会改变已经生成的 JAR。包内哈希、开发分支最新提交、GitHub 发布提交是不同标识，核对时应分别记录。
 
@@ -77,7 +78,7 @@ v0.64.3 → v0.65.2 采用三方差异迁移：比较“旧官方 → 旧定制�
 
 ### 2.2 明确保留的边界
 
-- 原生 AI/provider、工具、协议、提示词、会话历史和模型配置流程继续使用 v0.65.2 实现。
+- 原生 AI/provider、工具、协议、会话历史和模型配置流程继续使用 v0.65.2 实现。推荐问题生成仅追加站点语言要求，问数对话系统提示词不改。
 - 隐藏收费引导、菜单或帮助链接，不赋予付费权限，不删除后端许可检查，也不开放对应路由权限。
 - 用户业务数据、图表名称、查询条件、权限、数据库连接和现有身份绑定不因品牌/翻译变更而重写。
 - 官方数据库 changeset 不改；保留原有独立 Keycloak changeset 的 ID 和内容，避免已应用库重复执行。
@@ -186,6 +187,16 @@ v0.65.2 已将嵌入配置重组为 Embedding Hub，以上要求已重新映射�
 
 审查包含 279 条 question 相关条目及其余包含“问题”的中文译文；最终调整 271 条。英文 msgid、上下文、复数定义、参数占位符顺序、代码变量、API 路径、URI、数据库字段及用户自己命名的内容不变。
 
+### 3.6 获取嵌入代码与 AI 推荐问题语言
+
+| 项目 | 当前行为 | 边界 |
+| --- | --- | --- |
+| 获取嵌入代码标题 | 嵌入已启用但尚未同意时，不再显示“同意使用条件以继续。” | 保留显式同意按钮、按钮旁的信息图标及可查看的许可链接，不自动接受条款 |
+| 重新生成提示词 | 表和指标共同生成入口要求按全局站点语言输出，默认简体中文；手动和后台生成均适用 | 推荐问题全站共享，采用站点语言；保留模型、温度、JSON schema、权限及额度 |
+| AI 表格表头 | 简体中文显示“提示词”“模型或指标” | 使用原生翻译机制，其他语言继续回退 |
+
+已存英文推荐问题不自动翻译或批量迁移。管理员确认“设置 → 本地化”中的站点语言后，点击“重新生成提示词”才会产生对应语言的新列表；真实模型的输出质量仍需在模型接入后验收。专项说明见 [嵌入与 AI 语言修订](UHOOAI_V652_EMBEDDING_AI_LANGUAGE.md)。
+
 ## 4. 源码实现位置
 
 以下路径相对仓库根目录，供下次迁移定位；表格列出主要入口，不代替完整 Git diff。
@@ -204,6 +215,8 @@ v0.65.2 已将嵌入配置重组为 Embedding Hub，以上要求已重新映射�
 | 公共帮助链接 | `frontend/src/metabase/common/components/ExternalLink/ExternalLink.tsx` |
 | 权限说明 | `frontend/src/metabase/permissions/components/`、`frontend/src/metabase/admin/permissions/components/PermissionsEditor/` |
 | 嵌入入口 | `frontend/src/metabase/embedding-hub/`、`frontend/src/metabase/embedding/settings/` |
+| 嵌入代码标题 | `frontend/src/metabase/embedding/embedding-iframe-sdk-setup/components/AuthenticationCard/EnableGuestEmbedsSection.tsx` |
+| 推荐问题语言 | `src/metabase/metabot/example_question_generator.clj`、`frontend/src/metabase/admin/ai/MetabotAdminSuggestedPrompts.tsx` |
 | OSS SSO | `src/metabase/sso/api/keycloak.clj`、`src/metabase/sso/keycloak/`、`src/metabase/sso/auth_wrapper.clj`、`src/metabase/sso/models/keycloak.clj` |
 | 会话/同源框架 | `src/metabase/session/core.clj`、`src/metabase/server/middleware/session.clj`、`src/metabase/server/middleware/security.clj` |
 | 独立迁移 | `resources/migrations/063/20261003_oss_keycloak.yaml` |
@@ -215,7 +228,9 @@ v0.65.2 的 `server/auth_wrapper` 已迁入 SSO 模块；Web 层通过设置和 
 
 ### 5.1 环境和源码
 
-本次实际工具链包括 Java Temurin 25.0.3、Node 22.23.4、Bun 1.3.14、Clojure CLI、Babashka、uv 和 Python 3.12。以仓库 `mise.toml`、`.nvmrc`、`package.json` 及锁文件为准，勿为方便构建更新依赖锁文件。
+本轮实际工具链包括 Java Temurin 25.0.3、Node 24.12.0、Bun 1.3.14、Clojure CLI 1.12.3.1577、Babashka 和 uv；Python 资源安装由 uv 解析到 CPython 3.14.5，sqlglot 仍固定 30.20.0。此前构建使用过 Node 22.23.4/Python 3.12，不能混作本轮工具链。以仓库 `mise.toml`、`.nvmrc`、`package.json` 及锁文件为基准；本轮没有更新依赖锁文件。
+
+本机通过 `JAVA_HOME` 指定 Java 时，还需将 `$JAVA_HOME/bin` 加入 `PATH`。原生前端构建子进程只传递自己的环境白名单，因此只设置 `JAVA_HOME` 不能保证该子进程能找到 Java。
 
 ```sh
 git clone --single-branch --branch main https://github.com/chengang900-glitch/kanban.git
@@ -279,7 +294,7 @@ API 测试内部固定英文站点上下文以校验上游英文错误信息，�
 
 ## 6. 已完成的验证和证据
 
-以下区分首次 v0.65.2 迁移包与最终 UI 包；不同组存在重叠，不把数字相加成一个覆盖率结论。
+以下区分首次 v0.65.2 迁移包、setup 修订包和本轮嵌入/语言修订；不同组存在重叠，不把数字相加成一个覆盖率结论。历史测试不表示在每个新包上都重跑全部上游测试。
 
 | 阶段 | 已确认结果 | 范围 |
 | --- | --- | --- |
@@ -290,7 +305,10 @@ API 测试内部固定英文站点上下文以校验上游英文错误信息，�
 | 最终 UI 包后端及翻译 | 19 项/124 断言通过 | setup API、采集默认值、翻译 |
 | 最后一条另存译文修订后 | 翻译 7 项/35 断言通过 | 另存提示及语义正反检查 |
 | 静态质量 | TypeScript、定向 Oxlint、格式、提交钩子、`git diff --check` 通过 | 对应改动范围 |
-| 最终 JAR | ZIP CRC、版本、SHA-256 和 OSS 内容通过 | `f8047ea` 实际包 |
+| setup 修订包 JAR | ZIP CRC、版本、SHA-256 和 OSS 内容通过 | `f8047ea` 历史包 |
+| 本轮前端/后端/翻译 | 前端 3 套件/49 项；后端 19 项/137 断言；翻译 8 项/37 断言通过；类型、lint、格式通过 | 嵌入状态、AI 语言与原生生成/调度流程 |
+| 本轮 JAR | ZIP CRC、版本、SHA-256、中文表头及 Keycloak 类/changeset 通过；无 EE 后端 | `39088d6` 实际包 |
+| 本轮实际页面 | 指定嵌入标题缺失，同意按钮/图标保留；AI 重新生成按钮及两列表头显示中文 | 新包 + 全新合成 H2，AI 使用本机仅供 UI 的提供商替身；未验收真实模型生成 |
 | 最终实际页面 | 全新中文 setup 完成；姓/名字段映射正确；用途首项固定；采集与邮件锁定关闭；管理员/嵌入指定页面通过 | 独立合成 H2 实例，13 张本地截图 |
 | 最终实际业务动作 | 新建并保存示例图表，查询返回前 2,000 行；公开属性确认采集 false | 不是真实业务库或 AI 模型验收 |
 
@@ -299,11 +317,13 @@ API 测试内部固定英文站点上下文以校验上游英文错误信息，�
 首次迁移包还通过本地 RSA 签名 OIDC 替身检查 A/B 个人会话、切换、同源 iframe 和 backchannel 注销。最终 UI 包没有重复生产 Keycloak 或真实门户联调；不能把首次替身测试当作最终包的生产 SSO 验收。
 
 - 首次迁移证据：[UHOOAI_V652_VERIFICATION.json](UHOOAI_V652_VERIFICATION.json)。
-- 最终 UI/制品证据：[UHOOAI_V652_SETUP_UI_VERIFICATION.json](UHOOAI_V652_SETUP_UI_VERIFICATION.json)。
-- 本机截图：`output/playwright/v652-upgrade/`、`output/playwright/ui-20261029/`。
-- 本机日志/合成库：`target/v652-upgrade/`、`target/ui-20261029/`。
+- setup 修订包历史证据：[UHOOAI_V652_SETUP_UI_VERIFICATION.json](UHOOAI_V652_SETUP_UI_VERIFICATION.json)。
+- 本轮验收证据：[UHOOAI_V652_EMBEDDING_AI_LANGUAGE_VERIFICATION.json](UHOOAI_V652_EMBEDDING_AI_LANGUAGE_VERIFICATION.json)。
+- 本轮本机截图及小型验收记录：`target/releases/v0.65.2-39088d6a/evidence/`、`metadata.json`、`verification.json`；保留在最新包旁，不上传 GitHub。
+- 历史本机截图：`output/playwright/v652-upgrade/`、`output/playwright/ui-20261029/`。
+- 历史本机日志/合成库：`target/v652-upgrade/`、`target/ui-20261029/`。
 
-后两类目录被 Git 忽略，GitHub 克隆不包含它们；JSON 中的本机路径是证据定位信息，不是可从 GitHub 下载的附件。测试服务在验收后停止。
+后两类目录被 Git 忽略，已按用户“仅保留最新源码、JAR 和说明”的要求清理；历史结果以提交的 JSON 和说明追溯，不能声称原始截图/测试库仍在本机。GitHub 克隆不包含忽略的附件。测试服务在验收后停止。
 
 ## 7. 服务器升级实施方案
 
@@ -345,7 +365,7 @@ API 测试内部固定英文站点上下文以校验上游英文错误信息，�
 | 层次 | 必须观察的结果 |
 | --- | --- |
 | 进程/健康 | 启动完成、无迁移失败；健康接口正常；重启次数可解释 |
-| 制品 | 运行 `v0.65.2 / f8047ea`；容器内 JAR SHA-256 与目标制品一致 |
+| 制品 | 运行 `v0.65.2 / 39088d6`；容器内 JAR SHA-256 与目标制品一致 |
 | 数据 | 对象数量、图表定义、仪表板参数、数据源、权限及绑定摘要符合预期 |
 | 登录/SSO | 真实 Keycloak 登录、会话刷新、A/B 切换、退出及撤销路径正确 |
 | 页面 | 原业务仪表板、趋势/进度条、管理员设置、地图、权限帮助、嵌入入口符合方案 |
@@ -394,6 +414,7 @@ API 测试内部固定英文站点上下文以校验上游英文错误信息，�
 
 - v0.65.2 最新定制包尚未部署服务器，未对生产 PostgreSQL 执行迁移或恢复。
 - 未执行真实模型调用；保留新版 AI 不等于已经完成模型接入或 Qwen 兼容验证。
+- 本轮已验证多语言生成请求使用站点语言；真实模型可能不完全遵循语言指令，仍需接入后检查。旧英文推荐列表需管理员重新生成。
 - 最终 UI 包未重做真实 Keycloak、跨账号、统一注销和 LibreChat 门户全链路生产验收。
 - 历史企业 AI 门户记录中，`/portal/data` 在 Metabase 升级前已存在 LibreChat `t.replace is not a function` 白屏；本轮没有修复或重新确认其在线状态。
 - 嵌入入门页部分上游新增文案仍为英文，如 `Create your first embed`；271 条调整针对图表对象已有中文译文，不是整站全部新文案汉化。
@@ -412,5 +433,7 @@ API 测试内部固定英文站点上下文以校验上游英文错误信息，�
 | [企业 AI 门户 v0.64.3 部署](PORTAL_METABASE_V643_6BD491E_DEPLOYMENT_20261026.md) | 5922 环境独立部署与历史门户异常 |
 | [v0.65.2 迁移记录](UHOOAI_V652_UPGRADE.md) | 新版兼容处理和首次隔离迁移证据 |
 | [v0.65.2 首次验收 JSON](UHOOAI_V652_VERIFICATION.json) | 首次制品和测试数据 |
-| [setup、链接与术语定制](UHOOAI_V652_SETUP_UI.md) | 最新九项定制的专项说明 |
-| [最终验收 JSON](UHOOAI_V652_SETUP_UI_VERIFICATION.json) | f8047ea 制品、测试、运行与页面检查 |
+| [setup、链接与术语定制](UHOOAI_V652_SETUP_UI.md) | setup 等九项定制的专项说明 |
+| [setup 修订包验收 JSON](UHOOAI_V652_SETUP_UI_VERIFICATION.json) | f8047ea 历史制品、测试、运行与页面检查 |
+| [嵌入与 AI 语言修订](UHOOAI_V652_EMBEDDING_AI_LANGUAGE.md) | 本轮两项需求、语言规则和使用方式 |
+| [嵌入与 AI 语言验收 JSON](UHOOAI_V652_EMBEDDING_AI_LANGUAGE_VERIFICATION.json) | 本轮制品和定向验收结果 |

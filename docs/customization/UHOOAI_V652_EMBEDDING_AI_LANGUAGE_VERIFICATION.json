@@ -1,0 +1,131 @@
+{
+  "date": "2026-10-29",
+  "target": "Metabase OSS v0.65.2 local custom release; no server deployment",
+  "source_commit": "39088d6a4ac4db6e0855c4bbb6ab04262a67a7d5",
+  "official_baseline": "86e10edfb72a553851c39ef73f53b5c0f09a38b3",
+  "artifact": {
+    "version": "tag=v0.65.2\nhash=39088d6\ndate=2026-10-29",
+    "source_commit": "39088d6a4ac4db6e0855c4bbb6ab04262a67a7d5",
+    "bytes": 715861852,
+    "sha256": "2bb0761a7d4ec3ed40e29bef9cd278cfd3f65a4320ca725d0875161ee180f186",
+    "zip_entries": 304875,
+    "zip_crc": "pass",
+    "enterprise_backend_present": false,
+    "keycloak_extension_and_migration": "present",
+    "chinese_ai_prompt_table_headers": "pass",
+    "path": "target/releases/v0.65.2-39088d6a/metabase.jar"
+  },
+  "requirements": {
+    "embedding_consent_heading": "hidden only when enabled and terms not yet accepted",
+    "consent_button_and_license_information": "preserved; no automatic acceptance; mock mutation tested",
+    "suggested_questions_language": "global site locale; default zh_CN; shared manual and background generator",
+    "existing_saved_prompts": "not rewritten; regeneration required",
+    "ai_table_headers_zh_CN": [
+      "提示词",
+      "模型或指标"
+    ]
+  },
+  "checks": {
+    "frontend": {
+      "suites": 3,
+      "tests": 49,
+      "failures": 0
+    },
+    "backend": {
+      "tests": 19,
+      "assertions": 137,
+      "failures": 0,
+      "errors": 0,
+      "language_cases": [
+        "default zh_CN",
+        "zh_CN",
+        "zh_TW",
+        "en",
+        "fr"
+      ],
+      "personal_locale": "de, does not override site locale",
+      "boundary": "self/call-llm-structured mocked; real table and metric generators exercised"
+    },
+    "translation": {
+      "tests": 8,
+      "assertions": 37,
+      "failures": 0,
+      "errors": 0
+    },
+    "static": [
+      "TypeScript noEmit",
+      "strict oxlint",
+      "oxfmt",
+      "cljfmt",
+      "documentation link checker",
+      "token scan",
+      "git diff --check"
+    ],
+    "build": "full OSS version/translations/frontend/licenses/python/uberjar completed",
+    "jar_integrity": "full ZIP CRC pass; no EE backend; Keycloak init classes and independent changeset present; new zh_CN translations present"
+  },
+  "browser": {
+    "environment": "127.0.0.1 only, fresh synthetic H2 and disposable admin account",
+    "embedding": "visible wizard has no requested title; explicit agree button and info icon visible; no agreement clicked",
+    "ai": "Chinese regenerate button and table headers visible; empty prompt list",
+    "ai_provider": "local HTTP stub with synthetic credentials; generation endpoint returns 503; no real provider called",
+    "runtime": {
+      "version": {
+        "date": "2026-10-29",
+        "tag": "v0.65.2",
+        "hash": "39088d6"
+      },
+      "site_locale": "zh_CN",
+      "enable_embedding_modular": true,
+      "show_static_embed_terms": true,
+      "llm_configured": true,
+      "llm_endpoint": "http://127.0.0.1:33422/v1 (UI-only stub, generation returns 503)",
+      "fixture": "loopback fresh H2; synthetic account; no license consent performed",
+      "settings": [
+        {
+          "key": "enable-embedding-modular",
+          "value": true,
+          "default": false,
+          "effective": true
+        },
+        {
+          "key": "show-static-embed-terms",
+          "value": null,
+          "default": true,
+          "effective": true
+        },
+        {
+          "key": "site-locale",
+          "value": null,
+          "default": "zh_CN",
+          "effective": "zh_CN"
+        }
+      ]
+    },
+    "evidence": [
+      "target/releases/v0.65.2-39088d6a/evidence/embedding-code.png",
+      "target/releases/v0.65.2-39088d6a/evidence/ai-prompts-zh.png"
+    ]
+  },
+  "toolchain": {
+    "java": "Temurin 25.0.3",
+    "node": "24.12.0",
+    "bun": "1.3.14",
+    "clojure_cli": "1.12.3.1577",
+    "uv_python": "3.14.5",
+    "sqlglot": "30.20.0"
+  },
+  "test_only_network_allowance": "MB_LLM_ALLOWED_NETWORKS=allow-all in isolated tests and loopback-only fixture; no production setting or source default change",
+  "not_verified": [
+    "real LLM language quality",
+    "production PostgreSQL upgrade",
+    "real Keycloak/LibreChat E2E on this release",
+    "full upstream suite"
+  ],
+  "publication": {
+    "repository": "https://github.com/chengang900-glitch/kanban.git",
+    "branch": "main",
+    "method": "same-tree snapshot with existing remote main as parent; final publication SHA recorded in local release sidecar after push"
+  },
+  "cleanup": "after successful build and checks, retain current source/Git/docs and latest release with small metadata/evidence; remove old release and rebuildable local dependencies/intermediates"
+}

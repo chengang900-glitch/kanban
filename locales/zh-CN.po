@@ -46352,3 +46352,11 @@ msgstr "从你的应用链接到独立分析系统"
 #: frontend/src/metabase/embedding/settings/EmbeddingMethodsCard/EmbeddingMethodsCard.tsx
 msgid "Link to the analytics app from your own app and provide authentication with SSO."
 msgstr "从你的应用链接到分析系统，并通过单点登录提供身份验证。"
+
+#: frontend/src/metabase/admin/ai/MetabotAdminSuggestedPrompts.tsx
+msgid "Prompt"
+msgstr "提示词"
+
+#: frontend/src/metabase/admin/ai/MetabotAdminSuggestedPrompts.tsx
+msgid "Model or metric"
+msgstr "模型或指标"

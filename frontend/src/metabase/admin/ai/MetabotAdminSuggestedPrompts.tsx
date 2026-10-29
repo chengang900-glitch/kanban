@@ -144,8 +144,8 @@ export const MetabotPromptSuggestionPane = ({
             </>
           }
           columns={[
-            { name: "Prompt", key: "prompt", sortable: false },
-            { name: "Model or metric", key: "model", sortable: false },
+            { name: t`Prompt`, key: "prompt", sortable: false },
+            { name: t`Model or metric`, key: "model", sortable: false },
             { name: "", key: "trash", sortable: false },
           ]}
           rows={rows}
