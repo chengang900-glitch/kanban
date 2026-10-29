@@ -1,5 +1,11 @@
 # Metabase
 
+## UhooAI 数据看板定制版
+
+本仓库发布基于 Metabase OSS 的 UhooAI 定制源码。当前交付包为 **v0.65.2 / f8047ea**，源码发布与服务器部署状态分别记录。
+
+完整的定制清单、方案、源码位置、构建、验证、升级和回滚说明见 [UhooAI 定制与升级说明](docs/customization/UHOOAI_CUSTOMIZATION_UPGRADE_GUIDE.md)。
+
 [Metabase](https://www.metabase.com) is the easy, open-source way for everyone in your company to ask questions and learn from data.
 
 ![Metabase Product Screenshot](./docs/images/metabase-product-screenshot-updated.png)
