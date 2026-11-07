@@ -140,6 +140,7 @@
            api-scope
            api.eid-translation
            collections
+           data-apps
            events
            lib.schema
            models
@@ -180,6 +181,7 @@
    :module-exports #{analytics.interface
                      analytics.internal-stats}
    :api  #{metabase.analytics.api
+           metabase.analytics.api.metaplow-proxy
            metabase.analytics.api.proxy
            metabase.analytics.core
            metabase.analytics.event
@@ -331,6 +333,7 @@
    :ns-prefix "metabase.eid-translation"
    :api #{metabase.eid-translation.api metabase.eid-translation.core metabase.eid-translation.init}
    :uses #{api
+           api-scope
            batch-processing
            settings
            util}
@@ -666,6 +669,7 @@
            api-scope
            api.eid-translation
            collections
+           data-apps
            documents
            events
            lib.schema
@@ -822,7 +826,6 @@
    :uses #{actions
            analytics
            api
-           api-scope
            api.eid-translation
            app-db
            channel
@@ -863,8 +866,15 @@
 
   data-apps
   {:team "Embedding"
-   :api #{metabase.data-apps.core}
-   :uses #{premium-features}}
+   :api #{metabase.data-apps.core metabase.data-apps.schema}
+   :uses #{actions
+           analytics
+           api
+           api-scope
+           lib.be
+           lib.schema
+           premium-features
+           util}}
 
   data-studio
   {:team "Gadget"
@@ -1523,6 +1533,7 @@
               audit-app
               channel
               collections
+              data-apps
               documents
               driver
               embedding
@@ -1826,7 +1837,6 @@
   {:team "Graphy"
    :api  #{metabase.native-query-snippets.api metabase.native-query-snippets.core metabase.native-query-snippets.schema}
    :uses #{api
-           api-scope
            collections
            events
            lib
@@ -2211,7 +2221,6 @@
                     :model/NativeQuerySnippet
                     :model/Notification
                     :model/Revision
-                    :model/Table
                     :model/Timeline
                     :model/User}}
 
@@ -2223,6 +2232,7 @@
            api-scope
            api.eid-translation
            collections
+           data-apps
            events
            lib
            lib.be
@@ -2315,6 +2325,7 @@
            batch-processing
            cache
            dashboards
+           data-apps
            database-routing
            driver
            events
@@ -2610,7 +2621,6 @@
    :api  #{metabase.server.core
            metabase.server.init
            metabase.server.middleware.security
-           metabase.server.middleware.session
            metabase.server.settings
            metabase.server.streaming-response} ; TODO -- too many API namespaces
    :uses #{analytics
@@ -2621,6 +2631,7 @@
            app-db
            appearance
            core.initialization-status
+           data-apps
            driver
            embedding
            lib.be
@@ -2754,8 +2765,8 @@
   sql-tools.parsing
   {:team "DevEx"
    :ns-prefix "metabase.sql-parsing"
-   :api #{metabase.sql-parsing.core}
-   :uses #{analytics.interface util}}
+   :api #{metabase.sql-parsing.core metabase.sql-parsing.init}
+   :uses #{analytics.interface settings util}}
 
   sso
   {:team "UX West"
@@ -2797,6 +2808,7 @@
            request
            request.schema
            session.login-history
+           settings
            users
            util}
    :model-exports #{:model/AuthIdentity}
@@ -2976,7 +2988,6 @@
    :api  #{metabase.timeline.api metabase.timeline.core metabase.timeline.schema}
    :uses #{analytics
            api
-           api-scope
            collections
            events
            lib.schema
@@ -3195,6 +3206,7 @@
            metabase.user-key-value.init}
    :uses #{api
            api-scope
+           data-apps
            lib.schema
            util
            util.config}}
@@ -3211,7 +3223,6 @@
    :uses #{analytics
            api
            batch-processing
-           channel
            events
            lib.schema
            models
@@ -3438,6 +3449,7 @@
            api-scope
            app-db
            collections
+           data-apps
            database-routing
            driver
            events
@@ -3827,26 +3839,35 @@
    :uses #{actions
            api
            api-scope
+           audit-app
            collections
+           data-apps
            events
            lib
+           lib.be
            lib.schema
            lib.types
+           metabot
+           metrics
            models
            permissions
            premium-features
-           remote-sync
-           request
+           queries
            search
            settings
+           system
            util
            util.graph
            warehouse-schema-overlay
-           enterprise/dependencies}
+           enterprise/dependencies
+           enterprise/serialization}
    :model-imports #{:model/Action
                     :model/Card
                     :model/Collection
                     :model/DataPermissions
+                    :model/Database
+                    :model/Field
+                    :model/Measure
                     :model/Table}
    :model-exports #{:model/DataApp}}
 
@@ -4208,16 +4229,21 @@
   enterprise/permissions.impersonation
   {:team "Graphy"
    :ns-prefix "metabase-enterprise.impersonation"
-   :api #{metabase-enterprise.impersonation.api}
+   :api #{metabase-enterprise.impersonation.api metabase-enterprise.impersonation.init}
    :uses #{api
+           app-db
            audit-app
            driver
+           lib
            lib.metadata
            lib.schema
            models
            premium-features
            query-processor
+           settings
+           task
            util
+           util.config
            warehouses.schema
            enterprise/permissions.sandbox}
    :model-exports #{:model/ConnectionImpersonation}
@@ -4493,7 +4519,6 @@
            lib.schema
            models
            permissions
-           server
            settings
            system
            users

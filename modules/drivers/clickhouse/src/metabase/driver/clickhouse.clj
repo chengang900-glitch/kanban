@@ -69,6 +69,10 @@
                               :index/fetch                      true
                               :index/inline-create              true
                               :index/standalone-create          true
+                              ;; The JDBC driver sends the query timeout as the `max_execution_time` server setting,
+                              ;; which fails for users with `readonly = 1` (#85850). Long running queries will still
+                              ;; be cancelled by `schedule-query-timeout-cancel!`.
+                              :jdbc/set-query-timeout           false
                               :left-join                        (not driver-api/is-test?)
                               :metadata/key-constraints         false
                               :native-pivot-tables              true
@@ -577,6 +581,12 @@
 (defmethod driver.sql/default-database-role :clickhouse
   [_ _]
   "NONE")
+
+(defmethod sql-jdbc.execute/impl-error-in-query? :clickhouse
+  [driver ^SQLException e]
+  ;; ClickHouse also uses class 22 for operational failures such as memory and result limits.
+  (and (not (str/starts-with? (str (.getSQLState e)) "22"))
+       ((get-method sql-jdbc.execute/impl-error-in-query? :sql-jdbc) driver e)))
 
 (defmethod sql-jdbc/impl-table-known-to-not-exist? :clickhouse
   [_ ^SQLException e]

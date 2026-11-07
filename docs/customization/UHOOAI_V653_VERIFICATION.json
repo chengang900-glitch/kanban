@@ -1,0 +1,238 @@
+{
+  "date": "2026-11-07",
+  "official_release": "https://github.com/metabase/metabase/releases/tag/v0.65.3",
+  "artifact": {
+    "tag": "v0.65.3",
+    "version_properties": "tag=v0.65.3\nhash=42619e6\ndate=2026-11-07",
+    "source_commit": "42619e63d6fa83eda11d37139b9ef294d8935634",
+    "official_commit": "0c644f3bc99d5dece16391d53135a0a7618f95bc",
+    "bytes": 716529605,
+    "sha256": "9189606e8144427b6296c26a0f042a7e67df99d46694ccdfb27ae2da1a0ea651",
+    "zip_entries": 305274,
+    "zip_crc": "pass",
+    "enterprise_backend_present": false,
+    "keycloak_extension": "present",
+    "keycloak_changeset": "byte-identical to previous release",
+    "chinese_chart_and_ai_headers": "pass",
+    "jar_name": "kanban.jar"
+  },
+  "migration": {
+    "old_official": "86e10edfb72a553851c39ef73f53b5c0f09a38b3",
+    "target_official": "0c644f3bc99d5dece16391d53135a0a7618f95bc",
+    "custom_files": 215,
+    "official_changes": 736,
+    "overlap": [
+      ".clj-kondo/config/modules/config.edn",
+      "README.md",
+      "frontend/src/metabase-types/api/settings.ts",
+      "frontend/src/metabase/admin/settings/components/SettingsNav/SettingsNav.unit.spec.tsx",
+      "frontend/src/metabase/auth/components/AuthLayout/AuthLayout.unit.spec.tsx",
+      "frontend/src/metabase/dashboard/components/DashCard/Dashcard.unit.spec.tsx",
+      "frontend/src/metabase/nav/components/AppSwitcher/AppSwitcher.unit.spec.tsx",
+      "src/metabase/analytics/settings.clj",
+      "src/metabase/channel/email/messages.clj",
+      "src/metabase/server/middleware/security.clj",
+      "src/metabase/server/middleware/session.clj",
+      "test/metabase/analytics/settings_test.clj",
+      "test/metabase/server/routes/index_test.clj"
+    ],
+    "unaffected_custom_files_byte_identical": 202,
+    "resolved_conflicts": [
+      "SettingsNav.unit.spec.tsx",
+      "AuthLayout.unit.spec.tsx",
+      "AppSwitcher.unit.spec.tsx",
+      "analytics/settings_test.clj",
+      "server/routes/index_test.clj"
+    ],
+    "note": "retain native target session password helper, metaplow changes, email join timestamp and dependency/security changes; custom SSO and anonymous-off behavior preserved"
+  },
+  "checks": {
+    "frontend": {
+      "suites": 23,
+      "tests": 419,
+      "failures": 0
+    },
+    "backend": {
+      "tests": 144,
+      "assertions": 720,
+      "failures": 0,
+      "errors": 0
+    },
+    "translations": {
+      "tests": 8,
+      "assertions": 37,
+      "failures": 0
+    },
+    "static": [
+      "TypeScript",
+      "strict targeted oxlint",
+      "oxfmt/cljfmt",
+      "precommit hooks",
+      "token scan",
+      "git diff --check"
+    ]
+  },
+  "fresh_setup": {
+    "properties": {
+      "version": {
+        "date": "2026-11-07",
+        "tag": "v0.65.3",
+        "hash": "42619e6"
+      },
+      "site-locale": "zh_CN",
+      "anon-tracking-enabled": false,
+      "site-name": "Metabase"
+    },
+    "ui": [
+      "default Chinese",
+      "last name before first name, last name focused",
+      "specified getting-started help sentence absent"
+    ],
+    "boundary": "fresh synthetic H2; no production reset; later setup lock states verified by component/action/API regression scope"
+  },
+  "build": {
+    "complete": true,
+    "resume": "full prerequisite steps and compilation passed; native uberjar resumed on dedicated external APFS scratch volume after local disk exhaustion",
+    "dependencies_lockfile": "official target frozen lockfile, no manual dependency changes"
+  },
+  "production": {
+    "status": "deployed and scoped acceptance completed",
+    "target": "uhooai / uhoo@122.224.218.82:9622",
+    "url": "http://122.224.218.82:9443/metabase/",
+    "compose": "/home/uhoo/metabase-linux/docker-compose.yml",
+    "service": "app",
+    "container": "metabase-linux",
+    "postgres": "existing shared PostgreSQL 17.6",
+    "database": "metabase_linux",
+    "image": "enterprise-ai/metabase-linux:v0.65.3-42619e6",
+    "release": "/home/uhoo/metabase-linux/releases/v0.65.3-42619e6",
+    "backup": "/home/uhoo/metabase-linux/backups/v653-20261106T190434Z",
+    "backups": [
+      "original full configuration and private runtime inspect (root-only)",
+      "old JAR",
+      "before.dump",
+      "before-switch.dump"
+    ],
+    "archive_listing_verified": true,
+    "new_package_clone_migration_passed": true,
+    "old_package_snapshot_restore_passed": true,
+    "fingerprint_tables": [
+      "core_user",
+      "report_card",
+      "report_dashboard",
+      "report_dashboardcard",
+      "metabase_database",
+      "collection",
+      "permissions",
+      "permissions_group",
+      "permissions_group_membership",
+      "auth_identity",
+      "oss_keycloak_binding",
+      "data_permissions",
+      "mcp_group_permission",
+      "metabot_permissions",
+      "permissions_revision",
+      "application_permissions_revision",
+      "collection_permission_graph_revision"
+    ],
+    "fingerprint_rows": {
+      "core_user": 4,
+      "report_card": 118,
+      "report_dashboard": 3,
+      "report_dashboardcard": 99,
+      "metabase_database": 3,
+      "collection": 9,
+      "permissions": 10,
+      "permissions_group": 4,
+      "permissions_group_membership": 5,
+      "auth_identity": 7,
+      "oss_keycloak_binding": 3,
+      "data_permissions": 20,
+      "mcp_group_permission": 3,
+      "metabot_permissions": 16,
+      "permissions_revision": 0,
+      "application_permissions_revision": 0,
+      "collection_permission_graph_revision": 0
+    },
+    "data_unchanged": true,
+    "runtime_environment_unchanged": true,
+    "unrelated_containers_unchanged": true,
+    "jar_sha256_verified": true,
+    "restart_count": 0,
+    "other_container_count": 43,
+    "public_properties": {
+      "version": {
+        "date": "2026-11-07",
+        "tag": "v0.65.3",
+        "hash": "42619e6"
+      },
+      "site-name": "数据看板",
+      "site-locale": "zh_CN",
+      "site-url": "http://122.224.218.82:9443/metabase",
+      "anon-tracking-enabled": false,
+      "oss-keycloak-enabled": true,
+      "health": {
+        "status": "ok"
+      }
+    },
+    "query_executions": [
+      {
+        "card_id": 84,
+        "cache_hit": false,
+        "error": null,
+        "result_rows": 1366,
+        "running_time": 454,
+        "context": "question",
+        "metabase_version": "v0.65.3"
+      },
+      {
+        "card_id": 84,
+        "cache_hit": false,
+        "error": null,
+        "result_rows": 1366,
+        "running_time": 1269,
+        "context": "question",
+        "metabase_version": "v0.65.3"
+      },
+      {
+        "card_id": 84,
+        "cache_hit": false,
+        "error": null,
+        "result_rows": 1366,
+        "running_time": 828,
+        "context": "dashboard",
+        "metabase_version": "v0.65.3"
+      },
+      {
+        "card_id": 84,
+        "cache_hit": false,
+        "error": null,
+        "result_rows": 1366,
+        "running_time": 269,
+        "context": "question",
+        "metabase_version": "v0.65.3"
+      }
+    ],
+    "browser": {
+      "existing_session_refresh": "pass",
+      "real_keycloak_login": "pass using existing Keycloak session",
+      "portal_iframe": "loaded successfully; transient unavailable message recovered after full-page reload; subsequent observation available",
+      "dashboard": "existing dashboard 4 and tabs display; native comparisons and customized SmartScalar present",
+      "admin": "general copy, hidden menus, map help absent, AI Chinese table headers, provider configuration retained",
+      "embedding": "Useful links and theme menu absent; specified agreement heading absent, explicit consent button retained and not clicked",
+      "version_page": "reports Metabase 0.65.3",
+      "progress_chart": "233 visualization unit tests passed; no production Progress card inspected"
+    },
+    "query_boundary": "saved card 84 refreshed using normal browser Run/ignoreCache; execution metadata shows v0.65.3, cache_hit false, error null, result_rows 1366; read-only query, no saved definition change",
+    "data_baseline_note": "Initial stale browser tab had older values. Fresh pre-switch SSO already showed the later results also seen after upgrade. Saved definitions verified separately by fingerprints.",
+    "transient_portal_note": "One unavailable notice while direct Metabase was healthy; retry alone did not recover, full reload did. Cause not confirmed; no Portal/Caddy/Keycloak configuration modified.",
+    "temporary_resources": "clone databases, candidate containers, private candidate env and upload scratch removed; server recovery backups retained; helper archived in release"
+  },
+  "not_verified": [
+    "real model generation/language quality or new Qwen adapter",
+    "all upstream tests and all query/export/mobile combinations",
+    "production account switching and global logout",
+    "root cause of transient Portal unavailable notice",
+    "production Progress card visual acceptance (unit tests passed)"
+  ]
+}

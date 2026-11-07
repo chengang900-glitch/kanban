@@ -1,5 +1,6 @@
 import userEvent from "@testing-library/user-event";
 
+import { setupEnterpriseOnlyPlugin } from "__support__/enterprise";
 import { setupBugReportingDetailsEndpoint } from "__support__/server-mocks";
 import { mockSettings } from "__support__/settings";
 import {
@@ -56,6 +57,7 @@ async function setup({
   helpLinkCustomDestinationSetting = "https://custom-destination.com/help",
   instanceCreationDate = dayjs().toISOString(),
   tokenFeatures = {},
+  applicationName,
 }: {
   isAdmin?: boolean;
   isAnalyst?: boolean;
@@ -65,6 +67,7 @@ async function setup({
   helpLinkCustomDestinationSetting?: string;
   instanceCreationDate?: string;
   tokenFeatures?: Partial<TokenFeatures>;
+  applicationName?: string;
 } = {}) {
   setupBugReportingDetailsEndpoint();
 
@@ -75,7 +78,16 @@ async function setup({
     "help-link-custom-destination": helpLinkCustomDestinationSetting,
     "instance-creation": instanceCreationDate,
     "token-features": createMockTokenFeatures(tokenFeatures),
+    ...(applicationName && {
+      "application-name": applicationName,
+      // A non-SVG data URI renders without a fetch of the whitelabel logo
+      "application-logo-url": "data:image/png;base64,iVBORw0KGgo=",
+    }),
   });
+
+  if (applicationName) {
+    setupEnterpriseOnlyPlugin("whitelabel");
+  }
 
   const admin = createMockAdminState({
     app: createMockAdminAppState({

@@ -1,7 +1,9 @@
 (ns metabase.server.routes.index-test
   (:require
+   [clojure.string :as str]
    [clojure.test :refer :all]
    [metabase.appearance.core :as appearance]
+   [metabase.config.core :as config]
    [metabase.server.routes.index :as index]
    [metabase.settings.core :as setting]
    [metabase.test :as mt]
@@ -85,6 +87,24 @@
     ;; but we can override with the user locale
     (binding [i18n/*user-locale* "fr"]
       (is (= "fr" (:language (#'index/template-parameters false {})))))))
+
+(defn- data-app-response
+  "What the `/embed/apps` entrypoint responds to `request`."
+  [request]
+  (let [response (promise)]
+    (index/data-app request #(deliver response %) #(throw %))
+    @response))
+
+(deftest data-app-entrypoint-test
+  (when config/ee-available?
+    (testing "a signed-out visitor is sent to log in, then back to the app's page"
+      (mt/with-premium-features #{:data-apps}
+        (let [{:keys [status headers]} (data-app-response {:uri "/embed/apps/sales/sub" :query-string "x=1"})]
+          (is (= 302 status))
+          (is (str/ends-with? (get headers "Location") "/auth/login?redirect=%2Fapps%2Fsales%2Fsub%3Fx%3D1"))))))
+  (testing "without the feature the request falls through to the generic embed handler"
+    (mt/with-premium-features #{}
+      (is (nil? (data-app-response {:uri "/embed/apps/sales" :metabase-user-id (mt/user->id :crowberto)}))))))
 
 (deftest display-application-name-test
   (with-redefs [appearance/application-name (constantly "Metabase")

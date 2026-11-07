@@ -1,10 +1,10 @@
-# UhooAI 数据看板：完整定制与升级说明（v0.65.2）
+# UhooAI 数据看板：完整定制与升级说明（v0.65.3）
 
-文档日期：2026-10-29。适用交付包：**Metabase OSS v0.65.2 / 39088d6**。
+文档日期：2026-11-07。适用交付包：**Metabase OSS v0.65.3 / 42619e6**。
 
-本文汇总从 v0.63.19 参考定制迁移至 v0.64.2.5、v0.64.3，再升级至 v0.65.2 的方案、现行定制、实现位置、验证结果与后续部署方法。它是当前定制版的总说明；阶段性记录和机器可读结果作为证据保留。
+本文汇总从 v0.63.19 参考定制迁移至 v0.64.2.5、v0.64.3，再升级至 v0.65.2、v0.65.3 的方案、现行定制、实现位置、验证结果与后续部署方法。它是当前定制版的总说明；阶段性记录和机器可读结果作为证据保留。
 
-**交付状态：本地源码、安装包和隔离验收已完成，源码已发布至 GitHub；本轮没有把 v0.65.2 部署到任何服务器，也没有执行生产数据迁移。** 本轮重新构建安装包，新增嵌入页标题和 AI 推荐问题语言定制。
+**交付状态：v0.65.3 已在 UhooAI 完成 PostgreSQL 副本迁移、旧包恢复预演和正式切换。运行包为 42619e6，数据、权限、SSO 绑定及其他容器保留。源码、制品、页面与查询证据见本轮记录；企业 AI 门户 5922 环境不在本次升级范围。**
 
 ## 目录
 
@@ -32,30 +32,32 @@
 | v0.64.2.5 定制交付 | `a26b7ad` | 历史构建与部署记录保留 |
 | v0.64.3 官方基线 | `dc449ac0214ca332a24a605335405db0352d6b5f` | 第二轮升级基线 |
 | v0.64.3 管理员定制交付 | `6bd491e` | 包含第一组九项管理员页面定制；历史服务器部署版本见各环境记录 |
-| v0.65.2 官方基线 | `86e10edfb72a553851c39ef73f53b5c0f09a38b3` | 本次官方目标版本 |
+| v0.65.2 官方基线 | `86e10edfb72a553851c39ef73f53b5c0f09a38b3` | 历史官方基线 |
 | v0.65.2 首次迁移交付 | `e134ef6` | 完成版本迁移、旧定制兼容和隔离数据迁移验收 |
 | v0.65.2 setup 修订交付 | `f8047ea` | 增加 setup、帮助链接和“图表”中文术语定制；历史包 |
-| **v0.65.2 最新定制交付** | **`39088d6`** | **嵌入页指定标题隐藏、AI 推荐问题按站点语言生成；当前安装包** |
+| v0.65.2 最后定制交付 | `39088d6` | 本次升级前 UhooAI 运行包；嵌入提示和 AI 语言定制保留 |
+| v0.65.3 官方基线 | `0c644f3bc99d5dece16391d53135a0a7618f95bc` | GitHub API 核实的最新稳定版 |
+| **v0.65.3 当前定制交付** | **`42619e6`** | **完整迁移旧定制和新官方修复，已部署 UhooAI** |
 
-官方基线是此次指定目标，不表示本文编写时对官方“最新版本”的实时判断。
+v0.65.3 是 2026-11-07 本轮查询 GitHub API latest 和稳定发布列表后固定的目标；该结论是当日快照。
 
 ### 1.2 当前交付标识
 
 | 项目 | 值 |
 | --- | --- |
-| 官方目标 | v0.65.2，OSS 构建 |
-| 包内 `version.properties` | `tag=v0.65.2`、`hash=39088d6`、`date=2026-10-29` |
-| 产品源码提交 | `39088d6a4ac4db6e0855c4bbb6ab04262a67a7d5` |
-| 本地开发分支 | `customization/uhooai-v0.65.2` |
-| 本地项目目录 | `/Users/chengang/Documents/metabase/metabase-v0.65.2` |
-| 固定发布包 | `target/releases/v0.65.2-39088d6a/metabase.jar` |
+| 官方目标 | v0.65.3，OSS 构建 |
+| 包内 `version.properties` | `tag=v0.65.3`、`hash=42619e6`、`date=2026-11-07` |
+| 产品源码提交 | `42619e63d6fa83eda11d37139b9ef294d8935634` |
+| 本地开发分支 | `customization/uhooai-v0.65.3` |
+| 本地项目目录 | `/Users/chengang/Documents/metabase/metabase-v0.65.3` |
+| 固定发布包 | `target/releases/v0.65.3-42619e63/kanban.jar` |
 | 构建临时输出 | `target/uberjar/metabase.jar`，验收后清理；交付使用上行固定发布包 |
-| JAR 大小 | 715,861,852 字节 |
-| JAR SHA-256 | `2bb0761a7d4ec3ed40e29bef9cd278cfd3f65a4320ca725d0875161ee180f186` |
-| ZIP 完整性 | 304,875 个条目 CRC 检查通过；不含 Enterprise 后端扩展 |
+| JAR 大小 | 716,529,605 字节 |
+| JAR SHA-256 | `9189606e8144427b6296c26a0f042a7e67df99d46694ccdfb27ae2da1a0ea651` |
+| ZIP 完整性 | 305,274 个条目 CRC 检查通过；不含 Enterprise 后端扩展 |
 | 源码仓库 | [chengang900-glitch/kanban](https://github.com/chengang900-glitch/kanban) 的 `main` 分支 |
 
-本机仅保留本轮固定发布包 `metabase.jar`，旧发布包及可重建中间产物按用户要求清理。分发时可改名，文件名不改变包内版本；校验以本节 SHA-256 为准。
+本机仅保留本轮固定发布包 `kanban.jar`，旧发布包及可重建中间产物按用户要求清理。分发时可改名，文件名不改变包内版本；校验以本节 SHA-256 为准。
 
 后续仅补充文档的 Git 提交不会改变已经生成的 JAR。包内哈希、开发分支最新提交、GitHub 发布提交是不同标识，核对时应分别记录。
 
@@ -74,11 +76,11 @@
 | 暂不启用 | 不加入兼容层，避免改变新版核心行为 | Qwen 旧适配 |
 | 结构变化较大 | 对新版重新定位、实现和验收 | Embedding Hub、认证模块、管理员推广和帮助入口 |
 
-v0.64.3 → v0.65.2 采用三方差异迁移：比较“旧官方 → 旧定制”的差异，并结合“旧官方 → 新官方”的变化逐文件审查。认证、会话、安全、数据库迁移及许可判断优先保留目标版本实现，不用旧源码整体覆盖。
+v0.64.3 → v0.65.2 → v0.65.3 均采用三方差异迁移：比较“旧官方 → 旧定制”的差异，并结合“旧官方 → 新官方”的变化逐文件审查。认证、会话、安全、数据库迁移及许可判断优先保留目标版本实现，不用旧源码整体覆盖。
 
 ### 2.2 明确保留的边界
 
-- 原生 AI/provider、工具、协议、会话历史和模型配置流程继续使用 v0.65.2 实现。推荐问题生成仅追加站点语言要求，问数对话系统提示词不改。
+- 原生 AI/provider、工具、协议、会话历史和模型配置流程继续使用 v0.65.3 实现。推荐问题生成仅追加站点语言要求，问数对话系统提示词不改。
 - 隐藏收费引导、菜单或帮助链接，不赋予付费权限，不删除后端许可检查，也不开放对应路由权限。
 - 用户业务数据、图表名称、查询条件、权限、数据库连接和现有身份绑定不因品牌/翻译变更而重写。
 - 官方数据库 changeset 不改；保留原有独立 Keycloak changeset 的 ID 和内容，避免已应用库重复执行。
@@ -247,13 +249,13 @@ bun install --frozen-lockfile
 在工具链就绪、源码已提交后，首次完整 OSS 构建使用：
 
 ```sh
-./bin/build.sh '{:edition :oss :version "v0.65.2" :steps [:version :translations :frontend :licenses :python :uberjar]}'
+./bin/build.sh '{:edition :oss :version "v0.65.3" :steps [:version :translations :frontend :licenses :python :uberjar]}'
 ```
 
 只有确认同一目标依赖的许可证及 Python 资源已完整生成、且这些依赖没有变化时，后续 UI/翻译修订才可使用：
 
 ```sh
-./bin/build.sh '{:edition :oss :version "v0.65.2" :steps [:version :translations :frontend :uberjar]}'
+./bin/build.sh '{:edition :oss :version "v0.65.3" :steps [:version :translations :frontend :uberjar]}'
 ```
 
 不能在全新 checkout 上省略尚未生成的 licenses/python。当前包保留官方固定 sqlglot 30.20.0。内存受限时串行执行测试和构建；磁盘要同时容纳依赖、编译产物、旧发布包及新 JAR，不能仅按最终约 683 MiB 包大小估算。
@@ -294,7 +296,7 @@ API 测试内部固定英文站点上下文以校验上游英文错误信息，�
 
 ## 6. 已完成的验证和证据
 
-以下区分首次 v0.65.2 迁移包、setup 修订包和本轮嵌入/语言修订；不同组存在重叠，不把数字相加成一个覆盖率结论。历史测试不表示在每个新包上都重跑全部上游测试。
+下表先保留 v0.65.2 历史迁移、setup 和嵌入/语言修订快照；不同组存在重叠，不把数字相加成一个覆盖率结论。历史测试不表示在每个新包上都重跑全部上游测试。
 
 | 阶段 | 已确认结果 | 范围 |
 | --- | --- | --- |
@@ -306,9 +308,9 @@ API 测试内部固定英文站点上下文以校验上游英文错误信息，�
 | 最后一条另存译文修订后 | 翻译 7 项/35 断言通过 | 另存提示及语义正反检查 |
 | 静态质量 | TypeScript、定向 Oxlint、格式、提交钩子、`git diff --check` 通过 | 对应改动范围 |
 | setup 修订包 JAR | ZIP CRC、版本、SHA-256 和 OSS 内容通过 | `f8047ea` 历史包 |
-| 本轮前端/后端/翻译 | 前端 3 套件/49 项；后端 19 项/137 断言；翻译 8 项/37 断言通过；类型、lint、格式通过 | 嵌入状态、AI 语言与原生生成/调度流程 |
-| 本轮 JAR | ZIP CRC、版本、SHA-256、中文表头及 Keycloak 类/changeset 通过；无 EE 后端 | `39088d6` 实际包 |
-| 本轮实际页面 | 指定嵌入标题缺失，同意按钮/图标保留；AI 重新生成按钮及两列表头显示中文 | 新包 + 全新合成 H2，AI 使用本机仅供 UI 的提供商替身；未验收真实模型生成 |
+| v0.65.2 嵌入/语言前端/后端/翻译 | 前端 3 套件/49 项；后端 19 项/137 断言；翻译 8 项/37 断言通过；类型、lint、格式通过 | 嵌入状态、AI 语言与原生生成/调度流程 |
+| v0.65.2 嵌入/语言 JAR | ZIP CRC、版本、SHA-256、中文表头及 Keycloak 类/changeset 通过；无 EE 后端 | `39088d6` 实际包 |
+| v0.65.2 嵌入/语言实际页面 | 指定嵌入标题缺失，同意按钮/图标保留；AI 重新生成按钮及两列表头显示中文 | 新包 + 全新合成 H2，AI 使用本机仅供 UI 的提供商替身；未验收真实模型生成 |
 | 最终实际页面 | 全新中文 setup 完成；姓/名字段映射正确；用途首项固定；采集与邮件锁定关闭；管理员/嵌入指定页面通过 | 独立合成 H2 实例，13 张本地截图 |
 | 最终实际业务动作 | 新建并保存示例图表，查询返回前 2,000 行；公开属性确认采集 false | 不是真实业务库或 AI 模型验收 |
 
@@ -318,23 +320,38 @@ API 测试内部固定英文站点上下文以校验上游英文错误信息，�
 
 - 首次迁移证据：[UHOOAI_V652_VERIFICATION.json](UHOOAI_V652_VERIFICATION.json)。
 - setup 修订包历史证据：[UHOOAI_V652_SETUP_UI_VERIFICATION.json](UHOOAI_V652_SETUP_UI_VERIFICATION.json)。
-- 本轮验收证据：[UHOOAI_V652_EMBEDDING_AI_LANGUAGE_VERIFICATION.json](UHOOAI_V652_EMBEDDING_AI_LANGUAGE_VERIFICATION.json)。
-- 本轮本机截图及小型验收记录：`target/releases/v0.65.2-39088d6a/evidence/`、`metadata.json`、`verification.json`；保留在最新包旁，不上传 GitHub。
+- v0.65.2 嵌入/语言验收证据：[UHOOAI_V652_EMBEDDING_AI_LANGUAGE_VERIFICATION.json](UHOOAI_V652_EMBEDDING_AI_LANGUAGE_VERIFICATION.json)。
+- 当前 v0.65.3 的截图和小型记录：`target/releases/v0.65.3-42619e63/evidence/`、`metadata.json`、`verification.json`，不上传 GitHub；旧包旁的截图已清理。
 - 历史本机截图：`output/playwright/v652-upgrade/`、`output/playwright/ui-20261029/`。
 - 历史本机日志/合成库：`target/v652-upgrade/`、`target/ui-20261029/`。
 
 后两类目录被 Git 忽略，已按用户“仅保留最新源码、JAR 和说明”的要求清理；历史结果以提交的 JSON 和说明追溯，不能声称原始截图/测试库仍在本机。GitHub 克隆不包含忽略的附件。测试服务在验收后停止。
 
+### 6.1 当前 v0.65.3 验收
+
+本轮前端 23 套件/419 项、后端 144 项/720 断言、翻译 8 项/37 断言通过；类型、lint、格式、提交钩子和敏感令牌检查通过。完成 OSS 构建、完整 JAR 校验、真实 PostgreSQL 两次副本恢复预演与生产切换。
+
+浏览器确认原会话刷新、真实 Keycloak 登录、门户 iframe、原业务仪表板/趋势卡、管理员中文与隐藏菜单、地图、嵌入和 AI 中文表头。代表图表 84 页面刷新后，执行日志确认 `cache_hit=false`、`error=null`、返回 1,366 行。进度条已通过可视化单测，没有逐一检查生产 Progress 卡。门户曾出现短暂不可用提示，整页刷新后恢复，原因未确认。
+
+完整边界见 [v0.65.3 升级记录](UHOOAI_V653_UPGRADE.md) 和 [当前机器验收](UHOOAI_V653_VERIFICATION.json)。保留历史测试数字用于追溯，不与本轮相加。
+
 ## 7. 服务器升级实施方案
 
-本节是**尚未执行的 v0.65.2 服务器升级步骤**。以下环境信息来自既有部署记录，不是本次重新读取的在线状态。
+本轮实时核对并升级的是以下 UhooAI 实例；早期 `/home/uhoo/metabase` / PostgreSQL 17.11 记录为历史，不能据此覆盖当前部署。
 
-| 环境 | 历史 SSH 入口 | 历史部署边界 |
-| --- | --- | --- |
-| UhooAI | `122.224.218.82:9622`；内网 `192.168.60.30` | `/home/uhoo/metabase`，完整 `compose.yaml`，应用服务 `metabase`，历史 PostgreSQL 17.11 |
-| 企业 AI 门户 demo | `cntracer@122.224.218.82:5922` | `/home/cntracer/metabase-linux`，完整 `docker-compose.yml`，服务 `app`，应用库 `metabase_linux`，历史共享 PostgreSQL 17.6 |
+| 项目 | 本轮实时状态 |
+| --- | --- |
+| 服务器 | `uhoo@122.224.218.82:9622`，hostname `uhooai` |
+| 入口 | `http://122.224.218.82:9443/metabase/`，保留原 HTTP 协议及子路径 |
+| 部署 | `/home/uhoo/metabase-linux/docker-compose.yml`，项目 `metabase-linux`、服务 `app`、容器 `metabase-linux` |
+| 镜像 | `enterprise-ai/metabase-linux:v0.65.3-42619e6`，旧镜像保留 |
+| 数据库 | 现有共享 `enterprise-ai-platform-postgres-1`，PostgreSQL 17.6，应用库 `metabase_linux` |
+| 备份 | `/home/uhoo/metabase-linux/backups/v653-20261106T190434Z`，root 受限目录 |
+| 发布与状态 | `/home/uhoo/metabase-linux/releases/v0.65.3-42619e6/` |
 
-两台环境不能互换配置。公网 HTTP/HTTPS、端口、Caddy 子路径、应用服务名、数据库版本和当前镜像应以实际目标复核为准；早期用户提供的 HTTPS 地址不能替代后来部署记录中的协议事实。
+备份含原完整配置、运行配置、旧 JAR、`before.dump` 和停写后的 `before-switch.dump`。两个快照均通过 `pg_restore -l`；初始快照实际恢复到两个隔离库，新包迁移和旧包恢复分别启动成功，17 类对象/权限/身份数据指纹一致。正式切换后指纹、运行环境、长期密钥、`.env` 和其他 43 个容器保持。临时库和验证容器已清理，恢复资料留在服务器。
+
+企业 AI 门户 `cntracer@122.224.218.82:5922` 是另一环境，本轮没有操作，不能混用配置。
 
 ### 7.1 升级前核查与成功标准
 
@@ -358,14 +375,14 @@ API 测试内部固定英文站点上下文以校验上游英文错误信息，�
 4. 保留原 PostgreSQL、数据卷、Keycloak、Caddy 及其他应用；不执行 `docker compose down -v`，不删除应用库重新 setup。
 5. 若原 Dockerfile 从部署根目录 JAR 构建，同时更新该持久化构建来源，避免日后重建回到旧包。
 
-仓库的 `bin/uhooai-deploy/` 和 `bin/portal-deploy/` 是历史 v0.64.x 部署辅助，包含旧版本/镜像/主机守卫；不能仅替换一个路径后当作已验证的 v0.65.2 一键升级脚本。
+本轮实际使用 `bin/uhooai-deploy/upgrade-v653.py`，以 hostname、旧镜像、配置校验和阶段状态守卫执行。`stage` 为备份/两次恢复预演，`cutover` 为一次切换，`status` 仅输出无凭据摘要。不可重复 stage 或已完成的 cutover；其余旧部署辅助仍是历史版本，不能直接复用。
 
 ### 7.4 切换后验收
 
 | 层次 | 必须观察的结果 |
 | --- | --- |
 | 进程/健康 | 启动完成、无迁移失败；健康接口正常；重启次数可解释 |
-| 制品 | 运行 `v0.65.2 / 39088d6`；容器内 JAR SHA-256 与目标制品一致 |
+| 制品 | 运行 `v0.65.3 / 42619e6`；容器内 JAR SHA-256 与目标制品一致 |
 | 数据 | 对象数量、图表定义、仪表板参数、数据源、权限及绑定摘要符合预期 |
 | 登录/SSO | 真实 Keycloak 登录、会话刷新、A/B 切换、退出及撤销路径正确 |
 | 页面 | 原业务仪表板、趋势/进度条、管理员设置、地图、权限帮助、嵌入入口符合方案 |
@@ -384,7 +401,7 @@ API 测试内部固定英文站点上下文以校验上游英文错误信息，�
 3. 将升级前快照恢复到且仅到目标应用库；恢复对应 Compose/JAR/镜像引用，再启动应用。
 4. 检查旧版本、数据摘要、SSO、代表仪表板和查询。
 
-**恢复旧快照会使快照之后的新写入不出现在回退库中。** 执行恢复前必须明确这部分数据如何处理；不能仅换回旧 JAR 连接已迁移的库。当前仅有历史记录中的隔离回退演练，不宣称本轮已经对正式服务器完成回滚或 v0.65.2 PostgreSQL 回退演练。
+**恢复旧快照会使快照之后的新写入不出现在回退库中。** 执行恢复前必须明确这部分数据如何处理；不能仅换回旧 JAR 连接已迁移的库。本轮已在真实目标 PostgreSQL 的独立副本完成“旧包 + 升级前快照”恢复预演；正式库未执行回滚。恢复前应复核快照后的新增数据，不能无条件覆盖。
 
 ## 9. 后续官方版本升级流程
 
@@ -401,22 +418,24 @@ API 测试内部固定英文站点上下文以校验上游英文错误信息，�
 ## 10. GitHub 发布与维护
 
 - 远端：`https://github.com/chengang900-glitch/kanban.git`；发布入口：`main`。
-- 本地开发分支：`customization/uhooai-v0.65.2`；本地发布分支：`publication/kanban-v0.65.2`。
+- 本地开发分支：`customization/uhooai-v0.65.3`；本地发布分支：`publication/kanban-v0.65.3`。
 - 本地开发仓库为浅克隆。为保留 kanban 既有 main 历史，源码首次以快照提交 `3ab6c942b93036c07db044eeaffcae4d99b2a54a` 正常快进发布，父提交为旧 main `0f3ecb18873c5d47b5b67eddcc33bd0cccec1d74`。
 - 该首次快照的源码 tree 与本地 `5ba4f10354baf5bab617435d358524ed409c5439` 完全一致；它不是把官方 Metabase 全部历史重新上传。后续文档提交以 main 最新历史为准。
 - 不强推覆盖远端；每次发布核对远端 main SHA、本地发布 SHA，以及发布 tree 与预期本地 tree 一致。
 - 首次源码发布前，205 个相对官方基线的定制文件通过敏感令牌扫描。
+- v0.65.3 本次以远端原 main `3c200f773b62840349b6813411c7892b589c6f66` 为父提交创建同树发布快照；以正常快进推送并核对 tree。发布 SHA 单独保存在制品旁 `publication.json`，不与包内 hash 混同。
+- 本次相对远端的 672 个新增/修改文本文件扫描，唯一候选为与官方 tag 字节一致的测试夹具，无新增真实凭据。
 - JAR、原始截图、日志、依赖、数据库及私有运行配置未上传。当前仓库不是 JAR 下载站；需要分发安装包时使用另行确认的制品渠道，并携带 SHA-256。
 
 旧阶段文档中的“未推送”“当前版本”“当前构建输出”等描述只代表当时快照。当前版本和状态以本文、当前源码与最终制品记录为准；部署状态仍须查相应服务器记录并实时复核。
 
 ## 11. 已知限制与待验收事项
 
-- v0.65.2 最新定制包尚未部署服务器，未对生产 PostgreSQL 执行迁移或恢复。
+- v0.65.3 已部署 UhooAI；仅对该实例实施升级，其他服务器不在本轮范围。
 - 未执行真实模型调用；保留新版 AI 不等于已经完成模型接入或 Qwen 兼容验证。
 - 本轮已验证多语言生成请求使用站点语言；真实模型可能不完全遵循语言指令，仍需接入后检查。旧英文推荐列表需管理员重新生成。
-- 最终 UI 包未重做真实 Keycloak、跨账号、统一注销和 LibreChat 门户全链路生产验收。
-- 历史企业 AI 门户记录中，`/portal/data` 在 Metabase 升级前已存在 LibreChat `t.replace is not a function` 白屏；本轮没有修复或重新确认其在线状态。
+- 本轮真实 Keycloak 登录、原会话刷新及门户 iframe 已检查；未执行生产跨账号切换和全局注销。
+- 历史 5922 环境的 LibreChat 白屏记录不代表本轮 UhooAI 状态。UhooAI 门户验收中的短暂“数据中心暂不可用”需按本轮记录如实追踪。
 - 嵌入入门页部分上游新增文案仍为英文，如 `Create your first embed`；271 条调整针对图表对象已有中文译文，不是整站全部新文案汉化。
 - 未跑完整上游测试集，未完成全部移动端、SDK、导出、拖拽和业务查询组合的回归。
 - 菜单/帮助隐藏不等于功能移除；setup 开关禁用也不等于撤销管理员权限或覆盖已有配置。
@@ -435,5 +454,7 @@ API 测试内部固定英文站点上下文以校验上游英文错误信息，�
 | [v0.65.2 首次验收 JSON](UHOOAI_V652_VERIFICATION.json) | 首次制品和测试数据 |
 | [setup、链接与术语定制](UHOOAI_V652_SETUP_UI.md) | setup 等九项定制的专项说明 |
 | [setup 修订包验收 JSON](UHOOAI_V652_SETUP_UI_VERIFICATION.json) | f8047ea 历史制品、测试、运行与页面检查 |
-| [嵌入与 AI 语言修订](UHOOAI_V652_EMBEDDING_AI_LANGUAGE.md) | 本轮两项需求、语言规则和使用方式 |
-| [嵌入与 AI 语言验收 JSON](UHOOAI_V652_EMBEDDING_AI_LANGUAGE_VERIFICATION.json) | 本轮制品和定向验收结果 |
+| [嵌入与 AI 语言修订](UHOOAI_V652_EMBEDDING_AI_LANGUAGE.md) | v0.65.2 两项需求、语言规则和使用方式 |
+| [嵌入与 AI 语言验收 JSON](UHOOAI_V652_EMBEDDING_AI_LANGUAGE_VERIFICATION.json) | v0.65.2 制品和定向验收结果 |
+| [v0.65.3 升级记录](UHOOAI_V653_UPGRADE.md) | 本轮迁移、构建、部署和验收 |
+| [v0.65.3 验收 JSON](UHOOAI_V653_VERIFICATION.json) | 当前制品、检查和服务器事实 |

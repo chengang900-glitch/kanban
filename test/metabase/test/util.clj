@@ -136,7 +136,8 @@
 
    :model/Action
    (fn [_] {:creator_id (rasta-id)
-            :entity_id (u/generate-nano-id)})
+            :entity_id (u/generate-nano-id)
+            :name (u.random/random-name)})
 
    :model/Channel
    (fn [_] (default-timestamped
@@ -183,7 +184,8 @@
    (fn [_] {:entity_id    (u/generate-nano-id)
             :name         (u/lower-case-en (u.random/random-name))
             :display_name (u.random/random-name)
-            :bundle_path  "dist/index.js"})
+            :bundle_path  "dist/index.js"
+            :bundle       (.getBytes "" "UTF-8")})
 
    :model/Database
    (fn [_] (default-timestamped

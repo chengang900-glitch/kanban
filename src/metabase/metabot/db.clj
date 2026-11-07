@@ -282,6 +282,33 @@
    user-id :- ::lib.schema.id/user]
   (t2/exists? :model/MetabotMessage :conversation_id conversation-id :user_id user-id))
 
+(mu/defn- other-participant?
+  "Whether a User other than `user-id` has sent a message in the MetabotConversation with `conversation-id`."
+  [conversation-id :- :string
+   user-id :- ::lib.schema.id/user]
+  (t2/exists? :model/MetabotMessage :conversation_id conversation-id :user_id [:not= user-id]))
+
+(mu/defn- slack-message?
+  "Whether any message in the MetabotConversation with `conversation-id` was sent through Slack."
+  [conversation-id :- :string]
+  (t2/exists? :model/MetabotMessage :conversation_id conversation-id :channel_id [:not= nil]))
+
+(mu/defn conversation-open-to-others?
+  "Whether someone other than the User with `user-id` can read the MetabotConversation with `conversation-id`,
+   now or by joining it later. False for a conversation that does not exist.
+   Superusers can read every conversation and are not counted."
+  [conversation-id :- :string
+   user-id :- ::lib.schema.id/user]
+  (boolean
+   (when-let [{:keys [id user_id slack_thread_ts]} (conversation conversation-id)]
+     ;; Anyone in a Slack thread can join its conversation, so the thread counts before a second person writes.
+     ;; A thread older than the `slack_thread_ts` column shows as Slack only through its messages.
+     ;; Whoever started a conversation can read it even when none of its messages name them.
+     (or (some? slack_thread_ts)
+         (some-> user_id (not= user-id))
+         (other-participant? id user-id)
+         (slack-message? id)))))
+
 (mu/defn message-by-external-id
   "The ID and conversation of the MetabotMessage with `external-id`, or nil."
   [external-id :- :string]
@@ -392,7 +419,7 @@
 (mu/defn database-summary
   "The ID, name, description, and engine of the Database with `database-id`."
   [database-id :- ::lib.schema.id/database]
-  (t2/select-one [:model/Database :id :name :description :engine] database-id))
+  (t2/select-one [:model/Database :id :name :description :engine] :id [:auto/param database-id]))
 
 (mu/defn database-with-columns
   "The `columns` of the Database with `database-id`."
@@ -480,10 +507,11 @@
   "Return the ID, name, schema, and database ID of each table in `table-ids`.
 
   Rows also include `:is_published` and `:collection_id`, which `can-read?` and `can-query?` need to check access
-  through a collection. Both keys must be present, even when nil."
+  through a collection. Both keys must be present, even when nil.
+  Both are user values, so the rows read through the user-settings overlay."
   [table-ids :- [:sequential ::lib.schema.id/table]]
   (t2/select [:model/Table :id :name :schema :db_id :is_published :collection_id] :id [:in table-ids]
-             {:from [(warehouse-schema-overlay/table-query {:user-settings? false})]}))
+             {:from [(warehouse-schema-overlay/table-query)]}))
 
 (mu/defn table-curation-rows
   "The ID, published flag, data layer, and data authority of the Tables with `table-ids`."
@@ -916,12 +944,12 @@
 (mu/defn dashboard
   "The Dashboard with `dashboard-id`, or nil."
   [dashboard-id :- ::lib.schema.id/dashboard]
-  (t2/select-one :model/Dashboard dashboard-id))
+  (t2/select-one :model/Dashboard :id [:auto/param dashboard-id]))
 
 (mu/defn dashboard-summary
   "The ID, description, name, Collection ID, and parameters of the Dashboard with `dashboard-id`, or nil."
   [dashboard-id :- ::lib.schema.id/dashboard]
-  (t2/select-one [:model/Dashboard :id :description :name :collection_id :parameters] dashboard-id))
+  (t2/select-one [:model/Dashboard :id :description :name :collection_id :parameters] :id [:auto/param dashboard-id]))
 
 (mu/defn dashboard-name
   "The name of the Dashboard with `dashboard-id`."
@@ -1019,7 +1047,7 @@
   "The ID, email, and names of the User with `user-id`, or nil if `user-id` is nil or matches no User."
   [user-id :- [:maybe ::lib.schema.id/user]]
   (when user-id
-    (t2/select-one [:model/User :id :email :first_name :last_name] user-id)))
+    (t2/select-one [:model/User :id :email :first_name :last_name] :id [:auto/param user-id])))
 
 (mu/defn user-summaries-by-id
   "A map of ID to the ID, email, and names of the Users with `user-ids`."

@@ -2,7 +2,7 @@
 
 ## UhooAI 数据看板定制版
 
-本仓库发布基于 Metabase OSS 的 UhooAI 定制源码。当前交付包为 **v0.65.2 / 39088d6**，源码发布与服务器部署状态分别记录。
+本仓库发布基于 Metabase OSS 的 UhooAI 定制源码。当前交付包为 **v0.65.3 / 42619e6**，源码发布与服务器部署状态分别记录。
 
 完整的定制清单、方案、源码位置、构建、验证、升级和回滚说明见 [UhooAI 定制与升级说明](docs/customization/UHOOAI_CUSTOMIZATION_UPGRADE_GUIDE.md)。
 
@@ -30,7 +30,7 @@ You get expert support, backups, upgrades, an SMTP server, SSL certificate, SoC2
 - Use [documents](https://www.metabase.com/docs/latest/documents/introduction) for long-form data analysis, and invite people to comment.
 - [Transform](https://www.metabase.com/docs/latest/data-studio/transforms/transforms-overview) raw data into analytics-ready tables, track down broken dependencies, and define canonical metrics in Metabase's [Data Studio](https://www.metabase.com/docs/latest/data-studio/overview).
 - Set up [alerts on your data](https://www.metabase.com/docs/latest/questions/alerts), or schedule [dashboard subscriptions](https://www.metabase.com/docs/latest/dashboards/subscriptions) to email, Slack, or even a webhook.
-- Curate content in a [Library](https://www.metabase.com/docs/latest/data-studio/library), and [version your work with Git](https://www.metabase.com/docs/latest/installation-and-operation/remote-sync).
+- Curate content in a [Library](https://www.metabase.com/docs/latest/data-studio/library), and [version your work with Git](https://www.metabase.com/docs/latest/data-modeling/semantic-layer/remote-sync).
 - [Embed Metabase in your app](https://www.metabase.com/docs/latest/embedding/introduction), with components for charts, dashboards, data browser, AI chat, and more. You can even put [an entire Metabase](https://www.metabase.com/docs/latest/embedding/interactive-embedding) in your app.
 - Set granular [permissions](https://www.metabase.com/docs/latest/permissions/introduction) that work for both internal teams and embedded analytics, whether you co-locate your customer data, or give each customer their own database.
 - Dark mode, content translations, and way more stuff than we can list here.
