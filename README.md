@@ -2,7 +2,7 @@
 
 ## UhooAI 数据看板定制版
 
-本仓库发布基于 Metabase OSS 的 UhooAI 定制源码。当前交付包为 **v0.65.3 / 42619e6**，源码发布与服务器部署状态分别记录。
+本仓库发布基于 Metabase OSS 的 UhooAI 定制源码。当前定制源码基于 **v0.65.4**，源码发布与服务器部署状态分别记录。 本次构建与生产验收见 [UhooAI v0.65.4 升级记录](docs/customization/UHOOAI_V654_UPGRADE.md)。
 
 完整的定制清单、方案、源码位置、构建、验证、升级和回滚说明见 [UhooAI 定制与升级说明](docs/customization/UHOOAI_CUSTOMIZATION_UPGRADE_GUIDE.md)。
 

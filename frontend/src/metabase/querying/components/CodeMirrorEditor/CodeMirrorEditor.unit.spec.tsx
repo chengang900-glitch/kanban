@@ -4,7 +4,8 @@ import userEvent from "@testing-library/user-event";
 import fetchMock from "fetch-mock";
 
 import { createMockMetadata } from "__support__/metadata";
-import { renderWithProviders, screen } from "__support__/ui";
+import { setupDatabaseAutocompleteSuggestionsEndpoint } from "__support__/server-mocks";
+import { renderWithProviders, screen, waitFor, within } from "__support__/ui";
 import { waitForRequestsToSettle } from "__support__/utils";
 import * as Lib from "metabase-lib";
 import { createMetadataProvider } from "metabase-lib/test-helpers";
@@ -12,30 +13,45 @@ import type {
   CardAutocompleteSuggestion,
   NativeQuerySnippet,
 } from "metabase-types/api";
-import { createMockCard, createMockField } from "metabase-types/api/mocks";
+import {
+  createMockCard,
+  createMockDatabase,
+  createMockField,
+} from "metabase-types/api/mocks";
 import { createSampleDatabase } from "metabase-types/api/mocks/presets";
 
-import { CodeMirrorEditor } from "./CodeMirrorEditor";
+import {
+  CodeMirrorEditor,
+  type CodeMirrorEditorProps,
+} from "./CodeMirrorEditor";
+
+const MONGO_DB_ID = 2;
+
+type SetupOpts = {
+  text?: string;
+  readOnly?: boolean;
+  snippets?: NativeQuerySnippet[];
+  engine?: string;
+};
 
 function setup({
   text = "",
   readOnly = false,
   snippets = [],
-}: {
-  text?: string;
-  readOnly?: boolean;
-  snippets?: NativeQuerySnippet[];
-} = {}) {
+  engine,
+}: SetupOpts = {}) {
   const onChange = jest.fn();
   const onCursorMoveOverCardTag = jest.fn();
   const onRightClickSelection = jest.fn();
   const onSelectionChange = jest.fn();
+  const onRunQuery = jest.fn();
+  const onFormatQuery = jest.fn();
 
   fetchMock.get("path:/api/native-query-snippet", {
     body: snippets,
   });
 
-  const database = createSampleDatabase();
+  const database = createSampleDatabase(engine ? { engine } : undefined);
   const metadata = createMockMetadata({
     databases: [database],
   });
@@ -46,23 +62,35 @@ function setup({
 
   const query = Lib.createTestNativeQuery(provider, { query: text });
 
-  renderWithProviders(
-    <CodeMirrorEditor
-      query={query}
-      onChange={onChange}
-      readOnly={readOnly}
-      onCursorMoveOverCardTag={onCursorMoveOverCardTag}
-      onRightClickSelection={onRightClickSelection}
-      onSelectionChange={onSelectionChange}
-    />,
-  );
+  const props: CodeMirrorEditorProps = {
+    query,
+    onRunQuery,
+    onFormatQuery,
+    onChange,
+    readOnly,
+    onCursorMoveOverCardTag,
+    onRightClickSelection,
+    onSelectionChange,
+  };
+  const { rerender } = renderWithProviders(<CodeMirrorEditor {...props} />);
 
   return {
     onChange,
     onCursorMoveOverCardTag,
     onRightClickSelection,
     onSelectionChange,
+    onRunQuery,
+    onFormatQuery,
+    rerender: (overrides: Partial<CodeMirrorEditorProps>) =>
+      rerender(<CodeMirrorEditor {...props} {...overrides} />),
   };
+}
+
+async function findCompletions() {
+  const listbox = await screen.findByRole("listbox", { name: "Completions" });
+  return within(listbox)
+    .getAllByRole("option")
+    .map((option) => option.textContent ?? "");
 }
 
 describe("CodemirrorEditor", () => {
@@ -132,5 +160,198 @@ describe("CodemirrorEditor", () => {
     expect(
       await screen.findByRole("listbox", { name: "Completions" }),
     ).toHaveTextContent("#51-a-people-question");
+  });
+
+  it("lists tables, columns and keywords together in the completions", async () => {
+    setupDatabaseAutocompleteSuggestionsEndpoint({
+      databaseId: 1,
+      suggestions: [["SEATS", "ACCOUNTS :type/Integer"]],
+    });
+    setup({ engine: "h2" });
+
+    await waitForRequestsToSettle();
+    await userEvent.click(screen.getByRole("textbox"));
+    await userEvent.keyboard("se");
+
+    await waitFor(async () => {
+      const completions = await findCompletions();
+      expect(completions).toContain("SEATSACCOUNTS :type/Integer");
+    });
+    expect(await findCompletions()).toContain("SELECTkeyword");
+  });
+
+  it("lists a column once when several tables have it", async () => {
+    setupDatabaseAutocompleteSuggestionsEndpoint({
+      databaseId: 1,
+      suggestions: [
+        ["ACCOUNT_ID", "FEEDBACK :type/Integer :type/FK"],
+        ["ACCOUNT_ID", "INVOICES :type/Integer :type/FK"],
+        ["ACCOUNT_ID", "ANALYTIC_EVENTS :type/Integer :type/FK"],
+      ],
+    });
+    setup();
+
+    await waitForRequestsToSettle();
+    await userEvent.click(screen.getByRole("textbox"));
+    await userEvent.keyboard("acc");
+
+    await waitFor(async () => {
+      const completions = await findCompletions();
+      expect(completions).toContain(
+        "ACCOUNT_IDFEEDBACK :type/Integer :type/FK",
+      );
+    });
+    const accountIds = (await findCompletions()).filter((completion) =>
+      completion.startsWith("ACCOUNT_ID"),
+    );
+    expect(accountIds).toHaveLength(1);
+  });
+
+  it("lists local aliases of the query in the completions", async () => {
+    setupDatabaseAutocompleteSuggestionsEndpoint({
+      databaseId: 1,
+      suggestions: [["order_mode", "ORDERS :type/Text"]],
+    });
+    setup({
+      engine: "h2",
+      text: "SELECT date_trunc('month', CREATED_AT) as order_month FROM ORDERS GROUP BY ",
+    });
+
+    await waitForRequestsToSettle();
+    await userEvent.click(screen.getByRole("textbox"));
+    await userEvent.keyboard("{Control>}{End}{/Control}order_mo");
+
+    expect(await findCompletions()).toContain("order_monthlocal");
+  });
+
+  it("lists mongo keywords, tables and fields in the completions", async () => {
+    setupDatabaseAutocompleteSuggestionsEndpoint({
+      databaseId: 1,
+      suggestions: [
+        ["products", "Table"],
+        ["group_id", "orders :type/Integer"],
+        ["price", "products :type/Float"],
+        ["product_id", "orders :type/Integer"],
+      ],
+    });
+    setup({ engine: "mongo" });
+
+    await waitForRequestsToSettle();
+    await userEvent.click(screen.getByRole("textbox"));
+    await userEvent.keyboard('[[{{ "$grou');
+
+    const groupCompletions = (await findCompletions()).filter((completion) =>
+      completion.startsWith("$group"),
+    );
+    expect(groupCompletions).toEqual(["$groupkeyword"]);
+
+    await userEvent.keyboard('p": {{ "pr');
+
+    await waitFor(async () => {
+      const completions = await findCompletions();
+      expect(completions).toEqual(
+        expect.arrayContaining([
+          "priceproducts :type/Float",
+          "product_idorders :type/Integer",
+          "productsTable",
+        ]),
+      );
+    });
+  });
+
+  describe("keyboard shortcuts", () => {
+    beforeEach(() => {
+      fetchMock.get("path:/api/database/1/autocomplete_suggestions", []);
+      fetchMock.get("path:/api/database/1/card_autocomplete_suggestions", []);
+    });
+
+    async function typeAtEnd(keys: string) {
+      await waitForRequestsToSettle();
+      await userEvent.click(screen.getByRole("textbox"));
+      await userEvent.keyboard(`{Control>}{End}{/Control}${keys}`);
+    }
+
+    it("runs the query with Ctrl+Enter without inserting a newline", async () => {
+      const { onRunQuery, onChange } = setup({ text: "SELECT 1" });
+
+      await typeAtEnd("{Control>}{Enter}{/Control}");
+
+      expect(onRunQuery).toHaveBeenCalledTimes(1);
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("formats the query with Shift+Ctrl+F", async () => {
+      const { onFormatQuery } = setup({ text: "SELECT 1" });
+
+      await typeAtEnd("{Shift>}{Control>}f{/Control}{/Shift}");
+
+      expect(onFormatQuery).toHaveBeenCalledTimes(1);
+    });
+
+    it("inserts a tab at the cursor and indents the selected lines", async () => {
+      const { onChange } = setup({ text: "SELECT" });
+
+      await typeAtEnd("{Tab}");
+      expect(onChange).toHaveBeenLastCalledWith("SELECT\t", expect.anything());
+
+      await userEvent.keyboard("{Control>}a{/Control}{Tab}");
+      expect(onChange).toHaveBeenLastCalledWith(
+        "\tSELECT\t",
+        expect.anything(),
+      );
+    });
+
+    it("keeps the indentation of the previous line on a new line", async () => {
+      const { onChange } = setup();
+
+      await typeAtEnd("{Tab}SELECT{Enter}FOO");
+
+      expect(onChange).toHaveBeenLastCalledWith(
+        "\tSELECT\n\tFOO",
+        expect.anything(),
+      );
+    });
+
+    it("indents json-like queries with two spaces", async () => {
+      const { onChange } = setup({ engine: "mongo" });
+
+      await typeAtEnd("{Tab}");
+      expect(onChange).toHaveBeenLastCalledWith("  ", expect.anything());
+
+      await userEvent.keyboard(
+        '{Control>}a{/Control}{Backspace}[[{Enter}{{{Enter}"foo": "bar",{Enter}"baz"',
+      );
+      expect(onChange).toHaveBeenLastCalledWith(
+        ["[", "  {", '    "foo": "bar",', '    "baz"', "  }", "]"].join("\n"),
+        expect.anything(),
+      );
+    });
+
+    it("indents with two spaces after the query engine changes to a json-like one", async () => {
+      const mongoDatabase = createMockDatabase({
+        id: MONGO_DB_ID,
+        engine: "mongo",
+      });
+      fetchMock.get(
+        `path:/api/database/${MONGO_DB_ID}/autocomplete_suggestions`,
+        [],
+      );
+      fetchMock.get(
+        `path:/api/database/${MONGO_DB_ID}/card_autocomplete_suggestions`,
+        [],
+      );
+      const mongoProvider = createMetadataProvider({
+        databaseId: MONGO_DB_ID,
+        metadata: createMockMetadata({ databases: [mongoDatabase] }),
+      });
+      const { onChange, rerender } = setup();
+
+      rerender({
+        query: Lib.createTestNativeQuery(mongoProvider, { query: "" }),
+      });
+      await typeAtEnd("{Tab}");
+
+      expect(onChange).toHaveBeenLastCalledWith("  ", expect.anything());
+    });
   });
 });
